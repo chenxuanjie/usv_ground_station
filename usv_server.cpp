@@ -287,6 +287,15 @@ void boat_listener_loop() {
                              send_ws_frame("TCP_STATUS,FAILED"); // 告诉网页：连接失败
                          }
                      }
+                     
+                     else if (decoded == "CMD,QUERY_STATUS") {
+                        lock_guard<mutex> lock(g_boat_mutex);
+                        if (g_boat_sock != -1) {
+                            send_ws_frame("TCP_STATUS,ONLINE"); 
+                        } else {
+                            send_ws_frame("TCP_STATUS,OFFLINE"); 
+                        }
+                    }
                      // --- 情况 B: 收到断开指令 ---
                      else if (decoded.find("CMD,DISCONNECT") == 0) {
                          lock_guard<mutex> lock(g_boat_mutex);

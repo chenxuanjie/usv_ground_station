@@ -70,8 +70,8 @@
                 
                 ws.onopen = () => {
                     setWebConnected(true);
-                    addLog('SYS', 'Backend 连接成功');
                     ws.send("GET_CONFIG");
+                    ws.send("CMD,QUERY_STATUS");
                 };
 
                 ws.onclose = () => {
