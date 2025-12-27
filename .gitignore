@@ -1,0 +1,52 @@
+# --- 构建产物 (Build Artifacts) ---
+# 排除整个 build 文件夹
+build/
+# 如果你在根目录下直接执行 make，排除生成的可执行文件和中间件
+/usv_server
+*.o
+*.out
+*.app
+
+# --- CMake 产生的临时文件 ---
+# 虽然大部分在 build/ 文件夹中，但有时在根目录生成也需排除
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+Makefile
+
+# --- C++ 常用排除项 ---
+# 预编译头文件
+*.gch
+*.pch
+
+# 库文件
+*.lib
+*.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dll
+*.dylib
+
+# 调试符号和日志
+*.dSYM/
+*.log
+*.database
+*.suo
+
+# --- 编辑器与系统文件 ---
+# VS Code
+.vscode/
+# Visual Studio
+.vs/
+# macOS 系统文件
+.DS_Store
+# JetBrains (Clion)
+.idea/
+
+# --- 配置文件 (可选) ---
+# 如果 config.ini 包含敏感信息（如 API 密钥或本地路径），建议取消下面这行的注释
+# config.ini
