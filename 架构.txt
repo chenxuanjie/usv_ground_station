@@ -1,0 +1,12 @@
+/project-root
+  ├── index.html          (入口)
+  ├── js/
+  │   ├── locales.js      (存放 translations 语言包)
+  │   ├── icons.js        (存放 Icons 组件)
+  │   ├── hooks.js        (存放 WebSocket 和 键盘控制 等纯逻辑)
+  │   ├── components/     (存放拆分出来的 UI 组件)
+  │   │   ├── Header.js
+  │   │   ├── HudMonitor.js
+  │   │   ├── ControlPanel.js
+  │   │   └── LogDrawer.js
+  │   └── app.js          (只负责组装，代码量将减少到 100 行以内)
