@@ -8,6 +8,8 @@
     <script crossorigin src="https://lib.baomitu.com/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://lib.baomitu.com/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://lib.baomitu.com/babel-standalone/7.22.17/babel.min.js"></script>
+    <script type="text/javascript" src="http://api.map.baidu.com/getscript?v=3.0&ak=zaL1UjUlAdknPEVP5HBNRleQGj5le1La"></script>
+    
     <style>
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #020617; }
@@ -34,6 +36,8 @@
             from { opacity: 0; transform: translateX(5px); }
             to { opacity: 1; transform: translateX(0); }
         }
+        .BMap_cpyCtrl { display: none; }
+        .anchorBL { display: none; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 overflow-hidden font-sans selection:bg-cyan-500/30">
@@ -45,6 +49,7 @@
     <script type="text/babel" src="js/components/Header.js"></script>
     <script type="text/babel" src="js/components/Sidebar.js"></script>
     <script type="text/babel" src="js/components/LogDrawer.js"></script>
+    <script type="text/babel" src="js/components/MapComponent.js"></script>
 
     <script type="text/babel" src="js/app.js"></script>
 </body>

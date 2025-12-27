@@ -204,15 +204,29 @@ function BoatGroundStation() {
                 />
 
                 {/* Center Area */}
-                <div className="flex-1 bg-slate-900/50 relative flex items-center justify-center border-x border-cyan-900/10 scan-effect overflow-hidden z-0">
-                    <div className="absolute top-4 left-4 flex gap-2">
-                        <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">{t('main_camera')}</div>
-                        <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">{t('map_view')}</div>
+                <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
+                    {/* 地图组件 - 传入实时数据 */}
+                    <MapComponent 
+                        lng={boatStatus.longitude} 
+                        lat={boatStatus.latitude} 
+                        heading={boatStatus.heading} 
+                    />
+
+                    {/* 覆盖在地图上的 UI 元素 (摄像头/地图切换按钮) */}
+                    <div className="absolute top-4 left-4 flex gap-2 z-10">
+                        <div className="bg-slate-950/80 backdrop-blur border border-cyan-500/30 px-3 py-1 text-xs rounded text-cyan-400 font-bold shadow-lg">Map View</div>
+                        <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                     </div>
-                    <div className="text-center opacity-30 pointer-events-none">
-                        <Icons.Video size={64} className="mx-auto text-cyan-800 mb-4"/>
-                        <div className="text-xl font-bold text-cyan-800 tracking-widest">{t('no_signal')}</div>
-                    </div>
+                    
+                    {/* 如果数据全为0，显示一个等待提示 */}
+                    {boatStatus.longitude === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
+                            <div className="text-center">
+                                <Icons.MapPin className="w-8 h-8 text-yellow-500 mx-auto animate-bounce"/>
+                                <span className="text-xs text-yellow-500 font-bold mt-2 block">WAITING FOR GPS FIX...</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <LogDrawer 
