@@ -46,8 +46,8 @@
             const [logs, setLogs] = useState([]);
             const [inputCmd, setInputCmd] = useState('');
             const wsRef = useRef(null);
-            const [serverIp, setServerIp] = useState('');
-            const [serverPort, setServerPort] = useState('');
+            const [serverIp, setServerIp] = useState('120.77.0.8');
+            const [serverPort, setServerPort] = useState('6202');
             const connectTimeoutRef = useRef(null);
 
             const [streamOn, setStreamOn] = useState(false);
@@ -129,13 +129,11 @@
                 if (!wsRef.current) return;
 
                 if (tcpStatus === 'ONLINE') {
-                    // 只有在线时，点击才发送断开
                     wsRef.current.send("CMD,DISCONNECT");
-                    // 这里不立即设置 OFFLINE，等待后端确认
                 } else if (tcpStatus === 'OFFLINE') {
-                    // 只有离线时，点击才允许连接
                     setTcpStatus('CONNECTING');
                     addLog('SYS', `正在连接 ${serverIp}:${serverPort}...`);
+                    // 发送前端输入框里的 IP 和 Port 给后端
                     wsRef.current.send(`CMD,CONNECT,${serverIp},${serverPort}`);
                     
                     // 5秒后如果还没反应，前端提示超时
