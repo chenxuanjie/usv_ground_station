@@ -155,6 +155,47 @@
      }
  }
  
+ string get_mime_type(const string& path) {
+    if (path.find(".html") != string::npos) return "text/html; charset=utf-8";
+    if (path.find(".js") != string::npos) return "application/javascript; charset=utf-8";
+    if (path.find(".css") != string::npos) return "text/css; charset=utf-8";
+    return "text/plain";
+}
+
+// === 修改：通用文件服务函数 ===
+void serve_static_file(int client_sock, string path) {
+    // 简单的安全检查，防止访问上级目录
+    if (path.find("..") != string::npos) {
+        string msg = "HTTP/1.1 403 Forbidden\r\n\r\n";
+        send(client_sock, msg.c_str(), msg.length(), 0);
+        return;
+    }
+
+    // 默认访问 index.html
+    if (path == "/") path = "/index.html";
+    
+    // 去掉开头的 /，例如 "/app.js" -> "app.js"
+    if (path[0] == '/') path = path.substr(1);
+
+    ifstream f(path, ios::binary);
+    if (f) {
+        // 读取文件内容
+        string content((istreambuf_iterator<char>(f)), istreambuf_iterator<char>());
+        
+        // 构建 HTTP 头
+        string header = "HTTP/1.1 200 OK\r\n";
+        header += "Content-Type: " + get_mime_type(path) + "\r\n";
+        header += "Content-Length: " + to_string(content.length()) + "\r\n";
+        header += "Connection: close\r\n\r\n";
+        
+        send(client_sock, header.c_str(), header.length(), 0);
+        send(client_sock, content.c_str(), content.length(), 0);
+    } else {
+        string msg = "HTTP/1.1 404 Not Found\r\n\r\n<h1>404: File Not Found</h1>";
+        send(client_sock, msg.c_str(), msg.length(), 0);
+    }
+}
+
  // 无人艇数据监听线程 (仅在连接成功后由主逻辑启动)
 void boat_listener_loop() {
     char buffer[4096];
@@ -321,11 +362,22 @@ void boat_listener_loop() {
              close(client_sock);
          }
      } 
-     // 2. 普通 HTTP GET 请求 -> 返回 HTML 文件
-     else if (req.find("GET / HTTP") != string::npos) {
-         serve_html_file(client_sock);
-         close(client_sock); // HTTP 短连接
-     } 
+    // 2. 通用 HTTP GET 请求 (整合了 / 和 /app.js 等所有情况)
+    else if (req.find("GET") == 0) {
+        // 解析请求路径，例如 "GET /app.js HTTP/1.1"
+        size_t first_space = req.find(' ');
+        size_t second_space = req.find(' ', first_space + 1);
+        
+        if (first_space != string::npos && second_space != string::npos) {
+            // 提取路径，例如 "/app.js" 或 "/"
+            string path = req.substr(first_space + 1, second_space - first_space - 1);
+            
+            // 调用通用的文件服务函数
+            // 注意：serve_static_file 内部必须有处理 "/" -> "index.html" 的逻辑
+            serve_static_file(client_sock, path);
+        }
+        close(client_sock); // 处理完 HTTP 请求后必须断开（短连接）
+    }
      else {
          close(client_sock);
      }
