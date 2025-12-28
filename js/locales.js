@@ -23,6 +23,8 @@ const AppTranslations = {
         cmd_placeholder: "输入指令...",
         toggle_logs: "终端 / 日志",
         dev_mode: "开发者模式",
+        
+        // 日志部分
         log_ws_disconnect: "警告：前端与后台服务断开",
         log_tcp_online: "成功：已连接到无人艇",
         log_tcp_offline: "提示：无人艇连接已断开",
@@ -33,6 +35,8 @@ const AppTranslations = {
         alert_timeout: "连接超时！后端没有响应。",
         log_connecting: "系统：正在尝试连接",
         log_timeout: "错误：连接请求超时",
+        
+        // 配置按钮
         stream_on: "推流: 开启",
         stream_off: "推流: 关闭",
         recv_on: "接收: 开启",
@@ -40,7 +44,26 @@ const AppTranslations = {
         mode_auto: "模式: 自动 (#)",
         mode_manual: "模式: 手动 (@)",
         loop_on: "巡航: 开启 (1)",
-        loop_off: "巡航: 关闭 (0)"
+        loop_off: "巡航: 关闭 (0)",
+
+        // === 新增：Mission 区域 ===
+        mission_title: "任务航点",
+        mission_pts: "航点数",
+        send_waypoints: "下发航点 (Send WP)",
+        mission_instruction: "右键地图添加点，点击下发按钮发送",
+
+        // === 新增：地图交互 ===
+        map_browse: "浏览",
+        map_add_mode: "添加航点",
+        map_locate: "定位",
+        map_system_active: "百度地图系统运行中",
+        map_instruction_add: "点击地图添加航点",
+        map_instruction_pan: "右键点击呼出菜单",
+        
+        // === 新增：右键菜单 ===
+        menu_ruler: "📏 开启测距",
+        menu_clear: "🗑️ 清除所有航点",
+        menu_delete_point: "❌ 删除此点"
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -66,6 +89,8 @@ const AppTranslations = {
         cmd_placeholder: "Execute command...",
         toggle_logs: "TERMINAL / LOGS",
         dev_mode: "DEV MODE",
+        
+        // Logs
         log_ws_disconnect: "WARN: Disconnected from Backend",
         log_tcp_online: "SUCCESS: Connected to USV",
         log_tcp_offline: "INFO: USV Disconnected",
@@ -76,6 +101,8 @@ const AppTranslations = {
         alert_timeout: "Timeout! No response from backend.",
         log_connecting: "SYSTEM: Connecting to",
         log_timeout: "ERROR: Connection Timeout",
+        
+        // Config Buttons
         stream_on: "STREAM: ON",
         stream_off: "STREAM: OFF",
         recv_on: "RECV: ON",
@@ -83,6 +110,25 @@ const AppTranslations = {
         mode_auto: "MODE: AUTO (#)",
         mode_manual: "MODE: MANUAL (@)",
         loop_on: "LOOP: ON (1)",
-        loop_off: "LOOP: OFF (0)"
+        loop_off: "LOOP: OFF (0)",
+
+        // === New: Mission Section ===
+        mission_title: "MISSION",
+        mission_pts: "PTS",
+        send_waypoints: "SEND MISSION (WP)",
+        mission_instruction: "Right-click map to add points, then click send.",
+
+        // === New: Map Interaction ===
+        map_browse: "BROWSE",
+        map_add_mode: "ADD WP",
+        map_locate: "LOCATE",
+        map_system_active: "BD09 MAP SYSTEM ACTIVE",
+        map_instruction_add: "Click map to add waypoint",
+        map_instruction_pan: "Right-click for options",
+
+        // === New: Context Menu ===
+        menu_ruler: "📏 Ruler Tool",
+        menu_clear: "🗑️ Clear Mission",
+        menu_delete_point: "❌ Delete Point"
     }
 };

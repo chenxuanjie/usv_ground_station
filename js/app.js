@@ -5,7 +5,6 @@ function BoatGroundStation() {
     const [showLogs, setShowLogs] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
-    // 翻译函数 (依赖 js/locales.js)
     const t = (key) => AppTranslations[lang][key] || key;
 
     // 连接状态
@@ -21,7 +20,10 @@ function BoatGroundStation() {
         lastUpdate: null,
     });
     
-    // 日志
+    // === 新增：航点列表状态 ===
+    // 格式: [{lng: 113.xxx, lat: 23.xxx}, ...]
+    const [waypoints, setWaypoints] = useState([]);
+
     const [logs, setLogs] = useState([]);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
@@ -32,17 +34,19 @@ function BoatGroundStation() {
     const [controlMode, setControlMode] = useState('@');
     const [cruiseMode, setCruiseMode] = useState('0');
     
-    // 键盘状态
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
 
-    // --- 核心逻辑函数 ---
+    // --- 核心逻辑 ---
 
     const addLog = (dir, msg, level = 'info') => {
         setLogs(prev => [{id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), dir, msg, level}, ...prev].slice(0, 100));
     };
 
     const sendData = (cmd) => {
-        if (tcpStatus !== 'ONLINE' || !wsRef.current) return;
+        if (tcpStatus !== 'ONLINE' || !wsRef.current) {
+            addLog('ERR', "未连接设备，无法发送指令", 'error');
+            return;
+        }
         const finalCmd = cmd.endsWith(',') ? cmd : cmd + ',';
         wsRef.current.send(finalCmd);
         
@@ -53,9 +57,27 @@ function BoatGroundStation() {
         }
     };
 
+    // === 新增：发送航点 (P协议) ===
+    const sendWaypointsCommand = () => {
+        if (waypoints.length === 0) {
+            alert("请先在地图上右键添加航点！");
+            return;
+        }
+
+        // 拼接 P 报文: P,lng0,lat0,lng1,lat1,...,
+        let cmd = "P";
+        waypoints.forEach(wp => {
+            cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
+        });
+        cmd += ","; // 协议结尾
+
+        sendData(cmd);
+        addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
+    };
+
     const sendSCommand = () => {
         sendData(`S,${streamOn ? '1':'0'},${recvOn ? '3':'2'},q,${controlMode},${cruiseMode},`);
-        if (!devMode) addLog('SYS', "Configuration Updated / 配置已更新", 'info');
+        if (!devMode) addLog('SYS', "配置已更新", 'info');
     };
 
     const sendKCommand = (w,a,s,d) => sendData(`K,${w},${a},${s},${d},`);
@@ -82,7 +104,6 @@ function BoatGroundStation() {
 
     // --- Effects ---
 
-    // 1. WebSocket 连接
     useEffect(() => {
         const connectToBridge = () => {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -143,7 +164,6 @@ function BoatGroundStation() {
         return () => { if (wsRef.current) wsRef.current.close(); clearTimeout(connectTimeoutRef.current); };
     }, []); 
 
-    // 2. 键盘监听
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.repeat || document.activeElement.tagName === 'INPUT') return;
@@ -171,7 +191,6 @@ function BoatGroundStation() {
         };
     }, [tcpStatus]); 
 
-    // 按钮配置计算
     const getBtnConfig = () => {
         if (tcpStatus === 'ONLINE') return { text: t('btn_disconnect'), color: 'bg-red-600/90 hover:bg-red-700 border-red-500 shadow-red-900/50', disabled: false };
         if (tcpStatus === 'CONNECTING') return { text: t('btn_connecting'), color: 'bg-yellow-600/90 border-yellow-500 shadow-yellow-900/50', disabled: true };
@@ -196,29 +215,33 @@ function BoatGroundStation() {
                 <Sidebar 
                     boatStatus={boatStatus}
                     configState={{streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode}}
-                    setConfigState={()=>{}} // 简化传参
+                    setConfigState={()=>{}} 
                     keyState={keyState}
                     sendSCommand={sendSCommand}
                     sendKCommand={sendKCommand}
+                    // === 传递给 Sidebar 航点发送功能 ===
+                    sendWaypointsCommand={sendWaypointsCommand}
+                    waypointsCount={waypoints.length}
                     t={t}
                 />
 
-                {/* Center Area */}
                 <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
-                    {/* 地图组件 - 传入实时数据 */}
+                    {/* 地图组件：传入航点列表和修改函数 */}
                     <MapComponent 
                         lng={boatStatus.longitude} 
                         lat={boatStatus.latitude} 
                         heading={boatStatus.heading} 
+                        waypoints={waypoints}
+                        setWaypoints={setWaypoints}
+                        cruiseMode={cruiseMode}
+                        t={t}
                     />
 
-                    {/* 覆盖在地图上的 UI 元素 (摄像头/地图切换按钮) */}
                     <div className="absolute top-4 left-4 flex gap-2 z-10">
                         <div className="bg-slate-950/80 backdrop-blur border border-cyan-500/30 px-3 py-1 text-xs rounded text-cyan-400 font-bold shadow-lg">Map View</div>
                         <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                     </div>
                     
-                    {/* 如果数据全为0，显示一个等待提示 */}
                     {boatStatus.longitude === 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
                             <div className="text-center">

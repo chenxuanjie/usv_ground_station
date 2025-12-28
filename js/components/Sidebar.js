@@ -1,4 +1,4 @@
-function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, t }) {
+function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
 
     return (
@@ -88,6 +88,28 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                 </div>
             </div>
 
+            {/* Mission / Waypoints */}
+            <div className="p-4 rounded-lg border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                         <Icons.Navigation size={14}/> {t('mission_title')}
+                    </h3>
+                    <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-cyan-300 border border-slate-700">
+                        {waypointsCount || 0} {t('mission_pts')}
+                    </span>
+                </div>
+                <button 
+                    onClick={sendWaypointsCommand}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white text-xs py-2 rounded font-bold shadow-lg tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!waypointsCount || waypointsCount === 0}
+                >
+                    <Icons.Send size={12}/> {t('send_waypoints')}
+                </button>
+                <div className="text-[9px] text-slate-500 mt-2 text-center">
+                    {t('mission_instruction')}
+                </div>
+            </div>
+
             {/* Remote Control */}
             <div className="p-4 rounded-lg border border-slate-800 bg-slate-900/50 flex flex-col items-center relative">
                 <div className="absolute top-2 left-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">{t('manual_override')}</div>
@@ -101,6 +123,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                         <Icons.ArrowUp size={24}/>
                     </button>
                     <div/>
+                    
                     <button 
                         onMouseDown={()=>sendKCommand(0,1,0,0)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
@@ -108,6 +131,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     >
                         <Icons.ArrowLeft size={24}/>
                     </button>
+                    
                     <button 
                         onMouseDown={()=>sendKCommand(0,0,1,0)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
@@ -115,6 +139,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     >
                         <Icons.ArrowDown size={24}/>
                     </button>
+                    
                     <button 
                         onMouseDown={()=>sendKCommand(0,0,0,1)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
