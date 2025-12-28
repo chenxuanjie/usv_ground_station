@@ -1,6 +1,10 @@
 function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
 
+    // 逻辑：未连接(无数据)时，不旋转(图标默认45度)；连接后，减去45度以校准正北
+    const isDataActive = !!boatStatus.lastUpdate;
+    const compassRotation = isDataActive ? (boatStatus.heading - 45) : 0;
+
     return (
         <div className="w-80 bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-4 gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">
             
@@ -21,7 +25,11 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <div className="relative w-16 h-16 border-2 border-slate-700 rounded-full flex items-center justify-center bg-slate-950 shadow-inner">
                         <div className="absolute top-0 w-1 h-2 bg-cyan-400 z-10"></div>
                         <div className="absolute inset-1 border border-dashed border-slate-600 rounded-full opacity-50"></div>
-                        <div style={{ transform: `rotate(${boatStatus.heading}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }} className="w-full h-full flex items-center justify-center">
+                        {/* 动态罗盘 */}
+                        <div 
+                            style={{ transform: `rotate(${compassRotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }} 
+                            className={`w-full h-full flex items-center justify-center ${!isDataActive ? 'opacity-60' : ''}`}
+                        >
                             <Icons.Navigation className="text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]" size={24} />
                         </div>
                     </div>
