@@ -5,6 +5,10 @@ function BoatGroundStation() {
     const [showLogs, setShowLogs] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
+    // === 新增：图表相关状态 ===
+    const [showChart, setShowChart] = useState(false);
+    const [chartData, setChartData] = useState([]); // 格式: [{time: '12:00:01', batL: 12.1, batR: 12.2}, ...]
+    
     const t = useCallback((key) => {
         return AppTranslations && AppTranslations[lang] ? (AppTranslations[lang][key] || key) : key;
     }, [lang]);
@@ -22,8 +26,7 @@ function BoatGroundStation() {
         lastUpdate: null,
     });
     
-    // === 新增：航点列表状态 ===
-    // 格式: [{lng: 113.xxx, lat: 23.xxx}, ...]
+    // 航点列表状态
     const [waypoints, setWaypoints] = useState([]);
 
     const [logs, setLogs] = useState([]);
@@ -59,20 +62,17 @@ function BoatGroundStation() {
         }
     };
 
-    // === 新增：发送航点 (P协议) ===
+    // === 补全：发送航点指令 ===
     const sendWaypointsCommand = () => {
         if (waypoints.length === 0) {
             alert("请先在地图上右键添加航点！");
             return;
         }
-
-        // 拼接 P 报文: P,lng0,lat0,lng1,lat1,...,
         let cmd = "P";
         waypoints.forEach(wp => {
             cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
         });
-        cmd += ","; // 协议结尾
-
+        cmd += ",";
         sendData(cmd);
         addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
     };
@@ -146,13 +146,29 @@ function BoatGroundStation() {
                 else if (msg.startsWith('R')) {
                     const parts = msg.split(',');
                     if (parts.length >= 6) {
+                        const bL = parseFloat(parts[4]) || 0;
+                        const bR = parseFloat(parts[5]) || 0;
+                        
                         setBoatStatus({
                             longitude: parseFloat(parts[1]) || 0,
                             latitude: parseFloat(parts[2]) || 0,
                             heading: parseFloat(parts[3]) || 0,
-                            batteryL: parseFloat(parts[4]) || 0,
-                            batteryR: parseFloat(parts[5]) || 0,
+                            batteryL: bL,
+                            batteryR: bR,
                             lastUpdate: new Date()
+                        });
+
+                        // === 新增：收集图表数据 ===
+                        setChartData(prev => {
+                            const newPoint = {
+                                time: new Date().toLocaleTimeString('en-GB'), // 24小时制
+                                batL: bL,
+                                batR: bR
+                            };
+                            // 限制缓存大小，保留最近 200 个点
+                            const newArr = [...prev, newPoint];
+                            if (newArr.length > 200) return newArr.slice(newArr.length - 200);
+                            return newArr;
                         });
                     }
                     addLog('RX', msg, 'debug');
@@ -221,7 +237,6 @@ function BoatGroundStation() {
                     keyState={keyState}
                     sendSCommand={sendSCommand}
                     sendKCommand={sendKCommand}
-                    // === 传递给 Sidebar 航点发送功能 ===
                     sendWaypointsCommand={sendWaypointsCommand}
                     waypointsCount={waypoints.length}
                     t={t}
@@ -229,7 +244,6 @@ function BoatGroundStation() {
                 />
 
                 <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
-                    {/* 地图组件：传入航点列表和修改函数 */}
                     <MapComponent 
                         lng={boatStatus.longitude} 
                         lat={boatStatus.latitude} 
@@ -246,6 +260,17 @@ function BoatGroundStation() {
                         <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                     </div>
                     
+                    {/* === 新增：悬浮的“+”号按钮（触发图表） === */}
+                    <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
+                        <button 
+                            onClick={() => setShowChart(true)}
+                            className="w-10 h-10 flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 rounded-full shadow-lg shadow-cyan-900/50 transition-all hover:scale-110 active:scale-95 group"
+                            title="Open Data Chart"
+                        >
+                            <Icons.Plus className="text-white w-6 h-6" />
+                        </button>
+                    </div>
+
                     {boatStatus.longitude === 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
                             <div className="text-center">
@@ -264,6 +289,15 @@ function BoatGroundStation() {
                     t={t}
                 />
             </div>
+            
+            {/* === 新增：图表模态框组件 === */}
+            <ChartModal 
+                isOpen={showChart}
+                onClose={() => setShowChart(false)}
+                data={chartData}
+                onClear={() => setChartData([])}
+                t={t}
+            />
         </div>
     );
 }
