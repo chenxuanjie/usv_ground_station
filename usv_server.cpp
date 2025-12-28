@@ -222,166 +222,188 @@ void boat_listener_loop() {
  
  // 处理新的 Web 连接（HTTP 请求或 WS 升级）
  void handle_web_client(int client_sock) {
-     char buffer[4096];
-     int len = recv(client_sock, buffer, sizeof(buffer), 0);
-     if (len <= 0) { close(client_sock); return; }
-     
-     string req(buffer, len);
- 
-     // 1. 判断是否是 WebSocket 升级请求
-     if (req.find("Upgrade: websocket") != string::npos) {
-         string key_header = "Sec-WebSocket-Key: ";
-         auto pos = req.find(key_header);
-         if (pos != string::npos) {
-             pos += key_header.length();
-             auto end = req.find("\r\n", pos);
-             string key = req.substr(pos, end - pos);
-             string accept_key = compute_accept_key(key);
-             
-             string resp = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept_key + "\r\n\r\n";
-             send(client_sock, resp.c_str(), resp.length(), 0);
-             
-             // 升级成功，接管 Socket
-             if(g_web_client_sock != -1) close(g_web_client_sock); // 踢掉旧连接
-             g_web_client_sock = client_sock;
-             cout << "[Web] WebSocket Client Connected." << endl;
-             
-             // 进入 WS 读取循环
-             unsigned char ws_buf[4096];
+    char buffer[4096];
+    int len = recv(client_sock, buffer, sizeof(buffer), 0);
+    if (len <= 0) { close(client_sock); return; }
+    
+    string req(buffer, len);
 
-             while (true) {
-                 int n = recv(client_sock, ws_buf, sizeof(ws_buf), 0);
-                 if (n <= 0) break;
-                 
-                 // 1. 解析 WS 帧 (Masking handling)
-                 int payload_len = ws_buf[1] & 0x7F;
-                 int head_len = 2;
-                 if (payload_len == 126) head_len = 4;
-                 unsigned char mask[4];
-                 memcpy(mask, ws_buf + head_len, 4);
-                 head_len += 4;
-                 
-                 // === 必须包含这段解码代码，否则 decoded 未定义 ===
-                 string decoded;
-                 for(int i=0; i<payload_len; i++) {
-                     decoded += (char)(ws_buf[head_len+i] ^ mask[i%4]);
-                 }
-                 // ===========================================
-                 
-                 // 2. 逻辑处理核心
-                 if (!decoded.empty()) {
-                     
-                     // --- 情况 A: 收到连接指令 ---
-                     if (decoded.find("CMD,CONNECT") == 0) {
-                         // 格式: CMD,CONNECT,IP,PORT
-                         string ip_str, port_str;
-                         size_t p1 = decoded.find(',');
-                         size_t p2 = decoded.find(',', p1 + 1);
-                         size_t p3 = decoded.find(',', p2 + 1);
-                         
-                         // 解析参数，如果没传就用默认配置
-                         if (p2 != string::npos && p3 != string::npos) {
-                             ip_str = decoded.substr(p2 + 1, p3 - p2 - 1);
-                             port_str = decoded.substr(p3 + 1);
-                         } else {
-                             ip_str = g_config.boat_ip;
-                             port_str = to_string(g_config.boat_port);
-                         }
+    // 1. 判断是否是 WebSocket 升级请求
+    if (req.find("Upgrade: websocket") != string::npos) {
+        string key_header = "Sec-WebSocket-Key: ";
+        auto pos = req.find(key_header);
+        if (pos != string::npos) {
+            pos += key_header.length();
+            auto end = req.find("\r\n", pos);
+            string key = req.substr(pos, end - pos);
+            string accept_key = compute_accept_key(key);
+            
+            string resp = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept_key + "\r\n\r\n";
+            send(client_sock, resp.c_str(), resp.length(), 0);
+            
+            // 升级成功，接管 Socket
+            {
+                lock_guard<mutex> lock(g_boat_mutex); // 加锁保护
+                if(g_web_client_sock != -1) close(g_web_client_sock); // 踢掉旧的前端连接
+                g_web_client_sock = client_sock;
+                
+                // === 修复点 1: 新网页接入时，强制断开无人艇连接 ===
+                // 这解决了“刷新页面自动解锁”的问题。新页面必须手动再次点击连接。
+                if (g_boat_sock != -1) {
+                    cout << "[System] New web client connected. Resetting boat connection..." << endl;
+                    close(g_boat_sock);
+                    g_boat_sock = -1;
+                }
+            }
+            
+            cout << "[Web] WebSocket Client Connected." << endl;
+            
+            // 进入 WS 读取循环
+            unsigned char ws_buf[4096];
 
-                         cout << "[Cmd] Connecting to " << ip_str << ":" << port_str << "..." << endl;
+            while (true) {
+                int n = recv(client_sock, ws_buf, sizeof(ws_buf), 0);
+                if (n <= 0) break;
+                
+                // === 修复点 2: 检查 Opcode，防止乱码 ===
+                // WebSocket 协议中，第一个字节的低4位是 Opcode。0x8 代表关闭连接。
+                int opcode = ws_buf[0] & 0x0F;
+                if (opcode == 0x8) {
+                    cout << "[Web] Client sent Close Frame." << endl;
+                    break; // 优雅退出循环
+                }
 
-                         // 先关闭可能存在的旧连接
-                         {
-                             lock_guard<mutex> lock(g_boat_mutex);
-                             if (g_boat_sock != -1) {
-                                 close(g_boat_sock);
-                                 g_boat_sock = -1;
-                             }
-                         }
+                // 1. 解析 WS 帧 (Masking handling)
+                int payload_len = ws_buf[1] & 0x7F;
+                int head_len = 2;
+                if (payload_len == 126) head_len = 4;
+                
+                // 安全检查：防止 buffer 溢出 (简单保护)
+                if (n < head_len + 4) continue; 
 
-                         // 发起新连接
-                         struct sockaddr_in boat_addr;
-                         boat_addr.sin_family = AF_INET;
-                         boat_addr.sin_port = htons(stoi(port_str));
-                         inet_pton(AF_INET, ip_str.c_str(), &boat_addr.sin_addr);
-
-                         int new_sock = socket(AF_INET, SOCK_STREAM, 0);
-                         
-                         // 设置3秒超时，防止界面卡死
-                         struct timeval timeout;      
-                         timeout.tv_sec = 3; timeout.tv_usec = 0;
-                         setsockopt(new_sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-
-                         if (connect(new_sock, (struct sockaddr*)&boat_addr, sizeof(boat_addr)) == 0) {
-                             {
-                                 lock_guard<mutex> lock(g_boat_mutex);
-                                 g_boat_sock = new_sock;
-                             }
-                             cout << "[Boat] Connect Success!" << endl;
-                             send_ws_frame("TCP_STATUS,ONLINE"); // 告诉网页：连接成功
-                             
-                             // *** 关键：连接成功后，手动启动监听线程 ***
-                             thread(boat_listener_loop).detach();
-                         } else {
-                             perror("[Boat] Connect Failed");
-                             close(new_sock);
-                             send_ws_frame("TCP_STATUS,FAILED"); // 告诉网页：连接失败
-                         }
-                     }
-                     
-                     else if (decoded == "CMD,QUERY_STATUS") {
-                        lock_guard<mutex> lock(g_boat_mutex);
-                        if (g_boat_sock != -1) {
-                            send_ws_frame("TCP_STATUS,ONLINE"); 
+                unsigned char mask[4];
+                memcpy(mask, ws_buf + head_len, 4);
+                head_len += 4;
+                
+                string decoded;
+                // 只有当接收到的数据足够长时才解码
+                if (n >= head_len + payload_len) {
+                    for(int i=0; i<payload_len; i++) {
+                        decoded += (char)(ws_buf[head_len+i] ^ mask[i%4]);
+                    }
+                }
+                
+                // 2. 逻辑处理核心
+                if (!decoded.empty()) {
+                    
+                    // --- 情况 A: 收到连接指令 ---
+                    if (decoded.find("CMD,CONNECT") == 0) {
+                        // 格式: CMD,CONNECT,IP,PORT
+                        string ip_str, port_str;
+                        size_t p1 = decoded.find(',');
+                        size_t p2 = decoded.find(',', p1 + 1);
+                        size_t p3 = decoded.find(',', p2 + 1);
+                        
+                        if (p2 != string::npos && p3 != string::npos) {
+                            ip_str = decoded.substr(p2 + 1, p3 - p2 - 1);
+                            port_str = decoded.substr(p3 + 1);
                         } else {
-                            send_ws_frame("TCP_STATUS,OFFLINE"); 
+                            ip_str = g_config.boat_ip;
+                            port_str = to_string(g_config.boat_port);
+                        }
+
+                        cout << "[Cmd] Connecting to " << ip_str << ":" << port_str << "..." << endl;
+
+                        // 先关闭可能存在的旧连接
+                        {
+                            lock_guard<mutex> lock(g_boat_mutex);
+                            if (g_boat_sock != -1) {
+                                close(g_boat_sock);
+                                g_boat_sock = -1;
+                            }
+                        }
+
+                        // 发起新连接
+                        struct sockaddr_in boat_addr;
+                        boat_addr.sin_family = AF_INET;
+                        boat_addr.sin_port = htons(stoi(port_str));
+                        inet_pton(AF_INET, ip_str.c_str(), &boat_addr.sin_addr);
+
+                        int new_sock = socket(AF_INET, SOCK_STREAM, 0);
+                        
+                        struct timeval timeout;      
+                        timeout.tv_sec = 3; timeout.tv_usec = 0;
+                        setsockopt(new_sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+                        if (connect(new_sock, (struct sockaddr*)&boat_addr, sizeof(boat_addr)) == 0) {
+                            {
+                                lock_guard<mutex> lock(g_boat_mutex);
+                                g_boat_sock = new_sock;
+                            }
+                            cout << "[Boat] Connect Success!" << endl;
+                            send_ws_frame("TCP_STATUS,ONLINE"); 
+                            thread(boat_listener_loop).detach();
+                        } else {
+                            perror("[Boat] Connect Failed");
+                            close(new_sock);
+                            send_ws_frame("TCP_STATUS,FAILED"); 
                         }
                     }
-                     // --- 情况 B: 收到断开指令 ---
-                     else if (decoded.find("CMD,DISCONNECT") == 0) {
-                         lock_guard<mutex> lock(g_boat_mutex);
-                         if (g_boat_sock != -1) {
-                             close(g_boat_sock); // 关闭 Socket 会自动终结 listener 线程
-                             g_boat_sock = -1;
-                         }
-                         send_ws_frame("TCP_STATUS,OFFLINE");
-                         cout << "[Cmd] Manually disconnected." << endl;
-                     }
-                     // --- 情况 C: 普通指令 (转发给无人艇) ---
-                     else {
-                         cout << "[Web -> Boat] " << decoded << endl;
-                         lock_guard<mutex> lock(g_boat_mutex);
-                         if (g_boat_sock != -1) send(g_boat_sock, decoded.c_str(), decoded.length(), 0);
-                     }
-                 }
-             }
+                    
+                    else if (decoded == "CMD,QUERY_STATUS") {
+                       lock_guard<mutex> lock(g_boat_mutex);
+                       if (g_boat_sock != -1) {
+                           send_ws_frame("TCP_STATUS,ONLINE"); 
+                       } else {
+                           send_ws_frame("TCP_STATUS,OFFLINE"); 
+                       }
+                   }
+                    // --- 情况 B: 收到断开指令 ---
+                    else if (decoded.find("CMD,DISCONNECT") == 0) {
+                        lock_guard<mutex> lock(g_boat_mutex);
+                        if (g_boat_sock != -1) {
+                            close(g_boat_sock); 
+                            g_boat_sock = -1;
+                        }
+                        send_ws_frame("TCP_STATUS,OFFLINE");
+                        cout << "[Cmd] Manually disconnected." << endl;
+                    }
+                    // --- 情况 C: 普通指令 ---
+                    else {
+                        cout << "[Web -> Boat] " << decoded << endl;
+                        lock_guard<mutex> lock(g_boat_mutex);
+                        if (g_boat_sock != -1) send(g_boat_sock, decoded.c_str(), decoded.length(), 0);
+                    }
+                }
+            }
 
-             
-             cout << "[Web] WebSocket Client Disconnected." << endl;
-             g_web_client_sock = -1;
-             close(client_sock);
-         }
-     } 
-    // 2. 通用 HTTP GET 请求 (整合了 / 和 /app.js 等所有情况)
-    else if (req.find("GET") == 0) {
-        // 解析请求路径，例如 "GET /app.js HTTP/1.1"
-        size_t first_space = req.find(' ');
-        size_t second_space = req.find(' ', first_space + 1);
-        
-        if (first_space != string::npos && second_space != string::npos) {
-            // 提取路径，例如 "/app.js" 或 "/"
-            string path = req.substr(first_space + 1, second_space - first_space - 1);
+            cout << "[Web] WebSocket Client Disconnected." << endl;
             
-            // 调用通用的文件服务函数
-            // 注意：serve_static_file 内部必须有处理 "/" -> "index.html" 的逻辑
-            serve_static_file(client_sock, path);
+            // === 修复点 3: 线程安全的清理 ===
+            // 只有当断开的是当前的 socket 时才重置全局变量
+            // (避免新连接刚连上，就被旧连接的线程把 g_web_client_sock 设为 -1)
+            if (g_web_client_sock == client_sock) {
+                g_web_client_sock = -1;
+            }
+            
+            close(client_sock);
         }
-        close(client_sock); // 处理完 HTTP 请求后必须断开（短连接）
+    } 
+   // 2. 通用 HTTP GET 请求
+   else if (req.find("GET") == 0) {
+       size_t first_space = req.find(' ');
+       size_t second_space = req.find(' ', first_space + 1);
+       
+       if (first_space != string::npos && second_space != string::npos) {
+           string path = req.substr(first_space + 1, second_space - first_space - 1);
+           serve_static_file(client_sock, path);
+       }
+       close(client_sock); 
+   }
+    else {
+        close(client_sock);
     }
-     else {
-         close(client_sock);
-     }
- }
+}
  
  int main() {
      load_config(); // 加载配置
