@@ -235,6 +235,7 @@ function BoatGroundStation() {
                         setWaypoints={setWaypoints}
                         cruiseMode={cruiseMode}
                         t={t}
+                        showLogs={showLogs}
                     />
 
                     <div className="absolute top-4 left-4 flex gap-2 z-10">

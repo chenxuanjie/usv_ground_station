@@ -1,7 +1,8 @@
 // js/components/MapComponent.js
 const { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t }) {
+// 1. 在参数中增加 showLogs
+function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -10,7 +11,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const containerRef = useRef(null);
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
-    const contextMenuRef = useRef(null); // 新增：引用右键菜单，方便切换语言时重建
+    const contextMenuRef = useRef(null);
     
     const [mapMode, setMapMode] = useState('pan');
 
@@ -46,23 +47,18 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         map.enableScrollWheelZoom();
         map.setMapStyleV2({ styleId: '55610b642646c054e0c441c2d334863c' });
 
-        // 控件
         map.addControl(new BMap.ScaleControl({ anchor: window.BMAP_ANCHOR_BOTTOM_LEFT, offset: new BMap.Size(80, 25) }));
         
-        // 小艇图标
         const boatIcon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
         const marker = new BMap.Marker(initPoint, { icon: boatIcon });
         map.addOverlay(marker);
 
-        // 船的实线轨迹
         const trackPolyline = new BMap.Polyline([], { strokeColor: "#22d3ee", strokeWeight: 2, strokeOpacity: 0.6 });
         map.addOverlay(trackPolyline);
 
-        // 任务航线 (绿色虚线)
         const missionPolyline = new BMap.Polyline([], { strokeColor: "#10b981", strokeWeight: 3, strokeOpacity: 0.8, strokeStyle: 'dashed' });
         map.addOverlay(missionPolyline);
 
-        // 测距工具
         if (window.BMapLib && window.BMapLib.DistanceTool) {
             distanceToolRef.current = new BMapLib.DistanceTool(map);
         }
@@ -79,15 +75,12 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     useEffect(() => {
         if (!mapRef.current) return;
 
-        // 如果旧菜单存在，先移除 (防止重复添加)
         if (contextMenuRef.current) {
             mapRef.current.removeContextMenu(contextMenuRef.current);
         }
 
-        // 创建新菜单
         const contextMenu = new BMap.ContextMenu();
         
-        // 1. 开启测距 (CSS: 去掉 float, 使用 div 撑满宽度并左对齐)
         const rulerText = `<div style="font-size:13px; font-weight:bold; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_ruler') : '📏 开启测距'}</div>`;
         const rulerItem = new BMap.MenuItem(
             rulerText, 
@@ -96,10 +89,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         );
         contextMenu.addItem(rulerItem);
 
-        // 2. 分隔线
         contextMenu.addSeparator();
 
-        // 3. 清除所有航点
         const clearText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_clear') : '🗑️ 清除所有航点'}</div>`;
         const clearItem = new BMap.MenuItem(
             clearText, 
@@ -108,13 +99,12 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         );
         contextMenu.addItem(clearItem);
 
-        // 绑定并保存引用
         mapRef.current.addContextMenu(contextMenu);
         contextMenuRef.current = contextMenu;
 
-    }, [t]); // 只要语言改变 (t 改变)，菜单就重建
+    }, [t]);
 
-    // --- 3. 监听地图点击 (仅在添加模式下生效) ---
+    // --- 3. 监听地图点击 ---
     useEffect(() => {
         if (!mapRef.current) return;
 
@@ -234,7 +224,6 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         }
     };
 
-    // 自定义SVG图标
     const MapIcons = {
         Hand: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>,
         Pin: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/><line x1="12" y1="22" x2="12" y2="10" strokeOpacity="0.5"/></svg>,
@@ -247,8 +236,10 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
             
-            {/* 右上角工具栏 */}
-            <div className="absolute top-4 right-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg">
+            {/* 2. 右上角工具栏：根据 showLogs 动态调整 right 值 */}
+            <div 
+                className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}
+            >
                 <button 
                     onClick={() => setMapMode('pan')}
                     className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
@@ -265,7 +256,6 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                     <MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}
                 </button>
                 <div className="w-[1px] bg-slate-700"></div>
-                {/* 定位按钮 */}
                 <button 
                     onClick={handleLocateBoat}
                     className="p-2 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
