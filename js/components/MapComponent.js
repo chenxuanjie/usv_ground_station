@@ -1,13 +1,12 @@
 // js/components/MapComponent.js
 const { useEffect, useRef, useState } = React;
 
-// 1. 在参数中增加 showLogs
 function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
     const missionPathRef = useRef(null);
-    const pathRef = useRef([]);
+    const pathRef = useRef([]); // <--- 补回了这一行！之前漏掉了
     const containerRef = useRef(null);
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
@@ -15,20 +14,14 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     
     const [mapMode, setMapMode] = useState('pan');
 
-    // --- 坐标转换算法集 (WGS84 <-> BD09) ---
+    // --- 坐标转换算法集 ---
     const PI = 3.1415926535897932384626;
     const x_pi = 3.14159265358979324 * 3000.0 / 180.0;
     const a = 6378245.0;
     const ee = 0.00669342162296594323;
 
-    const wgs84tobd09 = (lng, lat) => {
-        const [gcjLng, gcjLat] = wgs84togcj02(lng, lat);
-        return gcj02tobd09(gcjLng, gcjLat);
-    };
-    const bd09towgs84 = (bd_lng, bd_lat) => {
-        const [gcjLng, gcjLat] = bd09togcj02(bd_lng, bd_lat);
-        return gcj02towgs84(gcjLng, gcjLat);
-    };
+    const wgs84tobd09 = (lng, lat) => { const [gcjLng, gcjLat] = wgs84togcj02(lng, lat); return gcj02tobd09(gcjLng, gcjLat); };
+    const bd09towgs84 = (bd_lng, bd_lat) => { const [gcjLng, gcjLat] = bd09togcj02(bd_lng, bd_lat); return gcj02towgs84(gcjLng, gcjLat); };
     const wgs84togcj02 = (lng, lat) => { if (out_of_china(lng, lat)) return [lng, lat]; let dLat = transformLat(lng - 105.0, lat - 35.0); let dLng = transformLng(lng - 105.0, lat - 35.0); const radLat = lat / 180.0 * PI; let magic = Math.sin(radLat); magic = 1 - ee * magic * magic; const sqrtMagic = Math.sqrt(magic); dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * PI); dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * PI); return [lng + dLng, lat + dLat]; };
     const gcj02tobd09 = (lng, lat) => { const z = Math.sqrt(lng * lng + lat * lat) + 0.00002 * Math.sin(lat * x_pi); const theta = Math.atan2(lat, lng) + 0.000003 * Math.cos(lng * x_pi); return [z * Math.cos(theta) + 0.0065, z * Math.sin(theta) + 0.006]; };
     const bd09togcj02 = (bd_lng, bd_lat) => { const x = bd_lng - 0.0065; const y = bd_lat - 0.006; const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * x_pi); const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * x_pi); return [z * Math.cos(theta), z * Math.sin(theta)]; };
@@ -45,8 +38,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         const initPoint = new BMap.Point(113.3957, 23.0344);
         map.centerAndZoom(initPoint, 18);
         map.enableScrollWheelZoom();
+        map.disableDoubleClickZoom(); 
         map.setMapStyleV2({ styleId: '55610b642646c054e0c441c2d334863c' });
-
         map.addControl(new BMap.ScaleControl({ anchor: window.BMAP_ANCHOR_BOTTOM_LEFT, offset: new BMap.Size(80, 25) }));
         
         const boatIcon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
@@ -71,59 +64,36 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         return () => {};
     }, []);
 
-    // --- 2. 动态创建右键菜单 (依赖 t 变化) ---
+    // --- 2. 动态创建右键菜单 ---
     useEffect(() => {
         if (!mapRef.current) return;
-
-        if (contextMenuRef.current) {
-            mapRef.current.removeContextMenu(contextMenuRef.current);
-        }
+        if (contextMenuRef.current) mapRef.current.removeContextMenu(contextMenuRef.current);
 
         const contextMenu = new BMap.ContextMenu();
-        
         const rulerText = `<div style="font-size:13px; font-weight:bold; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_ruler') : '📏 开启测距'}</div>`;
-        const rulerItem = new BMap.MenuItem(
-            rulerText, 
-            () => distanceToolRef.current && distanceToolRef.current.open(),
-            { width: 160 } 
-        );
-        contextMenu.addItem(rulerItem);
-
+        contextMenu.addItem(new BMap.MenuItem(rulerText, () => distanceToolRef.current && distanceToolRef.current.open(), { width: 160 }));
         contextMenu.addSeparator();
-
         const clearText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_clear') : '🗑️ 清除所有航点'}</div>`;
-        const clearItem = new BMap.MenuItem(
-            clearText, 
-            () => setWaypoints && setWaypoints([]),
-            { width: 160 }
-        );
-        contextMenu.addItem(clearItem);
+        contextMenu.addItem(new BMap.MenuItem(clearText, () => setWaypoints && setWaypoints([]), { width: 160 }));
 
         mapRef.current.addContextMenu(contextMenu);
         contextMenuRef.current = contextMenu;
-
     }, [t]);
 
-    // --- 3. 监听地图点击 ---
+    // --- 3. 监听地图点击添加航点 ---
     useEffect(() => {
         if (!mapRef.current) return;
-
         const handleMapClick = (e) => {
             if (mapMode === 'add') {
                 const [wgsLng, wgsLat] = bd09towgs84(e.point.lng, e.point.lat);
-                if (setWaypoints) {
-                    setWaypoints(prev => [...prev, {lng: wgsLng, lat: wgsLat}]);
-                }
+                if (setWaypoints) setWaypoints(prev => [...prev, {lng: wgsLng, lat: wgsLat}]);
             }
         };
-
         mapRef.current.addEventListener("click", handleMapClick);
-        return () => {
-            if (mapRef.current) mapRef.current.removeEventListener("click", handleMapClick);
-        };
+        return () => { if (mapRef.current) mapRef.current.removeEventListener("click", handleMapClick); };
     }, [mapMode, setWaypoints]);
 
-    // --- 4. 绘制航点和虚线航线 ---
+    // --- 4. 绘制航点和虚线 ---
     useEffect(() => {
         if (!mapRef.current || !waypoints) return;
         
@@ -137,6 +107,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             const pt = new BMap.Point(bdLng, bdLat);
             missionPathPoints.push(pt);
             
+            // 使用 scale: 0 的隐形 Marker，无黑圈干扰
             const marker = new BMap.Marker(pt, {
                 icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 }) 
             });
@@ -160,6 +131,18 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             });
             marker.setLabel(label);
 
+            marker.addEventListener("dragging", function(e) {
+                const currentPt = e.point; 
+                const currentPath = missionPathRef.current.getPath();
+                if (currentPath.length > index) {
+                    currentPath[index] = currentPt;
+                    if (cruiseMode === '1' && currentPath.length > 2 && index === 0) {
+                        currentPath[currentPath.length - 1] = currentPt;
+                    }
+                    missionPathRef.current.setPath(currentPath);
+                }
+            });
+
             marker.addEventListener("dragend", function(e) {
                 const newPt = e.point;
                 const [newWgsLng, newWgsLat] = bd09towgs84(newPt.lng, newPt.lat);
@@ -169,6 +152,13 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                         newList[index] = { lng: newWgsLng, lat: newWgsLat };
                         return newList;
                     });
+                }
+            });
+
+            marker.addEventListener("dblclick", function(e) {
+                if (e.domEvent) e.domEvent.stopPropagation();
+                if (setWaypoints) {
+                    setWaypoints(prev => prev.filter((_, i) => i !== index));
                 }
             });
 
@@ -194,21 +184,17 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
     }, [waypoints, cruiseMode, t]);
 
-    // --- 5. 实时船位更新 ---
+    // --- 5. 实时更新 ---
     useEffect(() => {
         if (!mapRef.current || !lng || !lat) return;
-
         const [bdLng, bdLat] = wgs84tobd09(lng, lat);
         const pt = new BMap.Point(bdLng, bdLat);
-
         markerRef.current.setPosition(pt);
         const icon = markerRef.current.getIcon();
         icon.setRotation(heading || 0);
         markerRef.current.setIcon(icon);
 
-        if (pathRef.current.length === 0 && lng !== 0) {
-            mapRef.current.panTo(pt);
-        }
+        if (pathRef.current.length === 0 && lng !== 0) mapRef.current.panTo(pt);
 
         const lastPt = pathRef.current[pathRef.current.length - 1];
         if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
@@ -233,45 +219,17 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     return (
         <div className="w-full h-full relative group">
             <div ref={containerRef} className="w-full h-full rounded bg-slate-900" />
-            
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
-            
-            {/* 2. 右上角工具栏：根据 showLogs 动态调整 right 值 */}
-            <div 
-                className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}
-            >
-                <button 
-                    onClick={() => setMapMode('pan')}
-                    className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                    title={t ? t('map_browse') : "Browse"}
-                >
-                    <MapIcons.Hand /> {t ? t('map_browse') : "Browse"}
-                </button>
+            <div className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
+                <button onClick={() => setMapMode('pan')} className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} title={t ? t('map_browse') : "Browse"}><MapIcons.Hand /> {t ? t('map_browse') : "Browse"}</button>
                 <div className="w-[1px] bg-slate-700"></div>
-                <button 
-                    onClick={() => setMapMode('add')}
-                    className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                    title={t ? t('map_add_mode') : "Add WP"}
-                >
-                    <MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}
-                </button>
+                <button onClick={() => setMapMode('add')} className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} title={t ? t('map_add_mode') : "Add WP"}><MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}</button>
                 <div className="w-[1px] bg-slate-700"></div>
-                <button 
-                    onClick={handleLocateBoat}
-                    className="p-2 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                    title={t ? t('map_locate') : "Locate"}
-                >
-                    <MapIcons.Target />
-                </button>
+                <button onClick={handleLocateBoat} className="p-2 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title={t ? t('map_locate') : "Locate"}><MapIcons.Target /></button>
             </div>
-
             <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur px-2 py-1 rounded border border-slate-700 text-[10px] text-cyan-300 font-mono pointer-events-none z-10 flex flex-col gap-1">
                 <span>{t ? t('map_system_active') : "BD09 MAP SYSTEM ACTIVE"}</span>
-                <span className="text-slate-500">
-                    {mapMode === 'add' 
-                        ? (t ? t('map_instruction_add') : 'Click map to add waypoint') 
-                        : (t ? t('map_instruction_pan') : 'Right-click for options')}
-                </span>
+                <span className="text-slate-500">{mapMode === 'add' ? (t ? t('map_instruction_add') : 'Click map to add waypoint') : (t ? t('map_instruction_pan') : 'Right-click for options')}</span>
             </div>
         </div>
     );

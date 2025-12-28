@@ -1,12 +1,14 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 function BoatGroundStation() {
     const [lang, setLang] = useState('zh');
     const [showLogs, setShowLogs] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
-    const t = (key) => AppTranslations[lang][key] || key;
-
+    const t = useCallback((key) => {
+        return AppTranslations && AppTranslations[lang] ? (AppTranslations[lang][key] || key) : key;
+    }, [lang]);
+    
     // 连接状态
     const [webConnected, setWebConnected] = useState(false);
     const [tcpStatus, setTcpStatus] = useState('OFFLINE'); 
