@@ -190,7 +190,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         const pt = new BMap.Point(bdLng, bdLat);
         markerRef.current.setPosition(pt);
         const icon = markerRef.current.getIcon();
-        icon.setRotation(heading || 0);
+        // icon.setRotation(heading || 0);
+        icon.setRotation(heading ? -heading : 0);
         markerRef.current.setIcon(icon);
 
         if (pathRef.current.length === 0 && lng !== 0) mapRef.current.panTo(pt);

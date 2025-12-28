@@ -42,7 +42,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
 
     // 罗盘角度计算
     const isDataActive = !!boatStatus.lastUpdate;
-    const compassRotation = isDataActive ? (boatStatus.heading - 45) : 0;
+    const compassRotation = isDataActive ? (-boatStatus.heading - 45) : 0;
 
     return (
         <div className="w-80 bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-4 gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">
