@@ -45,6 +45,7 @@ const AppTranslations = {
         mode_manual: "模式: 手动 (@)",
         loop_on: "巡航: 开启 (1)",
         loop_off: "巡航: 关闭 (0)",
+        hint_deploy: "💡 连接成功，请先点击 [部署配置] 生效!",
 
         // === 新增：Mission 区域 ===
         mission_title: "任务航点",
@@ -111,6 +112,7 @@ const AppTranslations = {
         mode_manual: "MODE: MANUAL (@)",
         loop_on: "LOOP: ON (1)",
         loop_off: "LOOP: OFF (0)",
+        hint_deploy: "💡 Connected. Please [Deploy Config] first!",
 
         // === New: Mission Section ===
         mission_title: "MISSION",

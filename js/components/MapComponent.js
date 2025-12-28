@@ -6,7 +6,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
     const missionPathRef = useRef(null);
-    const pathRef = useRef([]); // <--- 补回了这一行！之前漏掉了
+    const pathRef = useRef([]);
     const containerRef = useRef(null);
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
@@ -107,7 +107,6 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             const pt = new BMap.Point(bdLng, bdLat);
             missionPathPoints.push(pt);
             
-            // 使用 scale: 0 的隐形 Marker，无黑圈干扰
             const marker = new BMap.Marker(pt, {
                 icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 }) 
             });
@@ -219,17 +218,48 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     return (
         <div className="w-full h-full relative group">
             <div ref={containerRef} className="w-full h-full rounded bg-slate-900" />
+            
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
-            <div className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
-                <button onClick={() => setMapMode('pan')} className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} title={t ? t('map_browse') : "Browse"}><MapIcons.Hand /> {t ? t('map_browse') : "Browse"}</button>
+            
+            {/* 上方工具栏 (移除了定位按钮) */}
+            <div 
+                className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}
+            >
+                <button 
+                    onClick={() => setMapMode('pan')}
+                    className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                    title={t ? t('map_browse') : "Browse"}
+                >
+                    <MapIcons.Hand /> {t ? t('map_browse') : "Browse"}
+                </button>
                 <div className="w-[1px] bg-slate-700"></div>
-                <button onClick={() => setMapMode('add')} className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`} title={t ? t('map_add_mode') : "Add WP"}><MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}</button>
-                <div className="w-[1px] bg-slate-700"></div>
-                <button onClick={handleLocateBoat} className="p-2 flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title={t ? t('map_locate') : "Locate"}><MapIcons.Target /></button>
+                <button 
+                    onClick={() => setMapMode('add')}
+                    className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                    title={t ? t('map_add_mode') : "Add WP"}
+                >
+                    <MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}
+                </button>
             </div>
+
+            {/* 下方悬浮定位按钮 (新增) */}
+            <div className={`absolute bottom-8 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
+                <button 
+                    onClick={handleLocateBoat}
+                    className="p-2 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg shadow-lg text-cyan-400 hover:text-white hover:bg-slate-800 transition-all hover:scale-110 active:scale-95"
+                    title={t ? t('map_locate') : "Locate"}
+                >
+                    <MapIcons.Target />
+                </button>
+            </div>
+
             <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur px-2 py-1 rounded border border-slate-700 text-[10px] text-cyan-300 font-mono pointer-events-none z-10 flex flex-col gap-1">
                 <span>{t ? t('map_system_active') : "BD09 MAP SYSTEM ACTIVE"}</span>
-                <span className="text-slate-500">{mapMode === 'add' ? (t ? t('map_instruction_add') : 'Click map to add waypoint') : (t ? t('map_instruction_pan') : 'Right-click for options')}</span>
+                <span className="text-slate-500">
+                    {mapMode === 'add' 
+                        ? (t ? t('map_instruction_add') : 'Click map to add waypoint') 
+                        : (t ? t('map_instruction_pan') : 'Right-click for options')}
+                </span>
             </div>
         </div>
     );

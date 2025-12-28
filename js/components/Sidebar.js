@@ -1,7 +1,8 @@
-function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t }) {
+// js/components/Sidebar.js
+function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
 
-    // 逻辑：未连接(无数据)时，不旋转(图标默认45度)；连接后，减去45度以校准正北
+    // 罗盘角度计算
     const isDataActive = !!boatStatus.lastUpdate;
     const compassRotation = isDataActive ? (boatStatus.heading - 45) : 0;
 
@@ -25,7 +26,6 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <div className="relative w-16 h-16 border-2 border-slate-700 rounded-full flex items-center justify-center bg-slate-950 shadow-inner">
                         <div className="absolute top-0 w-1 h-2 bg-cyan-400 z-10"></div>
                         <div className="absolute inset-1 border border-dashed border-slate-600 rounded-full opacity-50"></div>
-                        {/* 动态罗盘 */}
                         <div 
                             style={{ transform: `rotate(${compassRotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }} 
                             className={`w-full h-full flex items-center justify-center ${!isDataActive ? 'opacity-60' : ''}`}
@@ -93,6 +93,13 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                         <button onClick={() => setCruiseMode('0')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='0'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_off')}</button>
                     </div>
                     <button onClick={sendSCommand} className="w-full mt-2 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-xs py-2 rounded font-bold shadow-lg tracking-wide">{t('deploy_config')}</button>
+                    
+                    {/* === 新增: 连接后的提示信息 === */}
+                    {tcpStatus === 'ONLINE' && (
+                        <div className="mt-2 p-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-[10px] text-yellow-400 text-center animate-pulse">
+                            {t('hint_deploy')}
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -225,6 +225,7 @@ function BoatGroundStation() {
                     sendWaypointsCommand={sendWaypointsCommand}
                     waypointsCount={waypoints.length}
                     t={t}
+                    tcpStatus={tcpStatus}
                 />
 
                 <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
