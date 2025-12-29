@@ -1,34 +1,154 @@
 // js/components/ChartModal.js
 const { useEffect, useRef, useState } = React;
 
+// ====================================================================
+// 1. 核心配置区域
+// ====================================================================
+const CHART_CONFIG = [
+    { 
+        key: 'batL', 
+        label: 'BAT L', 
+        color: '#06b6d4', // Cyan (青色)
+        unit: 'V', 
+        yAxisIndex: 0 
+    },
+    { 
+        key: 'batR', 
+        label: 'BAT R', 
+        color: '#10b981', // Emerald (绿色 - 保持复原后的颜色)
+        unit: 'V', 
+        yAxisIndex: 0 
+    },
+    { 
+        key: 'heading', 
+        label: 'HEADING', 
+        color: '#a855f7', // Purple (紫色)
+        unit: '°', 
+        yAxisIndex: 1 
+    }
+];
+
 function ChartModal({ isOpen, onClose, data, onClear, t }) {
     const chartRef = useRef(null);
     const echartsInstance = useRef(null);
+    
+    // 状态管理
+    const [isPaused, setIsPaused] = useState(false); 
+    const [isChartReady, setIsChartReady] = useState(false); 
+    const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
 
-    // === 新增状态 ===
-    const [isPaused, setIsPaused] = useState(false);
-    // 记录每条曲线的显示/隐藏状态
-    const [legendState, setLegendState] = useState({ 'Battery L': true, 'Battery R': true });
+    // 获取最新一帧数据
+    const currentData = data && data.length > 0 ? data[data.length - 1] : {};
 
-    // 获取最新的一帧数据用于顶部大字显示 (如果 data 为空则显示 0)
-    const currentData = data && data.length > 0 ? data[data.length - 1] : { batL: 0, batR: 0 };
-
-    // 1. 初始化 ECharts 实例
+    // ====================================================================
+    // 2. 监听窗口打开：重置状态
+    // ====================================================================
     useEffect(() => {
-        if (!isOpen || !chartRef.current || !window.echarts) return;
+        if (isOpen) {
+            setIsPaused(false);
+            setIsChartReady(false);
+        }
+    }, [isOpen]);
 
-        if (!echartsInstance.current) {
+    // ====================================================================
+    // 3. 初始化 ECharts
+    // ====================================================================
+    useEffect(() => {
+        if (!isOpen) return;
+
+        if (echartsInstance.current) {
+            echartsInstance.current.dispose();
+            echartsInstance.current = null;
+        }
+
+        const timer = setTimeout(() => {
+            if (!chartRef.current || !window.echarts) return;
+
             echartsInstance.current = window.echarts.init(chartRef.current, 'dark', {
                 renderer: 'canvas'
             });
-        }
 
-        const handleResize = () => {
-            if (echartsInstance.current) echartsInstance.current.resize();
-        };
+            // 基础配置
+            const baseOption = {
+                backgroundColor: 'transparent',
+                animation: false,
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' }
+                },
+                legend: { show: false }, 
+                
+                // === 工具箱配置 (已删除 restore/重置 图标) ===
+                toolbox: {
+                    feature: {
+                        // 只保留 框选缩放 和 保存图片
+                        dataZoom: { yAxisIndex: 'none', title: { zoom: '框选缩放', back: '复原' } },
+                        saveAsImage: { title: '保存图片' }
+                    },
+                    iconStyle: { borderColor: '#94a3b8' },
+                    right: 20
+                },
+
+                // === 底部缩放滑块 ===
+                dataZoom: [
+                    {
+                        type: 'slider', 
+                        show: true, 
+                        xAxisIndex: [0], 
+                        start: 0, 
+                        end: 100,
+                        height: 24,
+                        bottom: 10,
+                        borderColor: '#334155',
+                        textStyle: { color: '#94a3b8' },
+                        handleStyle: { color: '#06b6d4' },
+                        fillerColor: 'rgba(6, 182, 212, 0.1)'
+                    },
+                    {
+                        type: 'inside', // 支持鼠标滚轮缩放
+                        xAxisIndex: [0], 
+                        start: 0, 
+                        end: 100
+                    }
+                ],
+
+                grid: {
+                    left: '3%', right: '4%', bottom: '15%', top: '15%',
+                    containLabel: true
+                },
+                yAxis: [
+                    {
+                        type: 'value', position: 'left',
+                        splitLine: { lineStyle: { color: '#1e293b' } },
+                        axisLabel: { color: '#94a3b8' }
+                    },
+                    {
+                        type: 'value', position: 'right',
+                        splitLine: { show: false },
+                        axisLabel: { color: '#94a3b8' },
+                        min: 0, max: 360
+                    }
+                ],
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    axisLine: { lineStyle: { color: '#475569' } },
+                    axisLabel: { color: '#94a3b8' },
+                    data: []
+                },
+                series: []
+            };
+            echartsInstance.current.setOption(baseOption);
+            echartsInstance.current.resize();
+            setIsChartReady(true);
+
+        }, 50);
+
+        const handleResize = () => echartsInstance.current && echartsInstance.current.resize();
         window.addEventListener('resize', handleResize);
 
         return () => {
+            clearTimeout(timer);
             window.removeEventListener('resize', handleResize);
             if (echartsInstance.current) {
                 echartsInstance.current.dispose();
@@ -37,101 +157,70 @@ function ChartModal({ isOpen, onClose, data, onClear, t }) {
         };
     }, [isOpen]);
 
-    // 2. 更新图表数据 (核心逻辑：加入暂停判断)
+    // ====================================================================
+    // 4. 数据更新循环
+    // ====================================================================
     useEffect(() => {
-        if (!echartsInstance.current || !data) return;
-
-        // === 关键点：如果处于暂停状态，直接返回，不更新图表 ===
+        if (!isChartReady || !echartsInstance.current) return;
         if (isPaused) return;
 
+        // 如果 data 为空（被清除），强制传入空数组以清空图表
+        const safeData = data || [];
+
+        const dynamicSeries = CHART_CONFIG.map(config => {
+            if (!activeKeys.has(config.key)) return null;
+
+            return {
+                name: config.label,
+                type: 'line',
+                smooth: true,
+                symbol: 'none',
+                yAxisIndex: config.yAxisIndex,
+                data: safeData.map(item => item[config.key]),
+                lineStyle: { color: config.color, width: 2 },
+                itemStyle: { color: config.color },
+                animation: false,
+                areaStyle: config.unit === 'V' ? {
+                    color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: config.color + '4D' }, 
+                        { offset: 1, color: config.color + '03' }
+                    ])
+                } : null
+            };
+        }).filter(s => s !== null);
+
         const option = {
-            backgroundColor: 'transparent',
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'cross' }
-            },
-            // 隐藏 ECharts 原生图例，改用顶部 HTML 按钮控制
-            legend: {
-                show: false,
-                data: ['Battery L', 'Battery R']
-            },
-            grid: {
-                left: '3%', right: '4%', bottom: '15%', top: '10%', // 调整边距适配布局
-                containLabel: true
-            },
-            dataZoom: [
-                {
-                    type: 'slider', show: true, xAxisIndex: [0], start: 0, end: 100,
-                    textStyle: { color: '#94a3b8' }, borderColor: '#334155', height: 25
-                },
-                {
-                    type: 'inside', xAxisIndex: [0], start: 0, end: 100
-                }
-            ],
             xAxis: {
-                type: 'category',
-                boundaryGap: false,
-                data: data.map(item => item.time),
-                axisLine: { lineStyle: { color: '#475569' } },
+                data: safeData.map(item => item.time),
                 axisLabel: { 
-                    color: '#94a3b8',
-                    hideOverlap: true, // 防止横轴时间文字重叠
-                    formatter: (value) => value.split(' ').pop() // 只显示时间部分
+                    hideOverlap: true,
+                    formatter: (value) => value.split(' ').pop() 
                 }
             },
-            yAxis: {
-                type: 'value',
-                name: 'Voltage (V)',
-                // 动态调整 Y 轴范围，让微小的电压波动看起来更明显
-                min: (value) => Math.floor(value.min - 1),
-                max: (value) => Math.ceil(value.max + 1),
-                splitLine: { lineStyle: { color: '#1e293b' } },
-                axisLine: { lineStyle: { color: '#475569' } },
-                axisLabel: { color: '#94a3b8' }
-            },
-            series: [
-                {
-                    name: 'Battery L',
-                    type: 'line',
-                    smooth: true,
-                    symbol: 'none',
-                    data: data.map(item => item.batL),
-                    lineStyle: { color: '#06b6d4', width: 2 },
-                    areaStyle: {
-                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: 'rgba(6, 182, 212, 0.3)' },
-                            { offset: 1, color: 'rgba(6, 182, 212, 0.01)' }
-                        ])
-                    }
-                },
-                {
-                    name: 'Battery R',
-                    type: 'line',
-                    smooth: true,
-                    symbol: 'none',
-                    data: data.map(item => item.batR),
-                    lineStyle: { color: '#f59e0b', width: 2 }, // 橙色
-                    areaStyle: {
-                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
-                            { offset: 1, color: 'rgba(245, 158, 11, 0.01)' }
-                        ])
-                    }
-                }
-            ]
+            yAxis: [
+                { min: (value) => Math.floor(value.min), max: (value) => Math.ceil(value.max) },
+                { min: 0, max: 360 }
+            ],
+            series: dynamicSeries
         };
 
-        echartsInstance.current.setOption(option);
-    }, [data, isOpen, isPaused]); // 依赖项包含 isPaused
-
-    // === 切换曲线显示/隐藏 ===
-    const toggleSeries = (name) => {
-        if (!echartsInstance.current) return;
-        echartsInstance.current.dispatchAction({
-            type: 'legendToggleSelect',
-            name: name
+        echartsInstance.current.setOption(option, { 
+            lazyUpdate: true,
+            replaceMerge: ['series'] 
         });
-        setLegendState(prev => ({ ...prev, [name]: !prev[name] }));
+        
+    }, [data, isOpen, isPaused, activeKeys, isChartReady]);
+
+    // === 交互逻辑 ===
+    const toggleChannel = (key) => {
+        const newSet = new Set(activeKeys);
+        if (newSet.has(key)) newSet.delete(key);
+        else newSet.add(key);
+        setActiveKeys(newSet);
+    };
+
+    const soloChannel = (key) => {
+        setActiveKeys(new Set([key]));
     };
 
     if (!isOpen) return null;
@@ -140,80 +229,77 @@ function ChartModal({ isOpen, onClose, data, onClear, t }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
             <div className="w-[95%] h-[90%] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
                 
-                {/* === Header (集成 HUD 和 控制器) === */}
-                <div className="h-20 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between px-6 shrink-0 backdrop-blur">
+                {/* Header */}
+                <div className="h-24 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between px-6 shrink-0 backdrop-blur gap-4">
                     
-                    {/* 左侧：标题与暂停按钮 */}
-                    <div className="flex flex-col gap-2">
+                    {/* 左侧：标题与暂停 */}
+                    <div className="flex flex-col gap-2 shrink-0">
                         <div className="flex items-center gap-2">
                             <Icons.Activity className="w-5 h-5 text-cyan-400" />
-                            <span className="font-bold text-slate-200 tracking-wider text-lg">{t ? t('chart_title') : 'DATA CHART'}</span>
+                            <span className="font-bold text-slate-200 tracking-wider text-lg">DATA ANALYSIS</span>
                         </div>
                         
-                        {/* === 暂停按钮 === */}
                         <button 
                             onClick={() => setIsPaused(!isPaused)}
-                            className={`flex items-center justify-center gap-2 px-6 py-1 rounded-full text-xs font-bold border transition-all ${
+                            className={`flex items-center justify-center gap-2 px-4 py-1 rounded-full text-xs font-bold border transition-all ${
                                 isPaused 
-                                ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 animate-pulse' 
+                                ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 hover:bg-yellow-500/30' 
                                 : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
                             }`}
                         >
-                            {isPaused ? <span>⏸ 已暂停 (PAUSED)</span> : <span>▶ 实时监控中 (LIVE)</span>}
+                            {isPaused ? <span>▶ 继续 (Resume)</span> : <span>⏸ 暂停 (Pause)</span>}
                         </button>
                     </div>
 
-                    {/* 中间：HUD 实时数值 (点击可切换图例) === */}
-                    <div className="flex gap-4">
-                        {/* Battery L Card */}
-                        <button 
-                            onClick={() => toggleSeries('Battery L')}
-                            className={`flex flex-col items-center px-6 py-2 rounded border transition-all min-w-[120px] ${
-                                legendState['Battery L'] 
-                                ? 'bg-cyan-900/20 border-cyan-500/50 hover:bg-cyan-900/30' 
-                                : 'bg-slate-800 border-slate-700 opacity-40 grayscale'
-                            }`}
-                        >
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Battery L</span>
-                            <span className={`text-2xl font-black font-mono ${legendState['Battery L'] ? 'text-cyan-400' : 'text-slate-500'}`}>
-                                {currentData.batL.toFixed(1)} <span className="text-xs">V</span>
-                            </span>
-                        </button>
+                    {/* 中间：HUD 卡片 */}
+                    <div className="flex flex-1 justify-center gap-3 overflow-x-auto px-2 scrollbar-hide">
+                        {CHART_CONFIG.map(config => {
+                            const isActive = activeKeys.has(config.key);
+                            const baseStyle = isActive 
+                                ? { borderColor: config.color, backgroundColor: config.color + '1A' }
+                                : { borderColor: '#334155', backgroundColor: '#1e293b' };
+                            const textClass = isActive ? 'text-white' : 'text-slate-500';
+                            const value = currentData[config.key] !== undefined ? currentData[config.key] : 0;
 
-                        {/* Battery R Card */}
-                        <button 
-                            onClick={() => toggleSeries('Battery R')}
-                            className={`flex flex-col items-center px-6 py-2 rounded border transition-all min-w-[120px] ${
-                                legendState['Battery R'] 
-                                ? 'bg-amber-900/20 border-amber-500/50 hover:bg-amber-900/30' 
-                                : 'bg-slate-800 border-slate-700 opacity-40 grayscale'
-                            }`}
-                        >
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Battery R</span>
-                            <span className={`text-2xl font-black font-mono ${legendState['Battery R'] ? 'text-amber-400' : 'text-slate-500'}`}>
-                                {currentData.batR.toFixed(1)} <span className="text-xs">V</span>
-                            </span>
-                        </button>
+                            return (
+                                <button 
+                                    key={config.key}
+                                    onClick={() => toggleChannel(config.key)}
+                                    onDoubleClick={() => soloChannel(config.key)}
+                                    className={`flex flex-col items-center px-4 py-2 rounded border transition-all min-w-[100px] select-none hover:scale-105 active:scale-95 duration-200`}
+                                    style={{ ...baseStyle, opacity: isActive ? 1 : 0.5, filter: isActive ? 'none' : 'grayscale(100%)' }}
+                                    title="单击切换显示 / 双击独奏 (Double-Click to Solo)"
+                                >
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{config.label}</span>
+                                    <span className={`text-xl font-black font-mono ${textClass}`} style={{ color: isActive ? config.color : undefined }}>
+                                        {typeof value === 'number' ? value.toFixed(1) : value}
+                                        <span className="text-xs ml-0.5 opacity-60">{config.unit}</span>
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                     
-                    {/* 右侧：操作按钮 */}
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-500 font-mono mr-2">
-                            {data ? data.length : 0} POINTS
-                        </span>
-                        
-                        <div className="h-6 w-[1px] bg-slate-700"></div>
-
+                    {/* 右侧：操作区 */}
+                    <div className="flex items-center gap-3 shrink-0">
+                        {/* === 恢复：Reset View 按钮 === */}
                         <button 
-                            onClick={onClear}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/50 text-slate-400 hover:text-red-400 rounded text-xs transition-all group"
+                            onClick={() => setActiveKeys(new Set(CHART_CONFIG.map(c=>c.key)))} 
+                            className="text-[10px] underline text-slate-500 hover:text-white mr-2"
                         >
-                            <Icons.Trash className="w-3.5 h-3.5" />
-                            <span>{t ? t('chart_clear') : "Clear"}</span>
+                            Reset View
                         </button>
 
                         <button 
-                            onClick={onClose}
+                            onClick={onClear} 
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/50 text-slate-400 hover:text-red-400 rounded text-xs transition-all"
+                        >
+                            <Icons.Trash className="w-3.5 h-3.5" /> 
+                            <span>{t ? t('chart_clear') : "Clear"}</span>
+                        </button>
+                        
+                        <button 
+                            onClick={onClose} 
                             className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors"
                         >
                             <Icons.X className="w-6 h-6" />
@@ -221,14 +307,12 @@ function ChartModal({ isOpen, onClose, data, onClear, t }) {
                     </div>
                 </div>
 
-                {/* Chart Area */}
+                {/* 图表主体 */}
                 <div className="flex-1 relative bg-slate-950/50 w-full h-full p-2">
                     <div ref={chartRef} className="w-full h-full"></div>
-                    
-                    {/* 暂停状态下的屏幕中央提示 */}
                     {isPaused && (
                         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 px-4 py-1 rounded-full text-xs font-bold pointer-events-none backdrop-blur-sm">
-                            ⚠️ 图表已暂停 - 现在可以滚动鼠标缩放分析
+                            ⚠️ PAUSED - SCROLL TO ZOOM & ANALYZE
                         </div>
                     )}
                 </div>
