@@ -24,6 +24,10 @@
  #include <sstream>
  #include <map>
  
+ // [新增] 用于获取本机 IP
+ #include <ifaddrs.h>
+ #include <netdb.h>
+ 
  using namespace std;
  
  // === 配置文件管理 ===
@@ -138,21 +142,6 @@
      }
      frame.insert(frame.end(), msg.begin(), msg.end());
      send(g_web_client_sock, frame.data(), frame.size(), 0);
- }
- 
- void serve_html_file(int client_sock) {
-     ifstream f("index.html", ios::binary); // 读取同目录下的 index.html
-     if (f) {
-         string content((istreambuf_iterator<char>(f)), istreambuf_iterator<char>());
-         string header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " + to_string(content.length()) + "\r\n\r\n";
-         send(client_sock, header.c_str(), header.length(), 0);
-         send(client_sock, content.c_str(), content.length(), 0);
-         cout << "[Web] Served index.html" << endl;
-     } else {
-         string msg = "HTTP/1.1 404 Not Found\r\n\r\n<h1>404: index.html not found</h1><p>Please place the html file in the same directory.</p>";
-         send(client_sock, msg.c_str(), msg.length(), 0);
-         cout << "[Web] Error: index.html not found" << endl;
-     }
  }
  
  string get_mime_type(const string& path) {
@@ -405,6 +394,34 @@ void boat_listener_loop() {
     }
 }
  
+ // [新增] 获取本机非回环 IPv4 地址
+ string get_local_ip() {
+     struct ifaddrs *ifaddr, *ifa;
+     char host[NI_MAXHOST];
+     string ip_str = "127.0.0.1";
+
+     if (getifaddrs(&ifaddr) == -1) return ip_str;
+
+     for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+         if (ifa->ifa_addr == NULL) continue;
+         if (ifa->ifa_addr->sa_family == AF_INET) { // 仅查找 IPv4
+             // 排除回环接口 (lo)
+             if (strcmp(ifa->ifa_name, "lo") != 0) {
+                 int s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in),
+                                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                 if (s == 0) {
+                     ip_str = host;
+                     // 找到第一个非 lo 的 IP 就返回 (通常是 wlan0 或 eth0)
+                     break; 
+                 }
+             }
+         }
+     }
+
+     freeifaddrs(ifaddr);
+     return ip_str;
+ }
+
  int main() {
      load_config(); // 加载配置
      
@@ -425,7 +442,8 @@ void boat_listener_loop() {
      
      cout << "========================================" << endl;
      cout << " USV Server Started " << endl;
-     cout << " Web UI: http://<Your-IP>:" << g_config.local_web_port << endl;
+     // [修改] 自动显示真实 IP
+     cout << " Web UI: http://" << get_local_ip() << ":" << g_config.local_web_port << endl;
      cout << " Boat Server: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
      cout << " Config saved in: " << CONFIG_FILE << endl;
      cout << "========================================" << endl;
