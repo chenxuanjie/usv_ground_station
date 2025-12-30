@@ -7,7 +7,16 @@ function BoatGroundStation() {
     // [新增] 设置弹窗状态
     const [showSettings, setShowSettings] = useState(false);
     const [devMode, setDevMode] = useState(false);
-    
+    const devModeRef = useRef(devMode);
+    const setDevModeSafe = useCallback((checked) => {
+        devModeRef.current = checked;
+        setDevMode(checked);
+    }, []);
+
+    useEffect(() => {
+        devModeRef.current = devMode;
+    }, [devMode]);
+
     // 图表数据 Ref (全速)
     const [showChart, setShowChart] = useState(false);
     const chartDataRef = useRef([]); 
@@ -178,7 +187,7 @@ function BoatGroundStation() {
                         }
                     }
                     // 日志建议也少打一点，或者只在 devMode 下打，这里暂且保留
-                    // addLog('RX', msg, 'debug'); 
+                    if (devModeRef.current) addLog('RX', msg, 'debug');
                 } else {
                     addLog('RX', msg, 'debug');
                 }
