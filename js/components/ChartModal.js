@@ -14,12 +14,15 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     const echartsInstance = useRef(null);
     const [isPaused, setIsPaused] = useState(false);
     
+    // 用于记录鼠标位置，解决 Tooltip 漂移问题
+    const lastMousePosRef = useRef(null);
+    
     // HUD 状态
     const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
     const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
     const lastHudUpdateRef = useRef(0);
 
-    // 2. 初始化 ECharts (静态)
+    // 2. 初始化 ECharts
     useEffect(() => {
         if (!isOpen) return;
         if (echartsInstance.current) {
@@ -34,11 +37,19 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
             const baseOption = {
                 backgroundColor: 'transparent',
-                // === 关键：必须关闭动画，否则 120FPS 会导致动画堆积卡顿 ===
+                // === 关键：90FPS 下必须彻底禁用所有动画 ===
                 animation: false, 
+                hoverLayerThreshold: Infinity, // 强制每一帧都重新渲染 hover 层
                 tooltip: {
                     trigger: 'axis',
-                    axisPointer: { type: 'cross' },
+                    // 彻底禁用动画和过渡效果
+                    animation: false, 
+                    transitionDuration: 0, 
+                    axisPointer: { 
+                        type: 'cross', 
+                        animation: false,
+                        snap: false 
+                    },
                     confine: true,
                     backgroundColor: 'rgba(50, 50, 50, 0.9)',
                     textStyle: { color: '#fff' }
@@ -67,6 +78,19 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             };
             
             echartsInstance.current.setOption(baseOption);
+
+            // 绑定底层 zrender 事件获取精确坐标
+            const zr = echartsInstance.current.getZr();
+            zr.on('mousemove', function(e) {
+                lastMousePosRef.current = { x: e.offsetX, y: e.offsetY };
+            });
+            zr.on('mouseout', function(e) {
+                lastMousePosRef.current = null;
+            });
+            zr.on('globalout', function() {
+                lastMousePosRef.current = null;
+            });
+
             echartsInstance.current.resize();
         }, 50);
 
@@ -83,18 +107,17 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
         };
     }, [isOpen]);
 
-    // 3. 极速刷新循环 (120 FPS) + 修复暂停时的更新逻辑
+    // 3. 极速刷新循环 (100 FPS)
     useEffect(() => {
         if (!isOpen) return;
 
-        // 提取渲染帧的逻辑
         const renderFrame = () => {
             if (!echartsInstance.current || !dataRef || !dataRef.current) return;
 
             const fullData = dataRef.current;
             if (fullData.length === 0) return;
 
-            // HUD 更新依然保持低频 (100ms)，避免 React 抢占主线程
+            // HUD 更新依然保持低频 (100ms)，避免 React 状态更新阻塞 Canvas 渲染
             const now = Date.now();
             if (now - lastHudUpdateRef.current > 100) {
                 setHudData(fullData[fullData.length - 1]); 
@@ -121,6 +144,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 };
             }).filter(s => s !== null);
 
+            // 1. 设置数据
             echartsInstance.current.setOption({
                 xAxis: {
                     data: fullData.map(item => item.time),
@@ -131,21 +155,31 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                     { min: 0, max: 360 }
                 ],
                 series: dynamicSeries
-            }, { lazyUpdate: true, replaceMerge: ['series'] });
+            }, { 
+                lazyUpdate: false, // 必须 false，强制同步渲染
+                replaceMerge: ['series'] 
+            });
+
+            // 2. 强制修正 Tooltip
+            if (lastMousePosRef.current && !isPaused) {
+                echartsInstance.current.dispatchAction({
+                    type: 'showTip',
+                    x: lastMousePosRef.current.x,
+                    y: lastMousePosRef.current.y
+                });
+            }
         };
 
-        // 如果未暂停，开启定时器循环渲染
         if (!isPaused) {
-            const renderTimer = setInterval(renderFrame, 8); // 8ms = 125fps
+            // === 极速模式：10ms = 100 FPS ===
+            // 这可以满足"至少 90fps"的要求
+            const renderTimer = setInterval(renderFrame, 10); 
             return () => clearInterval(renderTimer);
         } else {
-            // [Fix] 如果暂停了，但 activeKeys 发生了变化（依赖项触发了此 Effect），
-            // 我们需要手动调用一次渲染，以更新图表的显示/隐藏状态。
-            // 注意：此时显示的数据会是 dataRef 中的最新数据。
             renderFrame();
         }
 
-    }, [isOpen, isPaused, activeKeys]); // 依赖项包含 activeKeys，确保点击按钮时触发
+    }, [isOpen, isPaused, activeKeys]);
 
     // 交互逻辑
     const toggleChannel = (key) => {
@@ -215,7 +249,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     );
 }
 
-// 4. 组件隔离 (React.memo)
+// 4. 组件隔离
 const ChartModal = React.memo(ChartModalComponent, (prev, next) => {
     return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef;
 });
