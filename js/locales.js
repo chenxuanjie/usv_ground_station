@@ -81,7 +81,15 @@ const AppTranslations = {
         chart_tip_save: "保存图片",
         chart_msg_locked: "🔒 锁定缩放 - 请拖拽",
         chart_msg_active: "🔍 单次缩放 - 拖拽后自动退出",
-        chart_msg_paused: "⚠️ 已暂停 - 分析模式"
+        chart_msg_paused: "⚠️ 已暂停 - 分析模式",
+
+        settings_title: "系统连接设置",
+        set_boat_ip: "无人艇 IP 地址 (BOOT)",
+        set_boat_port: "无人艇 端口 (PORT)",
+        btn_save: "保存配置",
+        btn_cancel: "取消",
+        msg_save_success: "配置已保存!",
+        err_invalid_input: "输入无效",
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -164,6 +172,14 @@ const AppTranslations = {
         chart_tip_save: "Save Image",
         chart_msg_locked: "🔒 ZOOM LOCKED - DRAG",
         chart_msg_active: "🔍 ZOOM ACTIVE - AUTO OFF",
-        chart_msg_paused: "⚠️ PAUSED - ANALYZE MODE"
+        chart_msg_paused: "⚠️ PAUSED - ANALYZE MODE",
+
+        settings_title: "CONNECTION SETTINGS",
+        set_boat_ip: "BOAT IP ADDRESS",
+        set_boat_port: "BOAT PORT",
+        btn_save: "SAVE CONFIG",
+        btn_cancel: "CANCEL",
+        msg_save_success: "Config Saved!",
+        err_invalid_input: "Invalid Input",
     }
 };

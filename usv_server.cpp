@@ -71,6 +71,19 @@
      }
  }
  
+// [新增] 保存配置到文件
+void save_config() {
+    ofstream outfile(CONFIG_FILE);
+    if (outfile.is_open()) {
+        outfile << "boat_ip=" << g_config.boat_ip << endl;
+        outfile << "boat_port=" << g_config.boat_port << endl;
+        outfile << "local_web_port=" << g_config.local_web_port << endl;
+        cout << "[Config] Saved to " << CONFIG_FILE << endl;
+    } else {
+        cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
+    }
+}
+
  // === 全局状态 ===
  int g_boat_sock = -1;
  int g_web_client_sock = -1; // 简单起见，暂支持单用户控制
@@ -285,8 +298,39 @@ void boat_listener_loop() {
                 // 2. 逻辑处理核心
                 if (!decoded.empty()) {
                     
+                    // [新增] 处理获取配置请求 (前端初始化时调用)
+                    if (decoded == "GET_CONFIG") {
+                        // 格式: CURRENT_CONFIG,IP,PORT
+                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port);
+                        send_ws_frame(msg);
+                        cout << "[Config] Sent current config to client." << endl;
+                    }
+                    // [新增] 处理保存配置请求
+                    else if (decoded.find("CMD,SET_CONFIG") == 0) {
+                        // 格式: CMD,SET_CONFIG,IP,PORT
+                        // 示例: CMD,SET_CONFIG,192.168.1.10,6202
+                        size_t p1 = decoded.find(',');
+                        size_t p2 = decoded.find(',', p1 + 1);
+                        size_t p3 = decoded.find(',', p2 + 1);
+
+                        if (p2 != string::npos && p3 != string::npos) {
+                            string new_ip = decoded.substr(p2 + 1, p3 - p2 - 1);
+                            string new_port_str = decoded.substr(p3 + 1);
+                            
+                            // 更新全局配置
+                            g_config.boat_ip = new_ip;
+                            g_config.boat_port = stoi(new_port_str);
+                            
+                            // 写入文件
+                            save_config();
+                            
+                            // 反馈给前端（可选，这里简单打印日志）
+                            cout << "[Config] Updated: " << new_ip << ":" << new_port_str << endl;
+                        }
+                    }
+
                     // --- 情况 A: 收到连接指令 ---
-                    if (decoded.find("CMD,CONNECT") == 0) {
+                    else if (decoded.find("CMD,CONNECT") == 0) {
                         // 格式: CMD,CONNECT,IP,PORT
                         string ip_str, port_str;
                         size_t p1 = decoded.find(',');

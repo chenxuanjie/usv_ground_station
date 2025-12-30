@@ -21,8 +21,8 @@ function BoatGroundStation() {
     
     const [webConnected, setWebConnected] = useState(false);
     const [tcpStatus, setTcpStatus] = useState('OFFLINE'); 
-    const [serverIp, setServerIp] = useState('120.77.0.8');
-    const [serverPort, setServerPort] = useState('6202');
+    const [serverIp, setServerIp] = useState('');
+    const [serverPort, setServerPort] = useState('');
 
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0,
@@ -222,6 +222,21 @@ function BoatGroundStation() {
         return { text: t('btn_connect'), color: 'bg-cyan-600/90 hover:bg-cyan-500 border-cyan-400 shadow-cyan-900/50', disabled: false };
     };
 
+    const handleSaveConfig = (newIp, newPort) => {
+        // 1. 更新本地状态
+        setServerIp(newIp);
+        setServerPort(newPort);
+        
+        // 2. 发送指令给后端保存到 config.ini
+        // 协议: CMD,SET_CONFIG,IP,PORT
+        if (wsRef.current && webConnected) {
+            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort}`);
+            addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
+        } else {
+            addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
+        }
+    };
+
     return (
         <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
@@ -308,32 +323,14 @@ function BoatGroundStation() {
             />
 
             {/* [新增] 设置弹窗 (占位) */}
-            {showSettings && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-                    <div className="w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Icons.Settings className="w-5 h-5 text-cyan-400"/>
-                                {t('btn_settings')}
-                            </h2>
-                            <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">
-                                <Icons.X size={20}/>
-                            </button>
-                        </div>
-                        <div className="bg-slate-800/50 p-4 rounded text-center text-slate-400 text-sm border border-dashed border-slate-700">
-                            🚧 功能开发中...<br/>(Feature Pending)
-                        </div>
-                        <div className="mt-4 flex justify-end">
-                            <button 
-                                onClick={() => setShowSettings(false)}
-                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors"
-                            >
-                                关闭 (Close)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <SettingsModal 
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                currentIp={serverIp}
+                currentPort={serverPort}
+                onSave={handleSaveConfig}
+                t={t}
+            />
         </div>
     );
 }

@@ -27,6 +27,7 @@ function Header({ lang, setLang, webConnected, tcpStatus, serverIp, setServerIp,
                         value={serverIp} 
                         onChange={e => setServerIp(e.target.value)} 
                         disabled={tcpStatus !== 'OFFLINE'}
+                        placeholder="Loading..."  // [新增]
                     />
                     <div className="w-[1px] h-4 bg-slate-800"></div>
                     <input 
@@ -34,6 +35,7 @@ function Header({ lang, setLang, webConnected, tcpStatus, serverIp, setServerIp,
                         value={serverPort} 
                         onChange={e => setServerPort(e.target.value)} 
                         disabled={tcpStatus !== 'OFFLINE'}
+                        placeholder="..."  // [新增]
                     />
                 </div>
 
