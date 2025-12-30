@@ -1,15 +1,14 @@
 // js/components/ChartModal.js
 const { useEffect, useRef, useState } = React;
 
-// ====================================================================
-// 1. 核心配置区域
-// ====================================================================
+// 1. 核心配置
 const CHART_CONFIG = [
     { key: 'batL', label: 'BAT L', color: '#06b6d4', unit: 'V', yAxisIndex: 0 },
     { key: 'batR', label: 'BAT R', color: '#10b981', unit: 'V', yAxisIndex: 0 },
     { key: 'heading', label: 'HEADING', color: '#a855f7', unit: '°', yAxisIndex: 1 }
 ];
 
+// 定义内部组件
 function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     const chartRef = useRef(null);
     const echartsInstance = useRef(null);
@@ -35,11 +34,8 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
             const baseOption = {
                 backgroundColor: 'transparent',
-                // === 关键修改：开启轻量级动画，找回"丝滑感" ===
-                animation: true,  
-                animationDuration: 300, // 300ms 的过渡时间，既平滑又不拖沓
-                animationEasing: 'cubicOut', // 缓动效果
-                
+                // === 关键：必须关闭动画，否则 120FPS 会导致动画堆积卡顿 ===
+                animation: false, 
                 tooltip: {
                     trigger: 'axis',
                     axisPointer: { type: 'cross' },
@@ -87,16 +83,20 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
         };
     }, [isOpen]);
 
-    // 3. 刷新循环 (配合动画，使用 50ms 左右的刷新率即可，太快了动画看不清)
+    // 3. 极速刷新循环 (120 FPS)
     useEffect(() => {
         if (!isOpen || isPaused) return;
 
+        // === 设置为 8ms (约 125 FPS) ===
+        // 这将尽可能快地从 dataRef 读取数据并绘制，
+        // 最大限度减少数据到达与画面更新之间的时间差。
         const renderTimer = setInterval(() => {
             if (!echartsInstance.current || !dataRef || !dataRef.current) return;
 
             const fullData = dataRef.current;
             if (fullData.length === 0) return;
 
+            // HUD 更新依然保持低频 (100ms)，避免 React 抢占主线程
             const now = Date.now();
             if (now - lastHudUpdateRef.current > 100) {
                 setHudData(fullData[fullData.length - 1]); 
@@ -135,17 +135,20 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 series: dynamicSeries
             }, { lazyUpdate: true, replaceMerge: ['series'] });
 
-        }, 50); // 改为 50ms (20fps)，留出时间给动画展示
+        }, 8); // <--- 8ms = 125fps
 
         return () => clearInterval(renderTimer);
     }, [isOpen, isPaused, activeKeys]);
 
+    // 交互逻辑
     const toggleChannel = (key) => {
         const newSet = new Set(activeKeys);
         if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
         setActiveKeys(newSet);
     };
+
     const soloChannel = (key) => setActiveKeys(new Set([key]));
+    
     const handleClear = () => {
         if(onClear) onClear();
         if(echartsInstance.current) echartsInstance.current.setOption({ xAxis: { data: [] }, series: [] });
@@ -205,7 +208,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     );
 }
 
-// React.memo 隔离
+// 4. 组件隔离 (React.memo)
 const ChartModal = React.memo(ChartModalComponent, (prev, next) => {
     return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef;
 });
