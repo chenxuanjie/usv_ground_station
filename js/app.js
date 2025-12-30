@@ -1,3 +1,4 @@
+// js/app.js
 const { useState, useEffect, useRef, useCallback } = React;
 
 function BoatGroundStation() {
@@ -5,32 +6,33 @@ function BoatGroundStation() {
     const [showLogs, setShowLogs] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
+    // 图表数据 Ref (全速)
+    const [showChart, setShowChart] = useState(false);
+    const chartDataRef = useRef([]); 
+    
+    // UI 更新节流阀 (关键优化)
+    const lastUiUpdateRef = useRef(0);
+    
     const t = useCallback((key) => {
         return AppTranslations && AppTranslations[lang] ? (AppTranslations[lang][key] || key) : key;
     }, [lang]);
     
-    // 连接状态
     const [webConnected, setWebConnected] = useState(false);
     const [tcpStatus, setTcpStatus] = useState('OFFLINE'); 
     const [serverIp, setServerIp] = useState('120.77.0.8');
     const [serverPort, setServerPort] = useState('6202');
 
-    // 船的状态
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0,
         batteryL: 0, batteryR: 0,
         lastUpdate: null,
     });
     
-    // === 新增：航点列表状态 ===
-    // 格式: [{lng: 113.xxx, lat: 23.xxx}, ...]
     const [waypoints, setWaypoints] = useState([]);
-
     const [logs, setLogs] = useState([]);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
 
-    // 控制配置
     const [streamOn, setStreamOn] = useState(false);
     const [recvOn, setRecvOn] = useState(true);
     const [controlMode, setControlMode] = useState('@');
@@ -59,20 +61,16 @@ function BoatGroundStation() {
         }
     };
 
-    // === 新增：发送航点 (P协议) ===
     const sendWaypointsCommand = () => {
         if (waypoints.length === 0) {
             alert("请先在地图上右键添加航点！");
             return;
         }
-
-        // 拼接 P 报文: P,lng0,lat0,lng1,lat1,...,
         let cmd = "P";
         waypoints.forEach(wp => {
             cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
         });
-        cmd += ","; // 协议结尾
-
+        cmd += ",";
         sendData(cmd);
         addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
     };
@@ -146,16 +144,39 @@ function BoatGroundStation() {
                 else if (msg.startsWith('R')) {
                     const parts = msg.split(',');
                     if (parts.length >= 6) {
-                        setBoatStatus({
-                            longitude: parseFloat(parts[1]) || 0,
-                            latitude: parseFloat(parts[2]) || 0,
-                            heading: parseFloat(parts[3]) || 0,
-                            batteryL: parseFloat(parts[4]) || 0,
-                            batteryR: parseFloat(parts[5]) || 0,
-                            lastUpdate: new Date()
-                        });
+                        const bL = parseFloat(parts[4]) || 0;
+                        const bR = parseFloat(parts[5]) || 0;
+                        const heading = parseFloat(parts[3]) || 0;
+                        
+                        // === 1. 数据收集：始终全速运行，保证图表数据完整 ===
+                        const newPoint = {
+                            time: new Date().toLocaleTimeString('en-GB'),
+                            batL: bL,
+                            batR: bR,
+                            heading: heading
+                        };
+                        chartDataRef.current.push(newPoint);
+                        if (chartDataRef.current.length > 1000) chartDataRef.current.shift();
+
+                        // === 2. UI 渲染：节流 (Throttle) ===
+                        // 限制界面更新频率为每 100ms 一次 (10 FPS)，
+                        // 避免地图和侧边栏过度渲染阻塞主线程，
+                        // 从而让图表组件有足够的 CPU 资源跑满 60FPS 动画。
+                        const now = Date.now();
+                        if (now - lastUiUpdateRef.current > 100) {
+                            setBoatStatus({
+                                longitude: parseFloat(parts[1]) || 0,
+                                latitude: parseFloat(parts[2]) || 0,
+                                heading: heading,
+                                batteryL: bL,
+                                batteryR: bR,
+                                lastUpdate: new Date()
+                            });
+                            lastUiUpdateRef.current = now;
+                        }
                     }
-                    addLog('RX', msg, 'debug');
+                    // 日志建议也少打一点，或者只在 devMode 下打，这里暂且保留
+                    // addLog('RX', msg, 'debug'); 
                 } else {
                     addLog('RX', msg, 'debug');
                 }
@@ -221,7 +242,6 @@ function BoatGroundStation() {
                     keyState={keyState}
                     sendSCommand={sendSCommand}
                     sendKCommand={sendKCommand}
-                    // === 传递给 Sidebar 航点发送功能 ===
                     sendWaypointsCommand={sendWaypointsCommand}
                     waypointsCount={waypoints.length}
                     t={t}
@@ -229,7 +249,6 @@ function BoatGroundStation() {
                 />
 
                 <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
-                    {/* 地图组件：传入航点列表和修改函数 */}
                     <MapComponent 
                         lng={boatStatus.longitude} 
                         lat={boatStatus.latitude} 
@@ -246,6 +265,16 @@ function BoatGroundStation() {
                         <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                     </div>
                     
+                    <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
+                        <button 
+                            onClick={() => setShowChart(true)}
+                            className="w-10 h-10 flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 rounded-full shadow-lg shadow-cyan-900/50 transition-all hover:scale-110 active:scale-95 group"
+                            title="Open Data Chart"
+                        >
+                            <Icons.Plus className="text-white w-6 h-6" />
+                        </button>
+                    </div>
+
                     {boatStatus.longitude === 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
                             <div className="text-center">
@@ -264,6 +293,15 @@ function BoatGroundStation() {
                     t={t}
                 />
             </div>
+            
+            {/* 传递 dataRef */}
+            <ChartModal 
+                isOpen={showChart}
+                onClose={() => setShowChart(false)}
+                dataRef={chartDataRef}
+                onClear={() => { chartDataRef.current = []; }}
+                t={t}
+            />
         </div>
     );
 }

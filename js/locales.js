@@ -1,3 +1,4 @@
+// js/locales.js
 const AppTranslations = {
     zh: {
         title: "无人艇控制终端",
@@ -47,24 +48,39 @@ const AppTranslations = {
         loop_off: "巡航: 关闭 (0)",
         hint_deploy: "💡 连接成功，请先点击 [部署配置] 生效!",
 
-        // === 新增：Mission 区域 ===
+        // Mission
         mission_title: "任务航点",
         mission_pts: "航点数",
         send_waypoints: "下发航点 (Send WP)",
         mission_instruction: "右键地图添加点，点击下发按钮发送",
 
-        // === 新增：地图交互 ===
+        // Map
         map_browse: "浏览",
         map_add_mode: "添加航点",
         map_locate: "定位",
         map_system_active: "百度地图系统运行中",
         map_instruction_add: "点击地图添加航点",
         map_instruction_pan: "右键点击呼出菜单",
-        
-        // === 新增：右键菜单 ===
         menu_ruler: "📏 开启测距",
         menu_clear: "🗑️ 清除所有航点",
-        menu_delete_point: "❌ 删除此点"
+        menu_delete_point: "❌ 删除此点",
+        
+        // Chart (本次新增/修改)
+        chart_title: "数据分析图表",
+        chart_clear: "清除历史",
+        chart_bat_l: "左动力 (L)",
+        chart_bat_r: "右动力 (R)",
+        chart_heading: "航向角",
+        chart_resume: "▶ 继续",
+        chart_pause: "⏸ 暂停",
+        chart_tip_toggle: "单击切换 / 双击独奏",
+        chart_tip_zoom_active: "取消框选",
+        chart_tip_zoom_hint: "单击: 单次框选 / 双击: 锁定框选",
+        chart_tip_reset: "复位视图",
+        chart_tip_save: "保存图片",
+        chart_msg_locked: "🔒 锁定缩放 - 请拖拽",
+        chart_msg_active: "🔍 单次缩放 - 拖拽后自动退出",
+        chart_msg_paused: "⚠️ 已暂停 - 分析模式"
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -114,23 +130,38 @@ const AppTranslations = {
         loop_off: "LOOP: OFF (0)",
         hint_deploy: "💡 Connected. Please [Deploy Config] first!",
 
-        // === New: Mission Section ===
+        // Mission
         mission_title: "MISSION",
         mission_pts: "PTS",
         send_waypoints: "SEND MISSION (WP)",
         mission_instruction: "Right-click map to add points, then click send.",
 
-        // === New: Map Interaction ===
+        // Map
         map_browse: "BROWSE",
         map_add_mode: "ADD WP",
         map_locate: "LOCATE",
         map_system_active: "BD09 MAP SYSTEM ACTIVE",
         map_instruction_add: "Click map to add waypoint",
         map_instruction_pan: "Right-click for options",
-
-        // === New: Context Menu ===
         menu_ruler: "📏 Ruler Tool",
         menu_clear: "🗑️ Clear Mission",
-        menu_delete_point: "❌ Delete Point"
+        menu_delete_point: "❌ Delete Point",
+        
+        // Chart (Updated)
+        chart_title: "DATA ANALYSIS",
+        chart_clear: "Clear",
+        chart_bat_l: "BAT L",
+        chart_bat_r: "BAT R",
+        chart_heading: "HEADING",
+        chart_resume: "▶ RESUME",
+        chart_pause: "⏸ PAUSE",
+        chart_tip_toggle: "Click: Toggle / Dbl: Solo",
+        chart_tip_zoom_active: "Cancel Zoom",
+        chart_tip_zoom_hint: "Click: Once / Dbl: Lock",
+        chart_tip_reset: "Reset View",
+        chart_tip_save: "Save Image",
+        chart_msg_locked: "🔒 ZOOM LOCKED - DRAG",
+        chart_msg_active: "🔍 ZOOM ACTIVE - AUTO OFF",
+        chart_msg_paused: "⚠️ PAUSED - ANALYZE MODE"
     }
 };
