@@ -1,3 +1,4 @@
+// js/app.js
 const { useState, useEffect, useRef, useCallback } = React;
 
 function BoatGroundStation() {
@@ -5,35 +6,33 @@ function BoatGroundStation() {
     const [showLogs, setShowLogs] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
-    // === 新增：图表相关状态 ===
+    // 图表数据 Ref (全速)
     const [showChart, setShowChart] = useState(false);
-    const [chartData, setChartData] = useState([]); // 格式: [{time: '12:00:01', batL: 12.1, batR: 12.2}, ...]
+    const chartDataRef = useRef([]); 
+    
+    // UI 更新节流阀 (关键优化)
+    const lastUiUpdateRef = useRef(0);
     
     const t = useCallback((key) => {
         return AppTranslations && AppTranslations[lang] ? (AppTranslations[lang][key] || key) : key;
     }, [lang]);
     
-    // 连接状态
     const [webConnected, setWebConnected] = useState(false);
     const [tcpStatus, setTcpStatus] = useState('OFFLINE'); 
     const [serverIp, setServerIp] = useState('120.77.0.8');
     const [serverPort, setServerPort] = useState('6202');
 
-    // 船的状态
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0,
         batteryL: 0, batteryR: 0,
         lastUpdate: null,
     });
     
-    // 航点列表状态
     const [waypoints, setWaypoints] = useState([]);
-
     const [logs, setLogs] = useState([]);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
 
-    // 控制配置
     const [streamOn, setStreamOn] = useState(false);
     const [recvOn, setRecvOn] = useState(true);
     const [controlMode, setControlMode] = useState('@');
@@ -62,7 +61,6 @@ function BoatGroundStation() {
         }
     };
 
-    // === 补全：发送航点指令 ===
     const sendWaypointsCommand = () => {
         if (waypoints.length === 0) {
             alert("请先在地图上右键添加航点！");
@@ -148,30 +146,37 @@ function BoatGroundStation() {
                     if (parts.length >= 6) {
                         const bL = parseFloat(parts[4]) || 0;
                         const bR = parseFloat(parts[5]) || 0;
+                        const heading = parseFloat(parts[3]) || 0;
                         
-                        setBoatStatus({
-                            longitude: parseFloat(parts[1]) || 0,
-                            latitude: parseFloat(parts[2]) || 0,
-                            heading: parseFloat(parts[3]) || 0,
-                            batteryL: bL,
-                            batteryR: bR,
-                            lastUpdate: new Date()
-                        });
+                        // === 1. 数据收集：始终全速运行，保证图表数据完整 ===
+                        const newPoint = {
+                            time: new Date().toLocaleTimeString('en-GB'),
+                            batL: bL,
+                            batR: bR,
+                            heading: heading
+                        };
+                        chartDataRef.current.push(newPoint);
+                        if (chartDataRef.current.length > 1000) chartDataRef.current.shift();
 
-                        // === 新增：收集图表数据 ===
-                        setChartData(prev => {
-                            const newPoint = {
-                                time: new Date().toLocaleTimeString('en-GB'), // 24小时制
-                                batL: bL,
-                                batR: bR
-                            };
-                            // 限制缓存大小，保留最近 200 个点
-                            const newArr = [...prev, newPoint];
-                            if (newArr.length > 200) return newArr.slice(newArr.length - 200);
-                            return newArr;
-                        });
+                        // === 2. UI 渲染：节流 (Throttle) ===
+                        // 限制界面更新频率为每 100ms 一次 (10 FPS)，
+                        // 避免地图和侧边栏过度渲染阻塞主线程，
+                        // 从而让图表组件有足够的 CPU 资源跑满 60FPS 动画。
+                        const now = Date.now();
+                        if (now - lastUiUpdateRef.current > 100) {
+                            setBoatStatus({
+                                longitude: parseFloat(parts[1]) || 0,
+                                latitude: parseFloat(parts[2]) || 0,
+                                heading: heading,
+                                batteryL: bL,
+                                batteryR: bR,
+                                lastUpdate: new Date()
+                            });
+                            lastUiUpdateRef.current = now;
+                        }
                     }
-                    addLog('RX', msg, 'debug');
+                    // 日志建议也少打一点，或者只在 devMode 下打，这里暂且保留
+                    // addLog('RX', msg, 'debug'); 
                 } else {
                     addLog('RX', msg, 'debug');
                 }
@@ -260,7 +265,6 @@ function BoatGroundStation() {
                         <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                     </div>
                     
-                    {/* === 新增：悬浮的“+”号按钮（触发图表） === */}
                     <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
                         <button 
                             onClick={() => setShowChart(true)}
@@ -290,12 +294,12 @@ function BoatGroundStation() {
                 />
             </div>
             
-            {/* === 新增：图表模态框组件 === */}
+            {/* 传递 dataRef */}
             <ChartModal 
                 isOpen={showChart}
                 onClose={() => setShowChart(false)}
-                data={chartData}
-                onClear={() => setChartData([])}
+                dataRef={chartDataRef}
+                onClear={() => { chartDataRef.current = []; }}
                 t={t}
             />
         </div>
