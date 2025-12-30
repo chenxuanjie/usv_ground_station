@@ -9,6 +9,7 @@ const AppTranslations = {
         btn_connect: "连接设备",
         btn_connecting: "连接中...",
         btn_disconnect: "断开连接",
+        btn_settings: "系统设置", // [新增]
         status_monitor: "状态监控",
         waiting_data: "等待数据",
         current_heading: "当前航向",
@@ -65,7 +66,7 @@ const AppTranslations = {
         menu_clear: "🗑️ 清除所有航点",
         menu_delete_point: "❌ 删除此点",
         
-        // Chart (本次新增/修改)
+        // Chart
         chart_title: "数据分析图表",
         chart_clear: "清除历史",
         chart_bat_l: "左动力 (L)",
@@ -91,6 +92,7 @@ const AppTranslations = {
         btn_connect: "CONNECT DEVICE",
         btn_connecting: "CONNECTING...",
         btn_disconnect: "DISCONNECT",
+        btn_settings: "SETTINGS", // [新增]
         status_monitor: "STATUS MONITOR",
         waiting_data: "WAITING_DATA",
         current_heading: "CURRENT HEADING",
@@ -147,7 +149,7 @@ const AppTranslations = {
         menu_clear: "🗑️ Clear Mission",
         menu_delete_point: "❌ Delete Point",
         
-        // Chart (Updated)
+        // Chart
         chart_title: "DATA ANALYSIS",
         chart_clear: "Clear",
         chart_bat_l: "BAT L",

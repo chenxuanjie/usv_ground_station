@@ -4,6 +4,8 @@ const { useState, useEffect, useRef, useCallback } = React;
 function BoatGroundStation() {
     const [lang, setLang] = useState('zh');
     const [showLogs, setShowLogs] = useState(false);
+    // [新增] 设置弹窗状态
+    const [showSettings, setShowSettings] = useState(false);
     const [devMode, setDevMode] = useState(false);
     
     // 图表数据 Ref (全速)
@@ -231,6 +233,8 @@ function BoatGroundStation() {
                 serverPort={serverPort} setServerPort={setServerPort}
                 toggleConnection={toggleConnection} btnConfig={getBtnConfig()}
                 showLogs={showLogs} setShowLogs={setShowLogs}
+                // [新增] 传入打开设置的回调
+                onOpenSettings={() => setShowSettings(true)}
                 t={t}
             />
 
@@ -294,7 +298,7 @@ function BoatGroundStation() {
                 />
             </div>
             
-            {/* 传递 dataRef */}
+            {/* 图表弹窗 */}
             <ChartModal 
                 isOpen={showChart}
                 onClose={() => setShowChart(false)}
@@ -302,6 +306,34 @@ function BoatGroundStation() {
                 onClear={() => { chartDataRef.current = []; }}
                 t={t}
             />
+
+            {/* [新增] 设置弹窗 (占位) */}
+            {showSettings && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+                    <div className="w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Icons.Settings className="w-5 h-5 text-cyan-400"/>
+                                {t('btn_settings')}
+                            </h2>
+                            <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">
+                                <Icons.X size={20}/>
+                            </button>
+                        </div>
+                        <div className="bg-slate-800/50 p-4 rounded text-center text-slate-400 text-sm border border-dashed border-slate-700">
+                            🚧 功能开发中...<br/>(Feature Pending)
+                        </div>
+                        <div className="mt-4 flex justify-end">
+                            <button 
+                                onClick={() => setShowSettings(false)}
+                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white transition-colors"
+                            >
+                                关闭 (Close)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

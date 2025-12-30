@@ -1,4 +1,5 @@
-function Header({ lang, setLang, webConnected, tcpStatus, serverIp, setServerIp, serverPort, setServerPort, toggleConnection, btnConfig, showLogs, setShowLogs, t }) {
+// js/components/Header.js
+function Header({ lang, setLang, webConnected, tcpStatus, serverIp, setServerIp, serverPort, setServerPort, toggleConnection, btnConfig, showLogs, setShowLogs, onOpenSettings, t }) {
     return (
         <header className="h-14 bg-slate-900/80 border-b border-cyan-500/30 flex items-center px-4 justify-between shrink-0 backdrop-blur-md relative z-20">
             <div className="flex items-center gap-2">
@@ -45,6 +46,16 @@ function Header({ lang, setLang, webConnected, tcpStatus, serverIp, setServerIp,
                 </button>
 
                 <div className="w-[1px] h-6 bg-slate-700 mx-1"></div>
+
+                {/* [新增] 设置按钮 */}
+                <button 
+                    onClick={onOpenSettings}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-bold bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 transition-all"
+                    title={t('btn_settings')}
+                >
+                    <Icons.Settings size={14} />
+                    <span className="hidden xl:inline">{t('btn_settings')}</span>
+                </button>
 
                 <button 
                     onClick={() => setShowLogs(!showLogs)}
