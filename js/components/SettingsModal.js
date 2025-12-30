@@ -1,9 +1,10 @@
 // js/components/SettingsModal.js
 const { useState, useEffect } = React;
 
-function SettingsModal({ isOpen, onClose, currentIp, currentPort, onSave, t }) {
+function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, onSave, t }) {
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
+    const [chartFps, setChartFps] = useState(currentChartFps);
     const [statusMsg, setStatusMsg] = useState('');
 
     // 当打开弹窗时，同步当前的 IP 和 端口
@@ -11,16 +12,18 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, onSave, t }) {
         if (isOpen) {
             setIp(currentIp);
             setPort(currentPort);
+            setChartFps(currentChartFps);
             setStatusMsg('');
         }
-    }, [isOpen, currentIp, currentPort]);
+    }, [isOpen, currentIp, currentPort, currentChartFps]);
 
     const handleSave = () => {
-        if (!ip || !port) {
+        const fpsNum = Number(chartFps);
+        if (!ip || !port || !Number.isFinite(fpsNum) || fpsNum < 5 || fpsNum > 240) {
             setStatusMsg('❌ ' + (t ? t('err_invalid_input') : "Invalid Input"));
             return;
         }
-        onSave(ip, port);
+        onSave(ip, port, Math.round(fpsNum));
         setStatusMsg('✅ ' + (t ? t('msg_save_success') : "Saved!"));
         
         // 延迟关闭
@@ -71,6 +74,25 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, onSave, t }) {
                             className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-cyan-100 focus:border-cyan-500 outline-none transition-colors font-mono"
                             placeholder="6202"
                         />
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                            {t ? t('chart_fps') : 'Chart FPS'}
+                        </label>
+                        <input 
+                            type="number" 
+                            min="5"
+                            max="240"
+                            step="5"
+                            value={chartFps}
+                            onChange={(e) => setChartFps(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-cyan-100 focus:border-cyan-500 outline-none transition-colors font-mono"
+                            placeholder="120"
+                        />
+                        <div className="text-[10px] text-slate-500">
+                            {t ? t('chart_fps_hint') : 'Higher is smoother, but uses more CPU/GPU.'}
+                        </div>
                     </div>
 
                     {/* 状态提示 */}

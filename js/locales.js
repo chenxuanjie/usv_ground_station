@@ -82,6 +82,8 @@ const AppTranslations = {
         chart_msg_locked: "🔒 锁定缩放 - 请拖拽",
         chart_msg_active: "🔍 单次缩放 - 拖拽后自动退出",
         chart_msg_paused: "⚠️ 已暂停 - 分析模式",
+        chart_fps: "图表刷新率 (FPS)",
+        chart_fps_hint: "值越大越顺滑，但更耗性能",
 
         settings_title: "系统连接设置",
         set_boat_ip: "无人艇 IP 地址 (BOOT)",
@@ -173,6 +175,8 @@ const AppTranslations = {
         chart_msg_locked: "🔒 ZOOM LOCKED - DRAG",
         chart_msg_active: "🔍 ZOOM ACTIVE - AUTO OFF",
         chart_msg_paused: "⚠️ PAUSED - ANALYZE MODE",
+        chart_fps: "CHART FPS",
+        chart_fps_hint: "Higher is smoother, but uses more performance.",
 
         settings_title: "CONNECTION SETTINGS",
         set_boat_ip: "BOAT IP ADDRESS",
