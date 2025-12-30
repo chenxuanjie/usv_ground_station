@@ -1,3 +1,4 @@
+// js/locales.js
 const AppTranslations = {
     zh: {
         title: "无人艇控制终端",
@@ -64,11 +65,22 @@ const AppTranslations = {
         menu_clear: "🗑️ 清除所有航点",
         menu_delete_point: "❌ 删除此点",
         
-        // Chart (新增)
+        // Chart (本次新增/修改)
         chart_title: "数据分析图表",
         chart_clear: "清除历史",
-        chart_status: "状态: 实时记录中",
-        chart_zoom_hint: "滚动鼠标滚轮缩放"
+        chart_bat_l: "左动力 (L)",
+        chart_bat_r: "右动力 (R)",
+        chart_heading: "航向角",
+        chart_resume: "▶ 继续",
+        chart_pause: "⏸ 暂停",
+        chart_tip_toggle: "单击切换 / 双击独奏",
+        chart_tip_zoom_active: "取消框选",
+        chart_tip_zoom_hint: "单击: 单次框选 / 双击: 锁定框选",
+        chart_tip_reset: "复位视图",
+        chart_tip_save: "保存图片",
+        chart_msg_locked: "🔒 锁定缩放 - 请拖拽",
+        chart_msg_active: "🔍 单次缩放 - 拖拽后自动退出",
+        chart_msg_paused: "⚠️ 已暂停 - 分析模式"
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -135,10 +147,21 @@ const AppTranslations = {
         menu_clear: "🗑️ Clear Mission",
         menu_delete_point: "❌ Delete Point",
         
-        // Chart (New)
-        chart_title: "DATA ANALYSIS CHART",
-        chart_clear: "Clear Cache",
-        chart_status: "STATUS: REAL-TIME RECORDING",
-        chart_zoom_hint: "SCROLL TO ZOOM"
+        // Chart (Updated)
+        chart_title: "DATA ANALYSIS",
+        chart_clear: "Clear",
+        chart_bat_l: "BAT L",
+        chart_bat_r: "BAT R",
+        chart_heading: "HEADING",
+        chart_resume: "▶ RESUME",
+        chart_pause: "⏸ PAUSE",
+        chart_tip_toggle: "Click: Toggle / Dbl: Solo",
+        chart_tip_zoom_active: "Cancel Zoom",
+        chart_tip_zoom_hint: "Click: Once / Dbl: Lock",
+        chart_tip_reset: "Reset View",
+        chart_tip_save: "Save Image",
+        chart_msg_locked: "🔒 ZOOM LOCKED - DRAG",
+        chart_msg_active: "🔍 ZOOM ACTIVE - AUTO OFF",
+        chart_msg_paused: "⚠️ PAUSED - ANALYZE MODE"
     }
 };

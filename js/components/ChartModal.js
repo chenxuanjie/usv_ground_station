@@ -1,12 +1,11 @@
 // js/components/ChartModal.js
 const { useEffect, useRef, useState, useCallback } = React;
 
-// 1. 核心配置
+// 1. 核心配置 (修改 label -> labelKey)
 const CHART_CONFIG = [
-    // 所有数据的 yAxisIndex 统一为 0
-    { key: 'batL', label: 'BAT L', color: '#06b6d4', unit: 'V', yAxisIndex: 0 },
-    { key: 'batR', label: 'BAT R', color: '#10b981', unit: 'V', yAxisIndex: 0 },
-    { key: 'heading', label: 'HEADING', color: '#a855f7', unit: '°', yAxisIndex: 0 }
+    { key: 'batL', labelKey: 'chart_bat_l', color: '#06b6d4', unit: 'V', yAxisIndex: 0 },
+    { key: 'batR', labelKey: 'chart_bat_r', color: '#10b981', unit: 'V', yAxisIndex: 0 },
+    { key: 'heading', labelKey: 'chart_heading', color: '#a855f7', unit: '°', yAxisIndex: 0 }
 ];
 
 // 内联 SVG 图标
@@ -24,12 +23,10 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     // [UI 状态]
     const [isPaused, setIsPaused] = useState(false);
     const [isZoomMode, setIsZoomMode] = useState(false);
-    // [新增] 用于 UI 显示锁定状态
     const [isZoomLock, setIsZoomLock] = useState(false);
     
     // [逻辑 Refs]
     const isZoomModeRef = useRef(false); 
-    // [新增] 用于逻辑判断是否锁定 (避免闭包问题)
     const zoomLockRef = useRef(false);
     const isInteractingRef = useRef(false);
     const lastMousePosRef = useRef(null);
@@ -39,7 +36,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
     const lastHudUpdateRef = useRef(0);
 
-    // [新增] 退出缩放模式的辅助函数
+    // 退出缩放模式
     const exitZoomMode = useCallback(() => {
         isZoomModeRef.current = false;
         setIsZoomMode(false);
@@ -124,7 +121,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 isInteractingRef.current = false;
             });
 
-            // [新增] 监听缩放事件：如果是单次模式，缩放结束后自动退出
+            // 监听缩放事件：如果是单次模式，缩放结束后自动退出
             echartsInstance.current.on('dataZoom', () => {
                 if (isZoomModeRef.current && !zoomLockRef.current) {
                     exitZoomMode();
@@ -167,7 +164,8 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             const dynamicSeries = CHART_CONFIG.map(config => {
                 if (!activeKeys.has(config.key)) return null;
                 return {
-                    name: config.label,
+                    // [修改] 动态翻译 series 名称
+                    name: t ? t(config.labelKey) : config.key, 
                     type: 'line',
                     smooth: true,
                     symbol: 'none',
@@ -216,11 +214,11 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             if (renderTimer) clearInterval(renderTimer);
         };
 
-    }, [isOpen, isPaused, activeKeys]); 
+    }, [isOpen, isPaused, activeKeys, t]); // 添加 t 依赖
 
     // === 工具栏功能 ===
     
-    // [修改] 单击：开启单次模式
+    // 单击：开启单次模式
     const handleZoomToggle = useCallback(() => {
         if (!echartsInstance.current) return;
 
@@ -230,7 +228,6 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             isZoomModeRef.current = true; 
             setIsZoomMode(true);          
             
-            // 单次模式：Lock = false
             zoomLockRef.current = false;
             setIsZoomLock(false);
 
@@ -246,15 +243,13 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
         }
     }, [isZoomMode, exitZoomMode]);
 
-    // [新增] 双击：开启锁定模式
+    // 双击：开启锁定模式
     const handleZoomDouble = useCallback(() => {
         if (!echartsInstance.current) return;
         
-        // 强制开启，不判断当前状态
         isZoomModeRef.current = true;
         setIsZoomMode(true);
         
-        // 锁定模式：Lock = true
         zoomLockRef.current = true;
         setIsZoomLock(true);
 
@@ -287,13 +282,11 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             start: 0,
             end: 100
         });
-        // 复位后如果是单次模式，最好也退出缩放状态；如果是锁定则保留
         if (isZoomMode && !zoomLockRef.current) {
              exitZoomMode();
         }
     };
 
-    // 交互逻辑
     const toggleChannel = (key) => {
         const newSet = new Set(activeKeys);
         if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
@@ -316,10 +309,12 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                     <div className="flex flex-col gap-2 shrink-0">
                         <div className="flex items-center gap-2">
                             <Icons.Activity className="w-5 h-5 text-cyan-400" />
-                            <span className="font-bold text-slate-200 tracking-wider text-lg">DATA ANALYSIS</span>
+                            {/* [修改] 标题翻译 */}
+                            <span className="font-bold text-slate-200 tracking-wider text-lg">{t ? t('chart_title') : 'DATA ANALYSIS'}</span>
                         </div>
+                        {/* [修改] 暂停按钮翻译 */}
                         <button onClick={() => setIsPaused(!isPaused)} className={`flex items-center justify-center gap-2 px-4 py-1 rounded-full text-xs font-bold border transition-all ${isPaused ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
-                            {isPaused ? <span>▶ 继续 (Resume)</span> : <span>⏸ 暂停 (Pause)</span>}
+                            {isPaused ? <span>{t ? t('chart_resume') : '▶ RESUME'}</span> : <span>{t ? t('chart_pause') : '⏸ PAUSE'}</span>}
                         </button>
                     </div>
 
@@ -330,8 +325,9 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                             const textClass = isActive ? 'text-white' : 'text-slate-500';
                             const value = hudData[config.key] !== undefined ? hudData[config.key] : 0;
                             return (
-                                <button key={config.key} onClick={() => toggleChannel(config.key)} onDoubleClick={() => soloChannel(config.key)} className={`flex flex-col items-center px-4 py-2 rounded border transition-all min-w-[100px] select-none hover:scale-105 active:scale-95 duration-200`} style={{ ...baseStyle, opacity: isActive ? 1 : 0.5, filter: isActive ? 'none' : 'grayscale(100%)' }} title="单击切换 / 双击独奏">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{config.label}</span>
+                                <button key={config.key} onClick={() => toggleChannel(config.key)} onDoubleClick={() => soloChannel(config.key)} className={`flex flex-col items-center px-4 py-2 rounded border transition-all min-w-[100px] select-none hover:scale-105 active:scale-95 duration-200`} style={{ ...baseStyle, opacity: isActive ? 1 : 0.5, filter: isActive ? 'none' : 'grayscale(100%)' }} title={t ? t('chart_tip_toggle') : "Toggle/Solo"}>
+                                    {/* [修改] 按钮标签翻译 */}
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t ? t(config.labelKey) : config.key}</span>
                                     <span className={`text-xl font-black font-mono ${textClass}`} style={{ color: isActive ? config.color : undefined }}>
                                         {typeof value === 'number' ? value.toFixed(1) : value}
                                         <span className="text-xs ml-0.5 opacity-60">{config.unit}</span>
@@ -343,25 +339,25 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
                     <div className="flex items-center gap-2 shrink-0">
                         <div className="flex items-center bg-slate-800 rounded border border-slate-700 mr-2">
-                            {/* [修改] 绑定双击事件 */}
                             <button 
                                 onClick={handleZoomToggle} 
                                 onDoubleClick={handleZoomDouble}
                                 className={`p-2 transition-colors ${isZoomMode ? (isZoomLock ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-yellow-400 bg-yellow-500/20') : 'text-slate-400 hover:text-yellow-400 hover:bg-slate-700'}`} 
-                                title={isZoomMode ? "取消框选 (Cancel)" : "单击: 单次框选 / 双击: 锁定框选"}
+                                // [修改] 提示文字翻译
+                                title={isZoomMode ? (t?t('chart_tip_zoom_active'):"Cancel") : (t?t('chart_tip_zoom_hint'):"Click/DblClick")}
                             >
                                 <ActionIcons.Zoom className="w-4 h-4" />
                             </button>
                             
                             <div className="w-[1px] h-4 bg-slate-700"></div>
                             
-                            <button onClick={handleResetView} className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-700 transition-colors" title="复位视图 (Reset)">
+                            <button onClick={handleResetView} className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-700 transition-colors" title={t ? t('chart_tip_reset') : "Reset"}>
                                 <ActionIcons.Reset className="w-4 h-4" />
                             </button>
                             
                             <div className="w-[1px] h-4 bg-slate-700"></div>
                             
-                            <button onClick={handleSaveImage} className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-colors" title="保存图片 (Save)">
+                            <button onClick={handleSaveImage} className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-colors" title={t ? t('chart_tip_save') : "Save"}>
                                 <ActionIcons.Save className="w-4 h-4" />
                             </button>
                         </div>
@@ -378,9 +374,10 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                         <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold pointer-events-none backdrop-blur-sm z-10 flex items-center gap-2 border ${
                             isZoomMode ? (isZoomLock ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500') : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'
                         }`}>
+                             {/* [修改] 状态提示翻译 */}
                              {isZoomMode 
-                                ? (isZoomLock ? <span>🔒 ZOOM LOCKED - DRAG TO ZOOM</span> : <span>🔍 ZOOM ACTIVE - DRAG (AUTO OFF)</span>)
-                                : <span>⚠️ PAUSED - ANALYZE MODE</span>}
+                                ? (isZoomLock ? <span>{t?t('chart_msg_locked'):"LOCKED"}</span> : <span>{t?t('chart_msg_active'):"ACTIVE"}</span>)
+                                : <span>{t?t('chart_msg_paused'):"PAUSED"}</span>}
                         </div>
                     )}
                 </div>
@@ -391,5 +388,5 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
 // 4. 组件隔离
 const ChartModal = React.memo(ChartModalComponent, (prev, next) => {
-    return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef;
+    return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef && prev.t === next.t; // 添加 t 对比
 });
