@@ -83,14 +83,12 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
         };
     }, [isOpen]);
 
-    // 3. 极速刷新循环 (120 FPS)
+    // 3. 极速刷新循环 (120 FPS) + 修复暂停时的更新逻辑
     useEffect(() => {
-        if (!isOpen || isPaused) return;
+        if (!isOpen) return;
 
-        // === 设置为 8ms (约 125 FPS) ===
-        // 这将尽可能快地从 dataRef 读取数据并绘制，
-        // 最大限度减少数据到达与画面更新之间的时间差。
-        const renderTimer = setInterval(() => {
+        // 提取渲染帧的逻辑
+        const renderFrame = () => {
             if (!echartsInstance.current || !dataRef || !dataRef.current) return;
 
             const fullData = dataRef.current;
@@ -134,11 +132,20 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 ],
                 series: dynamicSeries
             }, { lazyUpdate: true, replaceMerge: ['series'] });
+        };
 
-        }, 8); // <--- 8ms = 125fps
+        // 如果未暂停，开启定时器循环渲染
+        if (!isPaused) {
+            const renderTimer = setInterval(renderFrame, 8); // 8ms = 125fps
+            return () => clearInterval(renderTimer);
+        } else {
+            // [Fix] 如果暂停了，但 activeKeys 发生了变化（依赖项触发了此 Effect），
+            // 我们需要手动调用一次渲染，以更新图表的显示/隐藏状态。
+            // 注意：此时显示的数据会是 dataRef 中的最新数据。
+            renderFrame();
+        }
 
-        return () => clearInterval(renderTimer);
-    }, [isOpen, isPaused, activeKeys]);
+    }, [isOpen, isPaused, activeKeys]); // 依赖项包含 activeKeys，确保点击按钮时触发
 
     // 交互逻辑
     const toggleChannel = (key) => {
