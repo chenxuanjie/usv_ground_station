@@ -3,9 +3,10 @@ const { useEffect, useRef, useState, useCallback } = React;
 
 // 1. 核心配置
 const CHART_CONFIG = [
+    // 所有数据的 yAxisIndex 统一为 0
     { key: 'batL', label: 'BAT L', color: '#06b6d4', unit: 'V', yAxisIndex: 0 },
     { key: 'batR', label: 'BAT R', color: '#10b981', unit: 'V', yAxisIndex: 0 },
-    { key: 'heading', label: 'HEADING', color: '#a855f7', unit: '°', yAxisIndex: 1 }
+    { key: 'heading', label: 'HEADING', color: '#a855f7', unit: '°', yAxisIndex: 0 }
 ];
 
 // 内联 SVG 图标
@@ -22,10 +23,14 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     
     // [UI 状态]
     const [isPaused, setIsPaused] = useState(false);
-    const [isZoomMode, setIsZoomMode] = useState(false); // 仅用于 UI 高亮
+    const [isZoomMode, setIsZoomMode] = useState(false);
+    // [新增] 用于 UI 显示锁定状态
+    const [isZoomLock, setIsZoomLock] = useState(false);
     
     // [逻辑 Refs]
     const isZoomModeRef = useRef(false); 
+    // [新增] 用于逻辑判断是否锁定 (避免闭包问题)
+    const zoomLockRef = useRef(false);
     const isInteractingRef = useRef(false);
     const lastMousePosRef = useRef(null);
     
@@ -33,6 +38,23 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
     const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
     const lastHudUpdateRef = useRef(0);
+
+    // [新增] 退出缩放模式的辅助函数
+    const exitZoomMode = useCallback(() => {
+        isZoomModeRef.current = false;
+        setIsZoomMode(false);
+        zoomLockRef.current = false;
+        setIsZoomLock(false);
+
+        if (echartsInstance.current) {
+            echartsInstance.current.dispatchAction({
+                type: 'takeGlobalCursor',
+                key: 'dataZoomSelect',
+                dataZoomSelectActive: false 
+            });
+            echartsInstance.current.getZr().setCursorStyle('default');
+        }
+    }, []);
 
     // 2. 初始化 ECharts
     useEffect(() => {
@@ -52,7 +74,6 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 animation: false, 
                 hoverLayerThreshold: Infinity,
                 
-                // 必须保留 toolbox 配置
                 toolbox: {
                     show: true,
                     top: -100, 
@@ -72,14 +93,16 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 },
                 legend: { show: false },
                 dataZoom: [
-                    { type: 'slider', show: true, xAxisIndex: [0], start: 0, end: 100, height: 24, bottom: 10, borderColor: '#334155', textStyle: { color: '#94a3b8' }, handleStyle: { color: '#06b6d4' }, fillerColor: 'rgba(6, 182, 212, 0.1)' },
+                    { type: 'slider', show: true, xAxisIndex: [0], start: 0, end: 100, height: 24, bottom: 10, borderColor: '#334155', textStyle: { color: '#94a3b8' }, handleStyle: { color: '#06b6d4' }, fillerColor: 'rgba(6, 182, 212, 0.1)', showDataShadow: true },
                     { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }
                 ],
                 grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
-                yAxis: [
-                    { type: 'value', position: 'left', splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#94a3b8' } },
-                    { type: 'value', position: 'right', splitLine: { show: false }, axisLabel: { color: '#94a3b8' }, min: 0, max: 360 }
-                ],
+                yAxis: [{ 
+                    type: 'value', 
+                    position: 'left', 
+                    splitLine: { lineStyle: { color: '#1e293b' } }, 
+                    axisLabel: { color: '#94a3b8' } 
+                }],
                 xAxis: { type: 'category', boundaryGap: false, axisLine: { lineStyle: { color: '#475569' } }, axisLabel: { color: '#94a3b8' }, data: [] },
                 series: []
             };
@@ -101,6 +124,13 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 isInteractingRef.current = false;
             });
 
+            // [新增] 监听缩放事件：如果是单次模式，缩放结束后自动退出
+            echartsInstance.current.on('dataZoom', () => {
+                if (isZoomModeRef.current && !zoomLockRef.current) {
+                    exitZoomMode();
+                }
+            });
+
             echartsInstance.current.resize();
         }, 50);
 
@@ -115,14 +145,13 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 echartsInstance.current = null;
             }
         };
-    }, [isOpen]);
+    }, [isOpen, exitZoomMode]);
 
-    // 3. 极速刷新循环 (核心逻辑修正)
+    // 3. 极速刷新循环
     useEffect(() => {
         if (!isOpen) return;
 
         const renderFrame = () => {
-            // [修正点 1] 移除 isPaused，只在框选或交互时完全禁止重绘
             if (isZoomModeRef.current || isInteractingRef.current) return;
 
             if (!echartsInstance.current || !dataRef || !dataRef.current) return;
@@ -144,7 +173,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                     symbol: 'none',
                     yAxisIndex: config.yAxisIndex,
                     data: fullData.map(item => item[config.key]),
-                    lineStyle: { color: config.color, width: 2 },
+                    lineStyle: { color: config.color, width: 3 },
                     itemStyle: { color: config.color },
                     areaStyle: config.unit === 'V' ? {
                         color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -160,15 +189,13 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                     data: fullData.map(item => item.time),
                     axisLabel: { hideOverlap: true, formatter: (v) => v.split(' ').pop() }
                 },
-                yAxis: [
-                    { min: (v) => Math.floor(v.min), max: (v) => Math.ceil(v.max) },
-                    { min: 0, max: 360 }
-                ],
+                yAxis: [{
+                    min: (v) => Math.floor(v.min), 
+                    max: (v) => Math.ceil(v.max)
+                }],
                 series: dynamicSeries
             }, { lazyUpdate: false, replaceMerge: ['series'] });
 
-            // 只有在【运行时】才强制修正 Tooltip
-            // 暂停时不需要这个逻辑，因为 Tooltip 会自然停留
             if (!isPaused && lastMousePosRef.current) {
                 echartsInstance.current.dispatchAction({
                     type: 'showTip',
@@ -179,14 +206,9 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
         };
 
         let renderTimer;
-        // [修正点 2] 区分运行状态
         if (!isPaused) {
-            // 运行时：启动定时器，100FPS 刷新
             renderTimer = setInterval(renderFrame, 10);
         } else {
-            // 暂停时：关闭定时器，但立即执行一次渲染
-            // 这样当 activeKeys 变化（useEffect 重新运行）时，会触发这里，
-            // 从而更新图例的显示/隐藏，修复了您提到的 Bug。
             renderFrame();
         }
 
@@ -197,24 +219,21 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
     }, [isOpen, isPaused, activeKeys]); 
 
     // === 工具栏功能 ===
+    
+    // [修改] 单击：开启单次模式
     const handleZoomToggle = useCallback(() => {
         if (!echartsInstance.current) return;
 
         if (isZoomMode) {
-            isZoomModeRef.current = false; 
-            setIsZoomMode(false);          
-            
-            echartsInstance.current.dispatchAction({
-                type: 'takeGlobalCursor',
-                key: 'dataZoomSelect',
-                dataZoomSelectActive: false 
-            });
-            echartsInstance.current.getZr().setCursorStyle('default');
-            
+            exitZoomMode();
         } else {
             isZoomModeRef.current = true; 
             setIsZoomMode(true);          
             
+            // 单次模式：Lock = false
+            zoomLockRef.current = false;
+            setIsZoomLock(false);
+
             setTimeout(() => {
                 if(echartsInstance.current) {
                     echartsInstance.current.dispatchAction({
@@ -225,7 +244,30 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 }
             }, 20);
         }
-    }, [isZoomMode]);
+    }, [isZoomMode, exitZoomMode]);
+
+    // [新增] 双击：开启锁定模式
+    const handleZoomDouble = useCallback(() => {
+        if (!echartsInstance.current) return;
+        
+        // 强制开启，不判断当前状态
+        isZoomModeRef.current = true;
+        setIsZoomMode(true);
+        
+        // 锁定模式：Lock = true
+        zoomLockRef.current = true;
+        setIsZoomLock(true);
+
+        setTimeout(() => {
+            if(echartsInstance.current) {
+                echartsInstance.current.dispatchAction({
+                    type: 'takeGlobalCursor',
+                    key: 'dataZoomSelect',
+                    dataZoomSelectActive: true
+                });
+            }
+        }, 20);
+    }, []);
 
     const handleSaveImage = () => {
         if (!echartsInstance.current) return;
@@ -245,7 +287,10 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             start: 0,
             end: 100
         });
-        if (isZoomMode) handleZoomToggle(); 
+        // 复位后如果是单次模式，最好也退出缩放状态；如果是锁定则保留
+        if (isZoomMode && !zoomLockRef.current) {
+             exitZoomMode();
+        }
     };
 
     // 交互逻辑
@@ -298,10 +343,12 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
                     <div className="flex items-center gap-2 shrink-0">
                         <div className="flex items-center bg-slate-800 rounded border border-slate-700 mr-2">
+                            {/* [修改] 绑定双击事件 */}
                             <button 
                                 onClick={handleZoomToggle} 
-                                className={`p-2 transition-colors ${isZoomMode ? 'text-yellow-400 bg-yellow-500/20 animate-pulse' : 'text-slate-400 hover:text-yellow-400 hover:bg-slate-700'}`} 
-                                title={isZoomMode ? "取消框选 (Cancel Zoom)" : "框选缩放 (Box Zoom)"}
+                                onDoubleClick={handleZoomDouble}
+                                className={`p-2 transition-colors ${isZoomMode ? (isZoomLock ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-yellow-400 bg-yellow-500/20') : 'text-slate-400 hover:text-yellow-400 hover:bg-slate-700'}`} 
+                                title={isZoomMode ? "取消框选 (Cancel)" : "单击: 单次框选 / 双击: 锁定框选"}
                             >
                                 <ActionIcons.Zoom className="w-4 h-4" />
                             </button>
@@ -328,8 +375,12 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
                 <div className="flex-1 relative bg-slate-950/50 w-full h-full p-2">
                     <div ref={chartRef} className="w-full h-full"></div>
                     {(isPaused || isZoomMode) && (
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 px-4 py-1 rounded-full text-xs font-bold pointer-events-none backdrop-blur-sm z-10 flex items-center gap-2">
-                             {isZoomMode ? <span>🔍 ZOOM MODE ACTIVE - DRAG TO ZOOM</span> : <span>⚠️ PAUSED - ANALYZE MODE</span>}
+                        <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold pointer-events-none backdrop-blur-sm z-10 flex items-center gap-2 border ${
+                            isZoomMode ? (isZoomLock ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500') : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'
+                        }`}>
+                             {isZoomMode 
+                                ? (isZoomLock ? <span>🔒 ZOOM LOCKED - DRAG TO ZOOM</span> : <span>🔍 ZOOM ACTIVE - DRAG (AUTO OFF)</span>)
+                                : <span>⚠️ PAUSED - ANALYZE MODE</span>}
                         </div>
                     )}
                 </div>
