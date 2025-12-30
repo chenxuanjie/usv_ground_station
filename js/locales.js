@@ -23,7 +23,7 @@ const AppTranslations = {
         no_signal: "无信号输入",
         system_logs: "系统终端",
         cmd_placeholder: "输入指令...",
-        toggle_logs: "终端 / 日志",
+        toggle_logs: "日志",
         dev_mode: "开发者模式",
         
         // 日志部分
@@ -114,7 +114,7 @@ const AppTranslations = {
         no_signal: "NO SIGNAL INPUT",
         system_logs: "SYSTEM TERMINAL",
         cmd_placeholder: "Execute command...",
-        toggle_logs: "TERMINAL / LOGS",
+        toggle_logs: "LOGS",
         dev_mode: "DEV MODE",
         
         // Logs
