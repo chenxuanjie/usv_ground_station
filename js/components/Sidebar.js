@@ -45,23 +45,23 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
     const compassRotation = isDataActive ? (-boatStatus.heading - 45) : 0;
 
     return (
-        <div className="w-80 bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-4 gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">
+        <div className="flex-none w-72 max-w-[85vw] sm:w-80 sm:max-w-none bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">
             
             {/* HUD Monitor */}
-            <div className="relative p-4 rounded-lg border border-cyan-500/30 bg-slate-900/90 shadow-[0_0_20px_rgba(6,182,212,0.05)] overflow-hidden group">
+            <div className="relative shrink-0 p-3 sm:p-4 rounded-lg border border-cyan-500/30 bg-slate-900/90 shadow-[0_0_20px_rgba(6,182,212,0.05)] overflow-hidden group">
                 <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
                 <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
                 <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
                 
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xs font-bold text-cyan-500 tracking-widest uppercase flex items-center gap-2">
+                <div className="flex justify-between items-center mb-3 sm:mb-4">
+                    <h3 className="text-[11px] sm:text-xs font-bold text-cyan-500 tracking-widest uppercase flex items-center gap-2">
                         <Icons.MapPin size={14}/> {t('status_monitor')}
                     </h3>
                     {!boatStatus.lastUpdate && <span className="text-[10px] text-yellow-500 animate-pulse">{t('waiting_data')}</span>}
                 </div>
 
-                <div className="flex items-center justify-between mb-6">
-                    <div className="relative w-16 h-16 border-2 border-slate-700 rounded-full flex items-center justify-center bg-slate-950 shadow-inner">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                    <div className="relative w-14 h-14 sm:w-16 sm:h-16 border-2 border-slate-700 rounded-full flex items-center justify-center bg-slate-950 shadow-inner">
                         <div className="absolute top-0 w-1 h-2 bg-cyan-400 z-10"></div>
                         <div className="absolute inset-1 border border-dashed border-slate-600 rounded-full opacity-50"></div>
                         <div 
@@ -72,40 +72,40 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                         </div>
                     </div>
                     <div className="text-right">
-                        <div className="text-4xl font-black text-white tracking-tighter drop-shadow-md">
-                            {boatStatus.heading.toFixed(1)}<span className="text-lg text-cyan-600 ml-1">°</span>
+                        <div className="text-3xl sm:text-4xl font-black text-white tracking-tighter drop-shadow-md">
+                            {boatStatus.heading.toFixed(1)}<span className="text-base sm:text-lg text-cyan-600 ml-1">°</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">{t('current_heading')}</div>
+                        <div className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-widest mt-1">{t('current_heading')}</div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-950/50 p-2 rounded border border-slate-800 mb-4">
+                <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs font-mono bg-slate-950/50 p-1.5 sm:p-2 rounded border border-slate-800 mb-3 sm:mb-4">
                     <div className="flex flex-col">
-                        <span className="text-[10px] text-slate-500 mb-1">{t('latitude')}</span>
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 mb-1">{t('latitude')}</span>
                         <span className="text-cyan-100 font-bold">{boatStatus.latitude.toFixed(6)}</span>
                     </div>
                     <div className="flex flex-col text-right">
-                        <span className="text-[10px] text-slate-500 mb-1">{t('longitude')}</span>
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 mb-1">{t('longitude')}</span>
                         <span className="text-cyan-100 font-bold">{boatStatus.longitude.toFixed(6)}</span>
                     </div>
                 </div>
 
                 <div className="space-y-3 pt-3 border-t border-slate-800/50">
                     <div className="space-y-1">
-                        <div className="flex justify-between text-[10px] text-cyan-300 font-bold">
+                        <div className="flex justify-between text-[9px] sm:text-[10px] text-cyan-300 font-bold">
                             <span>PWR_L</span>
                             <span>{boatStatus.batteryL.toFixed(2)}V</span>
                         </div>
-                        <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden relative">
+                        <div className="h-1 sm:h-1.5 bg-slate-800 rounded-sm overflow-hidden relative">
                             <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-all duration-1000" style={{width: `${(boatStatus.batteryL/14)*100}%`}}></div>
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <div className="flex justify-between text-[10px] text-cyan-300 font-bold">
+                        <div className="flex justify-between text-[9px] sm:text-[10px] text-cyan-300 font-bold">
                             <span>PWR_R</span>
                             <span>{boatStatus.batteryR.toFixed(2)}V</span>
                         </div>
-                        <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden relative">
+                        <div className="h-1 sm:h-1.5 bg-slate-800 rounded-sm overflow-hidden relative">
                             <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-all duration-1000" style={{width: `${(boatStatus.batteryR/14)*100}%`}}></div>
                         </div>
                     </div>
@@ -113,7 +113,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
             </div>
             
             {/* System Config */}
-            <div className="p-4 rounded-lg border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+            <div className="shrink-0 p-3 sm:p-4 rounded-lg border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
                 <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider">
                     <Icons.Settings size={14}/> {t('system_config')}
                 </h3>
@@ -144,7 +144,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
             </div>
 
             {/* Mission / Waypoints */}
-            <div className="p-4 rounded-lg border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
+            <div className="shrink-0 p-3 sm:p-4 rounded-lg border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-colors">
                 <div className="flex justify-between items-center mb-3">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                          <Icons.Navigation size={14}/> {t('mission_title')}
@@ -166,14 +166,14 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
             </div>
 
             {/* Remote Control */}
-            <div className="p-4 rounded-lg border border-slate-800 bg-slate-900/50 flex flex-col items-center relative">
+            <div className="shrink-0 p-3 sm:p-4 rounded-lg border border-slate-800 bg-slate-900/50 flex flex-col items-center relative">
                 <div className="absolute top-2 left-2 text-[10px] text-slate-600 font-bold uppercase tracking-widest">{t('manual_override')}</div>
-                <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-4">
                     <div/>
                     <button 
                         onMouseDown={()=>sendKCommand(1,0,0,0)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
-                        className={`w-14 h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.w ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.w ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
                     >
                         <Icons.ArrowUp size={24}/>
                     </button>
@@ -182,7 +182,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <button 
                         onMouseDown={()=>sendKCommand(0,1,0,0)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
-                        className={`w-14 h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.a ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.a ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
                     >
                         <Icons.ArrowLeft size={24}/>
                     </button>
@@ -190,7 +190,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <button 
                         onMouseDown={()=>sendKCommand(0,0,1,0)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
-                        className={`w-14 h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.s ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.s ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
                     >
                         <Icons.ArrowDown size={24}/>
                     </button>
@@ -198,7 +198,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <button 
                         onMouseDown={()=>sendKCommand(0,0,0,1)} 
                         onMouseUp={()=>sendKCommand(0,0,0,0)} 
-                        className={`w-14 h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.d ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 border-2 rounded-lg flex items-center justify-center transition-all duration-100 ${keyState.d ? 'bg-cyan-500 border-cyan-300 text-white shadow-[0_0_15px_rgba(6,182,212,0.6)] scale-95' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:border-slate-500'}`}
                     >
                         <Icons.ArrowRight size={24}/>
                     </button>
