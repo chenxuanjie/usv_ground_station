@@ -1,21 +1,45 @@
 // js/components/SettingsModal.js
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, onSave, t }) {
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
     const [chartFps, setChartFps] = useState(currentChartFps);
     const [statusMsg, setStatusMsg] = useState('');
+    const closeTimerRef = useRef(null);
 
     // 当打开弹窗时，同步当前的 IP 和 端口
     useEffect(() => {
         if (isOpen) {
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = null;
+            }
             setIp(currentIp);
             setPort(currentPort);
             setChartFps(currentChartFps);
             setStatusMsg('');
         }
     }, [isOpen, currentIp, currentPort, currentChartFps]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (closeTimerRef.current) {
+                    clearTimeout(closeTimerRef.current);
+                    closeTimerRef.current = null;
+                }
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
 
     const handleSave = () => {
         const fpsNum = Number(chartFps);
@@ -27,8 +51,10 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
         setStatusMsg('✅ ' + (t ? t('msg_save_success') : "Saved!"));
         
         // 延迟关闭
-        setTimeout(() => {
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = setTimeout(() => {
             onClose();
+            closeTimerRef.current = null;
         }, 800);
     };
 

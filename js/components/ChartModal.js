@@ -36,6 +36,19 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, fps, t }) {
     const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
     const lastHudUpdateRef = useRef(0);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
+
     // 退出缩放模式
     const exitZoomMode = useCallback(() => {
         isZoomModeRef.current = false;
