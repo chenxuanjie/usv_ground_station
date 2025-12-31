@@ -16,7 +16,7 @@ const ActionIcons = {
 };
 
 // 定义内部组件
-function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
+function ChartModalComponent({ isOpen, onClose, dataRef, onClear, fps, t }) {
     const chartRef = useRef(null);
     const echartsInstance = useRef(null);
     
@@ -205,7 +205,10 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
         let renderTimer;
         if (!isPaused) {
-            renderTimer = setInterval(renderFrame, 10);
+            const fpsNum = Number.isFinite(Number(fps)) ? Number(fps) : 120;
+            const clampedFps = Math.min(240, Math.max(5, fpsNum));
+            const intervalMs = Math.max(4, Math.round(1000 / clampedFps));
+            renderTimer = setInterval(renderFrame, intervalMs);
         } else {
             renderFrame();
         }
@@ -214,7 +217,7 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
             if (renderTimer) clearInterval(renderTimer);
         };
 
-    }, [isOpen, isPaused, activeKeys, t]); // 添加 t 依赖
+    }, [isOpen, isPaused, activeKeys, fps, t]); // 添加 t 依赖
 
     // === 工具栏功能 ===
     
@@ -388,5 +391,5 @@ function ChartModalComponent({ isOpen, onClose, dataRef, onClear, t }) {
 
 // 4. 组件隔离
 const ChartModal = React.memo(ChartModalComponent, (prev, next) => {
-    return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef && prev.t === next.t; // 添加 t 对比
+    return prev.isOpen === next.isOpen && prev.dataRef === next.dataRef && prev.fps === next.fps && prev.t === next.t;
 });

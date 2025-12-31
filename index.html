@@ -4,12 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>无人艇控制终端</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://lib.baomitu.com/react/18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://lib.baomitu.com/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://lib.baomitu.com/echarts/5.4.3/echarts.min.js"></script>
-    <script src="https://lib.baomitu.com/babel-standalone/7.22.17/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="js/lib/tailwind.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyan: { 450: '#06b6d4' }
+                    },
+                    animation: {
+                        scan: 'scanline 3s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="js/lib/react.js"></script>
+    <script src="js/lib/react-dom.js"></script>
+    <script src="js/lib/echarts.js"></script>
+    <script src="js/lib/babel.js"></script>
     <script type="text/javascript" src="http://api.map.baidu.com/getscript?v=3.0&ak=zaL1UjUlAdknPEVP5HBNRleQGj5le1La"></script>
     <script type="text/javascript" src="https://api.map.baidu.com/library/DistanceTool/1.2/src/DistanceTool_min.js"></script>
     

@@ -20,6 +20,13 @@ function BoatGroundStation() {
     // 图表数据 Ref (全速)
     const [showChart, setShowChart] = useState(false);
     const chartDataRef = useRef([]); 
+    const [chartFps, setChartFps] = useState(() => {
+        const stored = window.localStorage ? window.localStorage.getItem('chart_fps') : null;
+        const parsed = stored ? Number(stored) : NaN;
+        const fallback = 120;
+        const value = Number.isFinite(parsed) ? parsed : fallback;
+        return Math.min(240, Math.max(5, Math.round(value)));
+    });
     
     // UI 更新节流阀 (关键优化)
     const lastUiUpdateRef = useRef(0);
@@ -231,10 +238,15 @@ function BoatGroundStation() {
         return { text: t('btn_connect'), color: 'bg-cyan-600/90 hover:bg-cyan-500 border-cyan-400 shadow-cyan-900/50', disabled: false };
     };
 
-    const handleSaveConfig = (newIp, newPort) => {
+    const handleSaveConfig = (newIp, newPort, newChartFps) => {
         // 1. 更新本地状态
         setServerIp(newIp);
         setServerPort(newPort);
+        if (newChartFps !== undefined) {
+            const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
+            setChartFps(fps);
+            if (window.localStorage) window.localStorage.setItem('chart_fps', String(fps));
+        }
         
         // 2. 发送指令给后端保存到 config.ini
         // 协议: CMD,SET_CONFIG,IP,PORT
@@ -328,6 +340,7 @@ function BoatGroundStation() {
                 onClose={() => setShowChart(false)}
                 dataRef={chartDataRef}
                 onClear={() => { chartDataRef.current = []; }}
+                fps={chartFps}
                 t={t}
             />
 
@@ -337,6 +350,7 @@ function BoatGroundStation() {
                 onClose={() => setShowSettings(false)}
                 currentIp={serverIp}
                 currentPort={serverPort}
+                currentChartFps={chartFps}
                 onSave={handleSaveConfig}
                 t={t}
             />
