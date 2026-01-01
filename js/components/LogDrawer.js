@@ -1,11 +1,12 @@
-function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData, t }) {
+function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData, t, topOffsetPx = 56, fullWidth = false }) {
     const { useState, useRef } = React;
     const [inputCmd, setInputCmd] = useState('');
     const logEndRef = useRef(null);
 
     return (
         <div 
-            className={`fixed right-0 top-14 bottom-0 w-80 bg-slate-950/95 flex flex-col text-xs border-l border-cyan-900/50 backdrop-blur-md shadow-2xl transition-transform duration-300 ease-in-out z-30 ${show ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`fixed right-0 bottom-0 ${fullWidth ? 'w-full' : 'w-80'} bg-slate-950/95 flex flex-col text-xs border-l border-cyan-900/50 backdrop-blur-md shadow-2xl transition-transform duration-300 ease-in-out z-30 ${show ? 'translate-x-0' : 'translate-x-full'}`}
+            style={{ top: `${Number.isFinite(Number(topOffsetPx)) ? Number(topOffsetPx) : 56}px` }}
         >
             <div className="p-3 border-b border-cyan-900/30 flex justify-between items-center bg-slate-900/50">
                 <span className="font-bold text-cyan-500 tracking-wider flex items-center gap-2"><Icons.Activity size={14}/> {t('system_logs')}</span>

@@ -237,6 +237,30 @@ function BoatGroundStation() {
     
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
 
+    const [isMobile, setIsMobile] = useState(() => {
+        if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches;
+        return (window.innerWidth || 0) <= 768;
+    });
+
+    useEffect(() => {
+        if (window.matchMedia) {
+            const mql = window.matchMedia('(max-width: 768px)');
+            const onChange = (e) => setIsMobile(!!e.matches);
+            if (typeof mql.addEventListener === 'function') mql.addEventListener('change', onChange);
+            else if (typeof mql.addListener === 'function') mql.addListener(onChange);
+            setIsMobile(!!mql.matches);
+            return () => {
+                if (typeof mql.removeEventListener === 'function') mql.removeEventListener('change', onChange);
+                else if (typeof mql.removeListener === 'function') mql.removeListener(onChange);
+            };
+        }
+
+        const onResize = () => setIsMobile((window.innerWidth || 0) <= 768);
+        window.addEventListener('resize', onResize);
+        onResize();
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
     // --- 核心逻辑 ---
 
     const [notifications, setNotifications] = useState([]);
@@ -676,85 +700,125 @@ function BoatGroundStation() {
         }
     };
 
+    const MobileStationApp = window.MobileStationApp;
+    const shouldUseMobile = !!isMobile && typeof MobileStationApp === 'function';
+
     return (
         <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
 
             <NotificationCenter items={notifications} onDismiss={dismissToast} />
 
-            <Header 
-                lang={lang} setLang={setLang}
-                webConnected={webConnected} tcpStatus={tcpStatus}
-                serverIp={serverIp} setServerIp={setServerIp}
-                serverPort={serverPort} setServerPort={setServerPort}
-                toggleConnection={toggleConnection} btnConfig={getBtnConfig()}
-                showLogs={showLogs} setShowLogs={setShowLogs}
-                // [新增] 传入打开设置的回调
-                onOpenSettings={() => setShowSettings(true)}
-                t={t}
-            />
-
-            <div className="flex-1 flex overflow-hidden relative z-0">
-                <Sidebar 
-                    boatStatus={boatStatus}
-                    configState={{streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode}}
-                    setConfigState={()=>{}} 
-                    keyState={keyState}
-                    sendSCommand={sendSCommand}
-                    sendKCommand={sendKCommand}
-                    sendWaypointsCommand={sendWaypointsCommand}
-                    waypointsCount={waypoints.length}
-                    t={t}
+            {shouldUseMobile ? (
+                <MobileStationApp
+                    lang={lang}
+                    setLang={setLang}
                     tcpStatus={tcpStatus}
-                />
-
-                <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
-                    <MapComponent 
-                        lng={boatStatus.longitude} 
-                        lat={boatStatus.latitude} 
-                        heading={boatStatus.heading} 
-                        waypoints={waypoints}
-                        setWaypoints={setWaypoints}
-                        cruiseMode={cruiseMode}
-                        t={t}
-                        showLogs={showLogs}
-                    />
-
-                    <div className="absolute top-4 left-4 flex gap-2 z-10">
-                        <div className="bg-slate-950/80 backdrop-blur border border-cyan-500/30 px-3 py-1 text-xs rounded text-cyan-400 font-bold shadow-lg">Map View</div>
-                        <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
-                    </div>
-                    
-                    <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
-                        <button 
-                            onClick={() => setShowChart(true)}
-                            className="w-10 h-10 flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 rounded-full shadow-lg shadow-cyan-900/50 transition-all hover:scale-110 active:scale-95 group"
-                            title="Open Data Chart"
-                        >
-                            <Icons.Plus className="text-white w-6 h-6" />
-                        </button>
-                    </div>
-
-                    {boatStatus.longitude === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
-                            <div className="text-center">
-                                <Icons.MapPin className="w-8 h-8 text-yellow-500 mx-auto animate-bounce"/>
-                                <span className="text-xs text-yellow-500 font-bold mt-2 block">WAITING FOR GPS FIX...</span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <LogDrawer 
-                    show={showLogs} setShow={setShowLogs}
-                    logs={logs} setLogs={setLogs}
-                    devMode={devMode} setDevMode={setDevMode}
+                    serverIp={serverIp}
+                    setServerIp={setServerIp}
+                    serverPort={serverPort}
+                    setServerPort={setServerPort}
+                    toggleConnection={toggleConnection}
+                    boatStatus={boatStatus}
+                    waypoints={waypoints}
+                    setWaypoints={setWaypoints}
+                    cruiseMode={cruiseMode}
+                    setCruiseMode={setCruiseMode}
+                    streamOn={streamOn}
+                    setStreamOn={setStreamOn}
+                    recvOn={recvOn}
+                    setRecvOn={setRecvOn}
+                    controlMode={controlMode}
+                    setControlMode={setControlMode}
+                    sendSCommand={sendSCommand}
+                    sendWaypointsCommand={sendWaypointsCommand}
+                    sendKCommand={sendKCommand}
+                    setShowChart={setShowChart}
+                    setShowSettings={setShowSettings}
+                    showLogs={showLogs}
+                    setShowLogs={setShowLogs}
+                    logs={logs}
+                    setLogs={setLogs}
+                    devMode={devMode}
+                    setDevMode={setDevModeSafe}
                     sendData={sendData}
                     t={t}
                 />
-            </div>
+            ) : (
+                <>
+                    <Header 
+                        lang={lang} setLang={setLang}
+                        webConnected={webConnected} tcpStatus={tcpStatus}
+                        serverIp={serverIp} setServerIp={setServerIp}
+                        serverPort={serverPort} setServerPort={setServerPort}
+                        toggleConnection={toggleConnection} btnConfig={getBtnConfig()}
+                        showLogs={showLogs} setShowLogs={setShowLogs}
+                        onOpenSettings={() => setShowSettings(true)}
+                        t={t}
+                    />
+
+                    <div className="flex-1 flex overflow-hidden relative z-0">
+                        <Sidebar 
+                            boatStatus={boatStatus}
+                            configState={{streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode}}
+                            setConfigState={()=>{}} 
+                            keyState={keyState}
+                            sendSCommand={sendSCommand}
+                            sendKCommand={sendKCommand}
+                            sendWaypointsCommand={sendWaypointsCommand}
+                            waypointsCount={waypoints.length}
+                            t={t}
+                            tcpStatus={tcpStatus}
+                        />
+
+                        <div className="flex-1 bg-slate-900 relative border-x border-cyan-900/10 overflow-hidden z-0">
+                            <MapComponent 
+                                lng={boatStatus.longitude} 
+                                lat={boatStatus.latitude} 
+                                heading={boatStatus.heading} 
+                                waypoints={waypoints}
+                                setWaypoints={setWaypoints}
+                                cruiseMode={cruiseMode}
+                                t={t}
+                                showLogs={showLogs}
+                            />
+
+                            <div className="absolute top-4 left-4 flex gap-2 z-10">
+                                <div className="bg-slate-950/80 backdrop-blur border border-cyan-500/30 px-3 py-1 text-xs rounded text-cyan-400 font-bold shadow-lg">Map View</div>
+                                <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
+                            </div>
+                            
+                            <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
+                                <button 
+                                    onClick={() => setShowChart(true)}
+                                    className="w-10 h-10 flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 rounded-full shadow-lg shadow-cyan-900/50 transition-all hover:scale-110 active:scale-95 group"
+                                    title="Open Data Chart"
+                                >
+                                    <Icons.Plus className="text-white w-6 h-6" />
+                                </button>
+                            </div>
+
+                            {boatStatus.longitude === 0 && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20 pointer-events-none">
+                                    <div className="text-center">
+                                        <Icons.MapPin className="w-8 h-8 text-yellow-500 mx-auto animate-bounce"/>
+                                        <span className="text-xs text-yellow-500 font-bold mt-2 block">WAITING FOR GPS FIX...</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <LogDrawer 
+                            show={showLogs} setShow={setShowLogs}
+                            logs={logs} setLogs={setLogs}
+                            devMode={devMode} setDevMode={setDevModeSafe}
+                            sendData={sendData}
+                            t={t}
+                        />
+                    </div>
+                </>
+            )}
             
-            {/* 图表弹窗 */}
             <ChartModal 
                 isOpen={showChart}
                 onClose={() => setShowChart(false)}
@@ -764,7 +828,6 @@ function BoatGroundStation() {
                 t={t}
             />
 
-            {/* [新增] 设置弹窗 (占位) */}
             <SettingsModal 
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
