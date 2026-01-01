@@ -1,23 +1,27 @@
-// js/components/SettingsModal.js
 const { useState, useEffect, useRef } = React;
 
-// --------------------------------------------------------
-// Setting Item 组件 (抽离单行样式)
-// --------------------------------------------------------
+// HUDBox 组件 (从 1.js 移植)
+const HUDBox = ({ children, className = "", noGlow = false }) => (
+    <div className={`relative bg-slate-950/90 backdrop-blur-md border border-cyan-500/30 ${noGlow ? '' : 'shadow-[0_0_15px_-3px_rgba(6,182,212,0.15)]'} ${className}`}>
+      <div className="absolute top-0 left-0 w-2 h-2 border-l-2 border-t-2 border-cyan-400"></div>
+      <div className="absolute top-0 right-0 w-2 h-2 border-r-2 border-t-2 border-cyan-400"></div>
+      <div className="absolute bottom-0 left-0 w-2 h-2 border-l-2 border-b-2 border-cyan-400"></div>
+      <div className="absolute bottom-0 right-0 w-2 h-2 border-r-2 border-b-2 border-cyan-400"></div>
+      {children}
+    </div>
+);
+
+// Setting Item 组件 (紧凑版)
 const SettingRow = ({ icon: Icon, title, desc, children }) => (
-    <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-800/30 transition-colors border border-transparent hover:border-slate-800/50 group">
-        <div className="mt-1 p-2 bg-slate-800 rounded-lg text-slate-400 group-hover:text-cyan-400 group-hover:bg-cyan-950/30 transition-colors">
-            <Icon size={20} />
+    <div className="flex flex-col gap-2 p-3 rounded border border-slate-800/50 bg-slate-900/50 hover:bg-slate-800/80 transition-colors group">
+        <div className="flex items-center gap-2">
+            <div className="text-cyan-500 group-hover:text-cyan-400 transition-colors"><Icon size={16} /></div>
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider group-hover:text-cyan-100 transition-colors">{title}</h3>
         </div>
-        <div className="flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-200">{title}</h3>
-                    <p className="text-xs text-slate-500 max-w-[200px] leading-relaxed">{desc}</p>
-                </div>
-                <div className="flex items-center min-w-[180px] justify-end">
-                    {children}
-                </div>
+        <div className="flex items-center justify-between gap-3 pl-6">
+            <p className="text-[10px] text-slate-500 leading-tight flex-1">{desc}</p>
+            <div className="flex-shrink-0">
+                {children}
             </div>
         </div>
     </div>
@@ -31,6 +35,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     
     const [saveStatus, setSaveStatus] = useState('idle');
     const [errorMsg, setErrorMsg] = useState('');
+    const [activeTab, setActiveTab] = useState('connection'); // 'connection' | 'system'
     const closeTimerRef = useRef(null);
 
     useEffect(() => {
@@ -42,6 +47,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
             setAutoReconnect(!!currentAutoReconnect);
             setSaveStatus('idle');
             setErrorMsg('');
+            setActiveTab('connection');
         }
     }, [isOpen]);
 
@@ -83,102 +89,90 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* 遮罩 */}
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
-            
-            {/* 弹窗 */}
-            <div className="relative w-full max-w-[36rem] glass-panel border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-modal-enter ring-1 ring-white/10 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <HUDBox className="w-full max-w-sm p-0 overflow-hidden shadow-2xl shadow-cyan-900/50 flex flex-col max-h-[85vh]">
                 
-                {/* 装饰顶条 */}
-                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 opacity-80"></div>
-
                 {/* 头部 */}
-                <div className="px-6 py-5 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/50">
-                    <div>
-                        <h2 className="text-base font-bold text-white flex items-center gap-2">
-                            <Icons.Settings className="text-cyan-400" size={20} />
-                            {t ? t('settings_title') : 'System Configuration'}
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-1 font-mono tracking-tight">USV-GCS // VERSION 2.5.0</p>
-                    </div>
-                    <button 
-                        onClick={onClose} 
-                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                    >
-                        <Icons.X size={20}/>
+                <div className="p-4 bg-cyan-950/30 border-b border-cyan-500/20 flex justify-between items-center shrink-0">
+                    <h3 className="font-mono font-bold text-cyan-100 flex items-center gap-2 text-sm">
+                        <Icons.Settings size={16} className="text-cyan-400" />
+                        {t ? t('settings_title') : 'SYSTEM_CONFIG'}
+                    </h3>
+                    <button onClick={onClose} className="text-cyan-500 hover:text-white transition-colors">
+                        <Icons.X size={20} />
                     </button>
                 </div>
 
-                {/* 滚动内容区 */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                    
-                    {/* 分组：连接设置 */}
-                    <section>
-                        <div className="px-4 pb-2 text-xs font-bold text-cyan-500 uppercase tracking-widest flex items-center gap-2">
-                            <span>Core Connection</span>
-                            <div className="h-[1px] flex-1 bg-cyan-900/50"></div>
-                        </div>
-                        <div className="space-y-1">
+                {/* 标签页切换 */}
+                <div className="flex border-b border-cyan-500/20 shrink-0">
+                    <button 
+                        onClick={() => setActiveTab('connection')} 
+                        className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'connection' ? 'bg-cyan-500/20 text-cyan-100 shadow-[inset_0_-2px_0_0_rgba(6,182,212,1)]' : 'text-slate-500 hover:bg-slate-800'}`}
+                    >
+                        CONNECTION
+                    </button>
+                    <div className="w-px bg-cyan-900/50"></div>
+                    <button 
+                        onClick={() => setActiveTab('system')} 
+                        className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'system' ? 'bg-cyan-500/20 text-cyan-100 shadow-[inset_0_-2px_0_0_rgba(6,182,212,1)]' : 'text-slate-500 hover:bg-slate-800'}`}
+                    >
+                        SYSTEM
+                    </button>
+                </div>
+
+                {/* 内容区 */}
+                <div className="p-4 space-y-4 bg-slate-900/90 overflow-y-auto flex-1 custom-scrollbar">
+                    {activeTab === 'connection' && (
+                        <div className="space-y-3 animate-in slide-in-from-left-4 fade-in duration-300">
                             <SettingRow 
                                 icon={Icons.Server} 
-                                title={t ? t('set_boat_ip') : "Target IP Address"}
-                                desc={t ? t('desc_ip') : "IPv4 address of the USV onboard computer (e.g., 192.168.1.10)."}
+                                title={t ? t('set_boat_ip') : "Target IP"}
+                                desc={t ? t('desc_ip') : "IPv4 address of the USV"}
                             >
-                                <div className="relative w-full">
+                                <div className="relative w-36">
                                     <input 
                                         type="text" 
                                         value={ip}
                                         onChange={(e) => setIp(e.target.value)}
-                                        className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-cyan-400 font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 outline-none transition-all placeholder-slate-700 text-right"
+                                        className="w-full bg-slate-950/80 border border-slate-700 rounded px-2 py-1 text-xs text-cyan-400 font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 outline-none transition-all placeholder-slate-700 text-right"
                                         placeholder="0.0.0.0"
                                     />
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 font-bold pointer-events-none">IPV4</div>
                                 </div>
                             </SettingRow>
 
                             <SettingRow 
                                 icon={Icons.Anchor} 
-                                title={t ? t('set_boat_port') : "Communication Port"}
-                                desc={t ? t('desc_port') : "TCP/WebSocket port for telemetry data stream."}
+                                title={t ? t('set_boat_port') : "Port"}
+                                desc={t ? t('desc_port') : "Communication Port (TCP)"}
                             >
-                                <div className="relative w-full">
+                                <div className="relative w-24">
                                     <input 
                                         type="number" 
                                         value={port}
                                         onChange={(e) => setPort(e.target.value)}
-                                        className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-cyan-400 font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 outline-none transition-all placeholder-slate-700 text-right"
+                                        className="w-full bg-slate-950/80 border border-slate-700 rounded px-2 py-1 text-xs text-cyan-400 font-mono focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/30 outline-none transition-all placeholder-slate-700 text-right"
                                         placeholder="6202"
                                     />
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 font-bold pointer-events-none">TCP</div>
                                 </div>
                             </SettingRow>
                         </div>
-                    </section>
+                    )}
 
-                    {/* 分组：性能与行为 */}
-                    <section>
-                        <div className="px-4 pb-2 text-xs font-bold text-purple-500 uppercase tracking-widest flex items-center gap-2">
-                            <span>Performance & Behavior</span>
-                            <div className="h-[1px] flex-1 bg-purple-900/50"></div>
-                        </div>
-                        <div className="space-y-1">
+                    {activeTab === 'system' && (
+                        <div className="space-y-3 animate-in slide-in-from-right-4 fade-in duration-300">
                             <SettingRow 
                                 icon={Icons.Activity} 
-                                title={t ? t('chart_fps') : "Chart Refresh Rate"}
-                                desc={t ? t('desc_fps') : "Limit data visualization refresh rate to save CPU."}
+                                title={t ? t('chart_fps') : "Chart FPS"}
+                                desc={t ? t('desc_fps') : "Visualization refresh rate"}
                             >
-                                <div className="w-full flex flex-col items-end gap-2">
-                                    <div className="flex items-center gap-2 bg-slate-950/50 px-2 py-1 rounded border border-slate-800">
-                                        <span className={`text-sm font-mono font-bold ${Number(chartFps) > 60 ? 'text-purple-400' : 'text-slate-300'}`}>{chartFps}</span>
-                                        <span className="text-[10px] text-slate-500">FPS</span>
-                                    </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-mono font-bold text-cyan-400 w-8 text-right">{chartFps}</span>
                                     <input 
                                         type="range" 
                                         min="30" max="240" step="10"
                                         value={chartFps}
                                         onChange={(e) => setChartFps(e.target.value)}
-                                        className="w-full max-w-[140px]"
+                                        className="w-24 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 outline-none"
                                     />
                                 </div>
                             </SettingRow>
@@ -186,54 +180,46 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                             <SettingRow 
                                 icon={Icons.Zap} 
                                 title={t ? t('auto_reconnect') : "Auto Reconnect"}
-                                desc={t ? t('desc_reconnect') : "Automatically attempt to restore connection if lost."}
+                                desc={t ? t('desc_reconnect') : "Restore connection if lost"}
                             >
                                 <label className="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" checked={autoReconnect} onChange={e=>setAutoReconnect(e.target.checked)} className="sr-only peer"/>
-                                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500 shadow-inner"></div>
+                                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500 shadow-inner"></div>
                                 </label>
                             </SettingRow>
                         </div>
-                    </section>
+                    )}
                 </div>
 
-                {/* 底部 */}
-                <div className="px-6 py-4 bg-slate-900/80 border-t border-slate-800 flex justify-between items-center shrink-0">
-                    <div className={`text-xs font-bold text-red-400 flex items-center gap-2 transition-opacity duration-300 ${saveStatus === 'error' ? 'opacity-100' : 'opacity-0'}`}>
-                        <Icons.Help size={14}/> {errorMsg}
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={onClose}
-                            className="px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors uppercase tracking-wide border border-transparent hover:border-slate-700"
-                        >
-                            {t ? t('btn_cancel') : 'Cancel'}
-                        </button>
-                        <button 
-                            onClick={handleSave}
-                            disabled={saveStatus === 'saving' || saveStatus === 'success'}
-                            className={`
-                                relative px-6 py-2 rounded-lg text-xs font-bold text-white shadow-lg transition-all duration-300 flex items-center gap-2 uppercase tracking-wide overflow-hidden border border-white/10
-                                ${saveStatus === 'success' 
-                                    ? 'bg-green-600 shadow-green-900/50 hover:bg-green-500' 
-                                    : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/50 active:scale-95'
-                                }
-                                ${saveStatus === 'saving' ? 'opacity-80 cursor-wait' : ''}
-                            `}
-                        >
-                            {saveStatus === 'saving' && (
-                                <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            )}
-                            {saveStatus === 'success' && <Icons.Check className="w-4 h-4" />}
-                            <span>
-                                {saveStatus === 'saving' ? 'Applying...' : (saveStatus === 'success' ? 'Saved' : (t ? t('btn_save') : 'Save Changes'))}
-                            </span>
-                        </button>
-                    </div>
+                {/* 底部按钮 */}
+                <div className="p-4 border-t border-cyan-900/30 bg-slate-900/95 shrink-0">
+                    {errorMsg && (
+                        <div className="mb-3 flex items-center justify-center gap-2 text-[10px] text-red-400 font-mono bg-red-950/20 py-1 px-2 rounded border border-red-500/20">
+                            <Icons.Help size={12}/> {errorMsg}
+                        </div>
+                    )}
+                    
+                    <button 
+                        onClick={handleSave}
+                        disabled={saveStatus === 'saving' || saveStatus === 'success'}
+                        className={`w-full py-3 font-mono text-sm font-bold tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-transparent
+                            ${saveStatus === 'success' 
+                                ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-900/50' 
+                                : 'bg-cyan-600 hover:bg-cyan-500 text-white'}
+                            ${saveStatus === 'saving' ? 'opacity-80 cursor-wait' : ''}
+                        `}
+                    >
+                        {saveStatus === 'saving' && (
+                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        )}
+                        {saveStatus === 'success' && <Icons.Check className="w-4 h-4" />}
+                        <span>
+                            {saveStatus === 'saving' ? 'APPLYING...' : (saveStatus === 'success' ? 'SAVED' : (t ? t('btn_save') : 'SAVE CHANGES'))}
+                        </span>
+                    </button>
                 </div>
 
-            </div>
+            </HUDBox>
         </div>
     );
 }
