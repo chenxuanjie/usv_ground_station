@@ -35,11 +35,18 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
 
     // === 新增逻辑：处理点击“部署配置” ===
     const handleDeployClick = () => {
-        sendSCommand(); // 执行原有的发送命令
-        setShowDeployHint(false); // 立即隐藏提示
-        if (hintTimerRef.current) clearTimeout(hintTimerRef.current); // 清除定时器
+        const ok = sendSCommand();
+        if (ok) {
+            setShowDeployHint(false);
+            if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+            if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+                window.SystemToast.show(t('toast_deploy_success'), { type: 'success', durationMs: 2500 });
+            }
+            return;
+        }
+
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-            window.SystemToast.show(t('toast_deploy_success'), { type: 'success', durationMs: 2500 });
+            window.SystemToast.show(t('toast_deploy_failed'), { type: 'error', durationMs: 4500 });
         }
     };
 

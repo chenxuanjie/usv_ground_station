@@ -37,6 +37,8 @@ const AppTranslations = {
         alert_timeout: "连接超时！后端没有响应。",
         log_connecting: "系统：正在尝试连接",
         log_timeout: "错误：连接请求超时",
+        log_config_updated: "配置已更新",
+        err_not_connected: "未连接设备，无法发送指令",
         
         // 配置按钮
         stream_on: "推流: 开启",
@@ -49,7 +51,9 @@ const AppTranslations = {
         loop_off: "巡航: 关闭 (0)",
         hint_deploy: "💡 连接成功，请先点击 [部署配置] 生效!",
         toast_deploy_success: "部署配置成功",
+        toast_deploy_failed: "部署配置失败：未连接设备",
         toast_waypoints_sent: "航点任务已下发",
+        toast_waypoints_failed: "下发航点失败：未连接设备",
 
         // Mission
         mission_title: "任务航点",
@@ -132,6 +136,8 @@ const AppTranslations = {
         alert_timeout: "Timeout! No response from backend.",
         log_connecting: "SYSTEM: Connecting to",
         log_timeout: "ERROR: Connection Timeout",
+        log_config_updated: "Config updated",
+        err_not_connected: "Not connected. Cannot send command.",
         
         // Config Buttons
         stream_on: "STREAM: ON",
@@ -144,7 +150,9 @@ const AppTranslations = {
         loop_off: "LOOP: OFF (0)",
         hint_deploy: "💡 Connected. Please [Deploy Config] first!",
         toast_deploy_success: "Deploy config succeeded",
+        toast_deploy_failed: "Deploy config failed: not connected",
         toast_waypoints_sent: "Mission sent",
+        toast_waypoints_failed: "Mission send failed: not connected",
 
         // Mission
         mission_title: "MISSION",
