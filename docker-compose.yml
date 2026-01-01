@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  usv-ground-station:
+    build: .
+    image: usv-ground-station:latest
+    container_name: usv_server
+    restart: unless-stopped
+    ports:
+      - "8888:8888"  # 映射 宿主机端口:容器端口
+    volumes:
+      # 挂载配置文件，这样你在宿主机修改 IP/端口 后重启容器即可生效
+      # 格式: ./本地文件:容器内路径
+      - ./config.ini:/app/config.ini
+    # 可选：如果需要在代码中正确显示宿主机 IP，或者进行广播发现，可以使用 host 模式
+    # network_mode: "host"

@@ -50,3 +50,4 @@ Makefile
 # --- 配置文件 (可选) ---
 # 如果 config.ini 包含敏感信息（如 API 密钥或本地路径），建议取消下面这行的注释
 config.ini
+usv_image.tar

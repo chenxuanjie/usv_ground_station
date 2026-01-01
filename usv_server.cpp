@@ -35,7 +35,7 @@
 struct AppConfig {
     string boat_ip = "120.77.0.8";
     int boat_port = 6202;
-    int local_web_port = 8080; // Web服务端口
+    int local_web_port = 8888; // Web服务端口
     bool auto_reconnect = false;
 };
  

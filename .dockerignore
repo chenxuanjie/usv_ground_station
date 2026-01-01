@@ -1,0 +1,9 @@
+.git
+build
+usv_server
+*.o
+*.ini
+!config_default.ini
+!config.ini
+node_modules
+.DS_Store
