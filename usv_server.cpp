@@ -41,45 +41,9 @@ struct AppConfig {
  
  AppConfig g_config;
  const string CONFIG_FILE = "config.ini";
- 
-void load_config() {
-    ifstream file(CONFIG_FILE);
-    if (file.is_open()) {
-        string line;
-        while (getline(file, line)) {
-             if (line.empty() || line[0] == '#') continue;
-             auto delimiterPos = line.find("=");
-             if (delimiterPos != string::npos) {
-                 string key = line.substr(0, delimiterPos);
-                 string value = line.substr(delimiterPos + 1);
-                 // 简单的去空格处理
-                 key.erase(0, key.find_first_not_of(" \t"));
-                 key.erase(key.find_last_not_of(" \t") + 1);
-                 value.erase(0, value.find_first_not_of(" \t"));
-                 value.erase(value.find_last_not_of(" \t") + 1);
- 
-                if (key == "boat_ip") g_config.boat_ip = value;
-                else if (key == "boat_port") g_config.boat_port = stoi(value);
-                else if (key == "local_web_port") g_config.local_web_port = stoi(value);
-                else if (key == "auto_reconnect") {
-                    string v = value;
-                    transform(v.begin(), v.end(), v.begin(), ::tolower);
-                    g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
-                }
-            }
-        }
-        cout << "[Config] Loaded from " << CONFIG_FILE << endl;
-    } else {
-        ofstream outfile(CONFIG_FILE);
-        outfile << "boat_ip=" << g_config.boat_ip << endl;
-        outfile << "boat_port=" << g_config.boat_port << endl;
-        outfile << "local_web_port=" << g_config.local_web_port << endl;
-        outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
-        cout << "[Config] Default config created: " << CONFIG_FILE << endl;
-    }
-}
- 
-// [新增] 保存配置到文件
+ const string DEFAULT_CONFIG_FILE = "config_default.ini";
+
+ // [新增] 保存配置到文件 (前置声明或提前定义)
 void save_config() {
    ofstream outfile(CONFIG_FILE);
    if (outfile.is_open()) {
@@ -91,6 +55,57 @@ void save_config() {
    } else {
        cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
    }
+}
+
+void parse_config_stream(ifstream& file) {
+    string line;
+    while (getline(file, line)) {
+         if (line.empty() || line[0] == '#') continue;
+         auto delimiterPos = line.find("=");
+         if (delimiterPos != string::npos) {
+             string key = line.substr(0, delimiterPos);
+             string value = line.substr(delimiterPos + 1);
+             // 简单的去空格处理
+             if (!key.empty()) {
+                key.erase(0, key.find_first_not_of(" \t"));
+                if (!key.empty()) key.erase(key.find_last_not_of(" \t") + 1);
+             }
+             if (!value.empty()) {
+                value.erase(0, value.find_first_not_of(" \t"));
+                if (!value.empty()) value.erase(value.find_last_not_of(" \t") + 1);
+             }
+ 
+            if (key == "boat_ip") g_config.boat_ip = value;
+            else if (key == "boat_port") g_config.boat_port = stoi(value);
+            else if (key == "local_web_port") g_config.local_web_port = stoi(value);
+            else if (key == "auto_reconnect") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
+        }
+    }
+}
+ 
+void load_config() {
+    ifstream file(CONFIG_FILE);
+    if (file.is_open()) {
+        parse_config_stream(file);
+        cout << "[Config] Loaded from " << CONFIG_FILE << endl;
+    } else {
+        // [新增] 尝试加载 config_default.ini
+        ifstream default_file(DEFAULT_CONFIG_FILE);
+        if (default_file.is_open()) {
+            parse_config_stream(default_file);
+            cout << "[Config] config.ini not found. Loaded defaults from " << DEFAULT_CONFIG_FILE << endl;
+            // 从默认配置加载后，立即保存一份 config.ini
+            save_config();
+        } else {
+            // 都没有，则使用硬编码默认值并保存
+            save_config();
+            cout << "[Config] No config found. Created default " << CONFIG_FILE << endl;
+        }
+    }
 }
 
  // === 全局状态 ===
