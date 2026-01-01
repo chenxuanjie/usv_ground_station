@@ -16,6 +16,7 @@
  #include <thread>
  #include <mutex>
  #include <algorithm>
+ #include <cctype>
  #include <cstring>
  #include <sys/socket.h>
  #include <arpa/inet.h>
@@ -31,20 +32,21 @@
  using namespace std;
  
  // === 配置文件管理 ===
- struct AppConfig {
-     string boat_ip = "120.77.0.8";
-     int boat_port = 6202;
-     int local_web_port = 8080; // Web服务端口
- };
+struct AppConfig {
+    string boat_ip = "120.77.0.8";
+    int boat_port = 6202;
+    int local_web_port = 8080; // Web服务端口
+    bool auto_reconnect = false;
+};
  
  AppConfig g_config;
  const string CONFIG_FILE = "config.ini";
  
- void load_config() {
-     ifstream file(CONFIG_FILE);
-     if (file.is_open()) {
-         string line;
-         while (getline(file, line)) {
+void load_config() {
+    ifstream file(CONFIG_FILE);
+    if (file.is_open()) {
+        string line;
+        while (getline(file, line)) {
              if (line.empty() || line[0] == '#') continue;
              auto delimiterPos = line.find("=");
              if (delimiterPos != string::npos) {
@@ -56,32 +58,39 @@
                  value.erase(0, value.find_first_not_of(" \t"));
                  value.erase(value.find_last_not_of(" \t") + 1);
  
-                 if (key == "boat_ip") g_config.boat_ip = value;
-                 else if (key == "boat_port") g_config.boat_port = stoi(value);
-                 else if (key == "local_web_port") g_config.local_web_port = stoi(value);
-             }
-         }
-         cout << "[Config] Loaded from " << CONFIG_FILE << endl;
-     } else {
-         ofstream outfile(CONFIG_FILE);
-         outfile << "boat_ip=" << g_config.boat_ip << endl;
-         outfile << "boat_port=" << g_config.boat_port << endl;
-         outfile << "local_web_port=" << g_config.local_web_port << endl;
-         cout << "[Config] Default config created: " << CONFIG_FILE << endl;
-     }
- }
- 
-// [新增] 保存配置到文件
-void save_config() {
-    ofstream outfile(CONFIG_FILE);
-    if (outfile.is_open()) {
+                if (key == "boat_ip") g_config.boat_ip = value;
+                else if (key == "boat_port") g_config.boat_port = stoi(value);
+                else if (key == "local_web_port") g_config.local_web_port = stoi(value);
+                else if (key == "auto_reconnect") {
+                    string v = value;
+                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                    g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
+                }
+            }
+        }
+        cout << "[Config] Loaded from " << CONFIG_FILE << endl;
+    } else {
+        ofstream outfile(CONFIG_FILE);
         outfile << "boat_ip=" << g_config.boat_ip << endl;
         outfile << "boat_port=" << g_config.boat_port << endl;
         outfile << "local_web_port=" << g_config.local_web_port << endl;
-        cout << "[Config] Saved to " << CONFIG_FILE << endl;
-    } else {
-        cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
+        outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
+        cout << "[Config] Default config created: " << CONFIG_FILE << endl;
     }
+}
+ 
+// [新增] 保存配置到文件
+void save_config() {
+   ofstream outfile(CONFIG_FILE);
+   if (outfile.is_open()) {
+       outfile << "boat_ip=" << g_config.boat_ip << endl;
+       outfile << "boat_port=" << g_config.boat_port << endl;
+       outfile << "local_web_port=" << g_config.local_web_port << endl;
+       outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
+       cout << "[Config] Saved to " << CONFIG_FILE << endl;
+   } else {
+       cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
+   }
 }
 
  // === 全局状态 ===
@@ -301,31 +310,29 @@ void boat_listener_loop() {
                     // [新增] 处理获取配置请求 (前端初始化时调用)
                     if (decoded == "GET_CONFIG") {
                         // 格式: CURRENT_CONFIG,IP,PORT
-                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port);
+                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," + (g_config.auto_reconnect ? "1" : "0");
                         send_ws_frame(msg);
                         cout << "[Config] Sent current config to client." << endl;
                     }
                     // [新增] 处理保存配置请求
                     else if (decoded.find("CMD,SET_CONFIG") == 0) {
-                        // 格式: CMD,SET_CONFIG,IP,PORT
-                        // 示例: CMD,SET_CONFIG,192.168.1.10,6202
-                        size_t p1 = decoded.find(',');
-                        size_t p2 = decoded.find(',', p1 + 1);
-                        size_t p3 = decoded.find(',', p2 + 1);
+                        vector<string> parts;
+                        {
+                            string token;
+                            stringstream ss(decoded);
+                            while (getline(ss, token, ',')) parts.push_back(token);
+                        }
 
-                        if (p2 != string::npos && p3 != string::npos) {
-                            string new_ip = decoded.substr(p2 + 1, p3 - p2 - 1);
-                            string new_port_str = decoded.substr(p3 + 1);
-                            
-                            // 更新全局配置
-                            g_config.boat_ip = new_ip;
-                            g_config.boat_port = stoi(new_port_str);
-                            
-                            // 写入文件
+                        if (parts.size() >= 4) {
+                            g_config.boat_ip = parts[2];
+                            g_config.boat_port = stoi(parts[3]);
+                            if (parts.size() >= 5) {
+                                string v = parts[4];
+                                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
+                            }
                             save_config();
-                            
-                            // 反馈给前端（可选，这里简单打印日志）
-                            cout << "[Config] Updated: " << new_ip << ":" << new_port_str << endl;
+                            cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
                         }
                     }
 

@@ -1,6 +1,44 @@
 // js/app.js
 const { useState, useEffect, useRef, useCallback } = React;
 
+const CheckCircle2 = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M8 12l2.5 2.5L16 9"></path>
+    </svg>
+);
+
+const AlertTriangle = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12" y2="17"></line>
+    </svg>
+);
+
+const XCircle = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+    </svg>
+);
+
+const Info = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12" y2="8"></line>
+    </svg>
+);
+
+const Loader2 = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"></circle>
+        <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"></path>
+    </svg>
+);
+
 function NotificationCenter({ items, onDismiss }) {
     const [, forceUpdate] = useState({});
 
@@ -10,44 +48,6 @@ function NotificationCenter({ items, onDismiss }) {
     }, []);
 
     const now = Date.now();
-
-    const CheckCircle2 = ({ className }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M8 12l2.5 2.5L16 9"></path>
-        </svg>
-    );
-
-    const AlertTriangle = ({ className }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12" y2="17"></line>
-        </svg>
-    );
-
-    const XCircle = ({ className }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="15" y1="9" x2="9" y2="15"></line>
-            <line x1="9" y1="9" x2="15" y2="15"></line>
-        </svg>
-    );
-
-    const Info = ({ className }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12" y2="8"></line>
-        </svg>
-    );
-
-    const Loader2 = ({ className }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"></circle>
-            <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"></path>
-        </svg>
-    );
 
     const getTheme = (type) => {
         const base = "backdrop-blur-md border shadow-lg transition-all duration-300";
@@ -212,6 +212,8 @@ function BoatGroundStation() {
     const [tcpStatus, setTcpStatus] = useState('OFFLINE'); 
     const [serverIp, setServerIp] = useState('');
     const [serverPort, setServerPort] = useState('');
+    const [autoReconnect, setAutoReconnect] = useState(false);
+    const [isAutoReconnectLooping, setIsAutoReconnectLooping] = useState(false); // [新增] 状态用于UI显示取消按钮
 
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0,
@@ -223,6 +225,10 @@ function BoatGroundStation() {
     const [logs, setLogs] = useState([]);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
+    const reconnectTimerRef = useRef(null);
+    const lastConnectAttemptAtRef = useRef(0);
+    const userInitiatedConnectRef = useRef(false);
+    const connectAttemptManualRef = useRef(false);
 
     const [streamOn, setStreamOn] = useState(false);
     const [recvOn, setRecvOn] = useState(true);
@@ -365,38 +371,120 @@ function BoatGroundStation() {
 
     const sendKCommand = (w,a,s,d) => sendData(`K,${w},${a},${s},${d},`);
 
-    const toggleConnection = () => {
-        if (!wsRef.current) return;
-        if (tcpStatus === 'ONLINE') {
-            wsRef.current.send("CMD,DISCONNECT");
-        } else if (tcpStatus === 'OFFLINE') {
-            setTcpStatus('CONNECTING');
-            addLog('SYS', `${t('log_connecting')} ${serverIp}:${serverPort}...`, 'info');
-            const toastId = showToast({ type: 'info', message: `${t('log_connecting')} ${serverIp}:${serverPort}...`, loading: true, progress: 0, durationMs: null });
-            connectToastRef.current.id = toastId;
-            const startAt = Date.now();
-            const progressTimerId = window.setInterval(() => {
-                const elapsed = Date.now() - startAt;
-                const p = Math.min(99, Math.max(0, (elapsed / 5000) * 100));
-                updateToast(toastId, { progress: p });
-            }, 120);
-            toastTimersRef.current.set(toastId, { progressTimerId });
-            wsRef.current.send(`CMD,CONNECT,${serverIp},${serverPort}`);
-            
-            if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
-            connectTimeoutRef.current = setTimeout(() => {
-                if (tcpStatus !== 'ONLINE') {
-                    setTcpStatus('OFFLINE');
-                    addLog('ERR', t('log_timeout'), 'info');
-                    if (connectToastRef.current.id) {
-                        resolveToast(connectToastRef.current.id, { type: 'error', message: t('alert_timeout'), durationMs: 5000 });
-                        connectToastRef.current.id = null;
-                    } else {
-                        showToast({ type: 'error', message: t('alert_timeout'), durationMs: 5000 });
-                    }
-                }
-            }, 5000);
+    const RECONNECT_INTERVAL_MS = 3000;
+
+    const clearReconnectTimer = () => {
+        if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
         }
+    };
+
+    const cancelAutoReconnect = useCallback(() => {
+        clearReconnectTimer();
+        userInitiatedConnectRef.current = false;
+        connectAttemptManualRef.current = false;
+        setIsAutoReconnectLooping(false);
+        addLog('SYS', t('cancel_auto_reconnect'), 'info');
+    }, [t]);
+
+    const scheduleReconnect = () => {
+        if (!autoReconnect || !userInitiatedConnectRef.current) return;
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        if (tcpStatus !== 'OFFLINE') return;
+        if (reconnectTimerRef.current) return;
+
+        const now = Date.now();
+        const sinceLast = now - lastConnectAttemptAtRef.current;
+        const delay = Math.max(RECONNECT_INTERVAL_MS - sinceLast, RECONNECT_INTERVAL_MS);
+
+        const seconds = Math.max(1, Math.round(delay / 1000));
+        addLog('SYS', lang === 'zh'
+            ? `自动重连：${seconds} 秒后重试连接...`
+            : `Auto reconnect: retrying in ${seconds}s...`, 'info');
+
+        reconnectTimerRef.current = setTimeout(() => {
+            reconnectTimerRef.current = null;
+            startConnect({ manual: false });
+        }, delay);
+    };
+
+    const startConnect = ({ manual }) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        if (tcpStatus !== 'OFFLINE') return;
+
+        clearReconnectTimer();
+        connectAttemptManualRef.current = !!manual;
+        if (manual) {
+            userInitiatedConnectRef.current = true;
+            setIsAutoReconnectLooping(true);
+        }
+
+        const now = Date.now();
+        const sinceLast = now - lastConnectAttemptAtRef.current;
+        if (sinceLast < RECONNECT_INTERVAL_MS) {
+            scheduleReconnect();
+            return;
+        }
+        lastConnectAttemptAtRef.current = now;
+
+        setTcpStatus('CONNECTING');
+        const msg = `${t('log_connecting')} ${serverIp}:${serverPort}...`;
+        addLog('SYS', msg, 'info');
+
+        // Toast & Progress
+        const toastId = showToast({ type: 'info', message: msg, loading: true, progress: 0, durationMs: null });
+        connectToastRef.current.id = toastId;
+        const startAt = Date.now();
+        const progressTimerId = window.setInterval(() => {
+            const elapsed = Date.now() - startAt;
+            const p = Math.min(99, Math.max(0, (elapsed / 5000) * 100));
+            updateToast(toastId, { progress: p });
+        }, 120);
+        toastTimersRef.current.set(toastId, { progressTimerId });
+
+        wsRef.current.send(`CMD,CONNECT,${serverIp},${serverPort}`);
+
+        if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = setTimeout(() => {
+             // 超时逻辑: 通过检查 tcpStatus 是否仍未 ONLINE
+             // 注意: 这里取不到最新的 state (闭包), 但可以通过 setState 的回调形式或 ref
+             // 简单起见，我们依赖 onmessage 里清除 timer。如果 timer 触发，说明 onmessage 没来
+             setTcpStatus(prev => {
+                 if (prev !== 'ONLINE') {
+                     addLog('ERR', t('log_timeout'), 'info');
+                     if (connectToastRef.current.id) {
+                         resolveToast(connectToastRef.current.id, { type: 'error', message: t('alert_timeout'), durationMs: 5000 });
+                         connectToastRef.current.id = null;
+                     } else if (manual) {
+                         showToast({ type: 'error', message: t('alert_timeout'), durationMs: 5000 });
+                     }
+                     return 'OFFLINE';
+                 }
+                 return prev;
+             });
+        }, 5000);
+    };
+
+    const disconnectFromBoat = () => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        clearReconnectTimer();
+        userInitiatedConnectRef.current = false;
+        connectAttemptManualRef.current = false;
+        setIsAutoReconnectLooping(false);
+        wsRef.current.send("CMD,DISCONNECT");
+    };
+
+    const toggleConnection = () => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+        if (autoReconnect && isAutoReconnectLooping && tcpStatus === 'OFFLINE') {
+            cancelAutoReconnect();
+            return;
+        }
+
+        if (tcpStatus === 'ONLINE') disconnectFromBoat();
+        else if (tcpStatus === 'OFFLINE') startConnect({ manual: true });
     };
 
     // --- Effects ---
@@ -423,6 +511,10 @@ function BoatGroundStation() {
                 if (msg.startsWith('CURRENT_CONFIG')) {
                     const parts = msg.split(',');
                     if (parts.length >= 3) { setServerIp(parts[1]); setServerPort(parts[2]); }
+                    if (parts.length >= 4) {
+                        const v = String(parts[3]).trim().toLowerCase();
+                        setAutoReconnect(v === '1' || v === 'true' || v === 'yes' || v === 'on');
+                    }
                 } 
                 else if (msg.startsWith('TCP_STATUS')) {
                     const curLang = langRef.current === 'zh' ? 'zh' : 'en';
@@ -431,6 +523,8 @@ function BoatGroundStation() {
                     clearTimeout(connectTimeoutRef.current);
                     if (status === 'ONLINE') {
                         setTcpStatus('ONLINE');
+                        connectAttemptManualRef.current = false;
+                        clearReconnectTimer();
                         addLog('SYS', trans.log_tcp_online, 'info');
                         if (connectToastRef.current.id) {
                             resolveToast(connectToastRef.current.id, { type: 'success', message: trans.log_tcp_online, durationMs: 2500 });
@@ -438,9 +532,11 @@ function BoatGroundStation() {
                         }
                     } else if (status === 'OFFLINE') {
                         setTcpStatus('OFFLINE');
+                        connectAttemptManualRef.current = false;
                         addLog('SYS', trans.log_tcp_offline, 'info');
                     } else if (status === 'FAILED') {
                         setTcpStatus('OFFLINE');
+                        connectAttemptManualRef.current = false;
                         addLog('ERR', trans.log_tcp_failed, 'info');
                         if (connectToastRef.current.id) {
                             resolveToast(connectToastRef.current.id, { type: 'error', message: trans.alert_failed, durationMs: 5500 });
@@ -497,6 +593,16 @@ function BoatGroundStation() {
     }, []); 
 
     useEffect(() => {
+        if (!autoReconnect) {
+            clearReconnectTimer();
+            return;
+        }
+        if (tcpStatus === 'OFFLINE') scheduleReconnect();
+        if (tcpStatus === 'ONLINE') clearReconnectTimer();
+        if (tcpStatus === 'CONNECTING') clearReconnectTimer();
+    }, [tcpStatus, autoReconnect]);
+
+    useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.repeat || document.activeElement.tagName === 'INPUT') return;
             const key = e.key.toLowerCase();
@@ -542,14 +648,18 @@ function BoatGroundStation() {
 
     const getBtnConfig = () => {
         if (tcpStatus === 'ONLINE') return { text: t('btn_disconnect'), color: 'bg-red-600/90 hover:bg-red-700 border-red-500 shadow-red-900/50', disabled: false };
+        if (autoReconnect && isAutoReconnectLooping && tcpStatus === 'OFFLINE') {
+            return { text: t('btn_cancel_reconnect'), color: 'bg-orange-600/90 hover:bg-orange-700 border-orange-500 shadow-orange-900/50', disabled: false };
+        }
         if (tcpStatus === 'CONNECTING') return { text: t('btn_connecting'), color: 'bg-yellow-600/90 border-yellow-500 shadow-yellow-900/50', disabled: true };
         return { text: t('btn_connect'), color: 'bg-cyan-600/90 hover:bg-cyan-500 border-cyan-400 shadow-cyan-900/50', disabled: false };
     };
 
-    const handleSaveConfig = (newIp, newPort, newChartFps) => {
+    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect) => {
         // 1. 更新本地状态
         setServerIp(newIp);
         setServerPort(newPort);
+        setAutoReconnect(!!newAutoReconnect);
         if (newChartFps !== undefined) {
             const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
             setChartFps(fps);
@@ -559,7 +669,7 @@ function BoatGroundStation() {
         // 2. 发送指令给后端保存到 config.ini
         // 协议: CMD,SET_CONFIG,IP,PORT
         if (wsRef.current && webConnected) {
-            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort}`);
+            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort},${newAutoReconnect ? '1' : '0'}`);
             addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
         } else {
             addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
@@ -661,6 +771,7 @@ function BoatGroundStation() {
                 currentIp={serverIp}
                 currentPort={serverPort}
                 currentChartFps={chartFps}
+                currentAutoReconnect={autoReconnect}
                 onSave={handleSaveConfig}
                 t={t}
             />
