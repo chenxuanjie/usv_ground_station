@@ -3,7 +3,7 @@
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
-  const { HUDBox, StatusBar, BottomNav, SideDrawer, JoystickComponent } = window.MobileComponents;
+  const { HUDBox, StatusBar, BottomNav, SideDrawer, JoystickComponent, EmbeddedChart } = window.MobileComponents;
 
   // Icons
   const MapIcon = Icon('Map');
@@ -61,6 +61,8 @@
       sendWaypointsCommand,
       sendKCommand,
       setShowChart,
+      chartDataRef, // [Added]
+      chartFps,     // [Added]
       setShowSettings,
       showLogs,
       setShowLogs,
@@ -313,41 +315,11 @@
 
           {activeTab === 'charts' && (
             <div className="w-full h-full bg-slate-950 relative">
-              <div className="absolute top-0 w-full h-16 z-30 px-4 flex items-center bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent pointer-events-none">
-                <div className="text-cyan-400 font-mono font-bold text-lg flex items-center gap-2">DATA_CORE</div>
-              </div>
-              <div className="absolute inset-0 pt-20 pb-24 px-4 overflow-y-auto">
-                <HUDBox className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-mono text-slate-400">CHART</div>
-                    <button onClick={() => setShowChart(true)} className="px-3 py-2 border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 rounded font-mono text-xs font-bold hover:bg-cyan-500/15 transition-colors flex items-center gap-2">
-                      <LineChart className="w-4 h-4" /> OPEN
-                    </button>
-                  </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <div className="bg-slate-900/60 border border-slate-800 rounded p-3">
-                      <div className="text-[10px] font-mono text-slate-500">BAT_V</div>
-                      <div className="text-lg font-mono font-bold text-cyan-200">{batteryV ? batteryV.toFixed(2) : '0.00'}</div>
-                    </div>
-                    <div className="bg-slate-900/60 border border-slate-800 rounded p-3">
-                      <div className="text-[10px] font-mono text-slate-500">HDG</div>
-                      <div className="text-lg font-mono font-bold text-purple-200">{heading.toFixed(0)}</div>
-                    </div>
-                    <div className="bg-slate-900/60 border border-slate-800 rounded p-3">
-                      <div className="text-[10px] font-mono text-slate-500">LINK</div>
-                      <div className="text-lg font-mono font-bold text-green-200">{signal.toFixed(0)}%</div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button onClick={() => setShowSettings(true)} className="flex-1 px-3 py-3 border border-slate-800 bg-slate-900/60 text-slate-200 rounded font-mono text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                      <Settings className="w-4 h-4 text-cyan-400" /> SETTINGS
-                    </button>
-                    <button onClick={() => { if (setLogs) setLogs([]); }} className="flex-1 px-3 py-3 border border-slate-800 bg-slate-900/60 text-slate-200 rounded font-mono text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                      <RefreshCw className="w-4 h-4 text-cyan-400" /> CLEAR_LOG
-                    </button>
-                  </div>
-                </HUDBox>
-              </div>
+               <EmbeddedChart 
+                  dataRef={chartDataRef}
+                  fps={chartFps}
+                  t={props.t}
+               />
             </div>
           )}
         </div>
