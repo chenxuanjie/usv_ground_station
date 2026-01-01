@@ -1,10 +1,11 @@
 // js/components/SettingsModal.js
 const { useState, useEffect, useRef } = React;
 
-function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, onSave, t }) {
+function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, onSave, t }) {
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
     const [chartFps, setChartFps] = useState(currentChartFps);
+    const [autoReconnect, setAutoReconnect] = useState(!!currentAutoReconnect);
     const [statusMsg, setStatusMsg] = useState('');
     const closeTimerRef = useRef(null);
 
@@ -18,9 +19,10 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
             setIp(currentIp);
             setPort(currentPort);
             setChartFps(currentChartFps);
+            setAutoReconnect(!!currentAutoReconnect);
             setStatusMsg('');
         }
-    }, [isOpen, currentIp, currentPort, currentChartFps]);
+    }, [isOpen, currentIp, currentPort, currentChartFps, currentAutoReconnect]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -47,7 +49,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
             setStatusMsg('❌ ' + (t ? t('err_invalid_input') : "Invalid Input"));
             return;
         }
-        onSave(ip, port, Math.round(fpsNum));
+        onSave(ip, port, Math.round(fpsNum), !!autoReconnect);
         setStatusMsg('✅ ' + (t ? t('msg_save_success') : "Saved!"));
         
         // 延迟关闭
@@ -100,6 +102,26 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                             className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-cyan-100 focus:border-cyan-500 outline-none transition-colors font-mono"
                             placeholder="6202"
                         />
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                                {t ? t('auto_reconnect') : 'Auto Reconnect'}
+                            </div>
+                            <label className="flex items-center gap-1.5 cursor-pointer group">
+                                <span className={`text-[10px] font-bold ${autoReconnect ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-400'}`}>
+                                    {autoReconnect ? (t ? t('toggle_on') : 'ON') : (t ? t('toggle_off') : 'OFF')}
+                                </span>
+                                <div className="relative inline-flex items-center">
+                                    <input type="checkbox" checked={autoReconnect} onChange={e=>setAutoReconnect(e.target.checked)} className="sr-only peer"/>
+                                    <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-cyan-600"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                            {t ? t('auto_reconnect_hint') : 'Only takes effect after you click CONNECT.'}
+                        </div>
                     </div>
 
                     <div className="space-y-1">

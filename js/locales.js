@@ -98,6 +98,10 @@ const AppTranslations = {
         btn_cancel: "取消",
         msg_save_success: "配置已保存!",
         err_invalid_input: "输入无效",
+        auto_reconnect: "自动重连",
+        auto_reconnect_hint: "仅在点击“连接设备”后生效，断线/失败将按间隔自动重试",
+        toggle_on: "开",
+        toggle_off: "关",
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -197,5 +201,9 @@ const AppTranslations = {
         btn_cancel: "CANCEL",
         msg_save_success: "Config Saved!",
         err_invalid_input: "Invalid Input",
+        auto_reconnect: "AUTO RECONNECT",
+        auto_reconnect_hint: "Only takes effect after clicking CONNECT. Retries on drop/fail with interval.",
+        toggle_on: "ON",
+        toggle_off: "OFF",
     }
 };
