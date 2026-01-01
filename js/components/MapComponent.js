@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
 const { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs }) {
+function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -12,7 +12,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const waypointMarkersRef = useRef([]);
     const contextMenuRef = useRef(null);
     
-    const [mapMode, setMapMode] = useState('pan');
+    const [internalMapMode, setInternalMapMode] = useState('pan');
+    const mapMode = controlledMapMode || internalMapMode;
 
     // --- 坐标转换算法集 ---
     const PI = 3.1415926535897932384626;
@@ -223,11 +224,12 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
             
             {/* 上方工具栏 (移除了定位按钮) */}
+            {!hideToolbar && (
             <div 
                 className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}
             >
                 <button 
-                    onClick={() => setMapMode('pan')}
+                    onClick={() => setInternalMapMode('pan')}
                     className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                     title={t ? t('map_browse') : "Browse"}
                 >
@@ -235,13 +237,14 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                 </button>
                 <div className="w-[1px] bg-slate-700"></div>
                 <button 
-                    onClick={() => setMapMode('add')}
+                    onClick={() => setInternalMapMode('add')}
                     className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                     title={t ? t('map_add_mode') : "Add WP"}
                 >
                     <MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}
                 </button>
             </div>
+            )}
 
             {/* 下方悬浮定位按钮 (新增) */}
             <div className={`absolute bottom-8 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>

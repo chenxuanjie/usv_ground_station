@@ -73,7 +73,9 @@
       port: "端口",
       connect_btn: "连接设备",
       disconnect_btn: "断开连接",
-      connecting: "正在连接..."
+      connecting: "正在连接...",
+      add_wp: "添加航点",
+      finish_add: "添加完成"
     }
   };
 
@@ -324,6 +326,38 @@
     </div>
   );
 
+  const JoystickComponent = ({ joystickActive, setJoystickActive, joystickPosition, setJoystickPosition, handleJoyMove, joystickDisabled }) => (
+    <div className={`absolute bottom-24 right-6 z-20 transition-opacity ${joystickDisabled ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+      <div
+        className="w-32 h-32 rounded-full border border-cyan-500/20 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center relative touch-none shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] cursor-move pointer-events-auto"
+        onPointerDown={(e) => {
+          if (joystickDisabled) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setJoystickActive(true);
+          const rect = e.currentTarget.getBoundingClientRect();
+          handleJoyMove(e.clientX, e.clientY, rect);
+        }}
+        onPointerMove={(e) => {
+          if (!joystickActive) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          handleJoyMove(e.clientX, e.clientY, rect);
+        }}
+        onPointerUp={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
+        onPointerCancel={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
+      >
+        <div className="absolute inset-2 rounded-full border border-dashed border-cyan-500/30 animate-[spin_10s_linear_infinite]"></div>
+        <div className="absolute inset-8 rounded-full border border-cyan-500/10"></div>
+        <div className={`w-14 h-14 rounded-full border-2 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center justify-center transition-transform duration-75 relative z-10 ${joystickActive ? 'bg-cyan-500/20 border-cyan-400 scale-95' : 'bg-slate-800/80 border-cyan-800'}`} style={{ transform: `translate(${joystickPosition.x}px, ${joystickPosition.y}px)` }}>
+          <div className={`w-2 h-2 rounded-full ${joystickActive ? 'bg-white shadow-[0_0_10px_white]' : 'bg-cyan-600'}`}></div>
+        </div>
+        <ChevronUp className="absolute top-3 text-cyan-500/50 w-4 h-4" />
+        <ChevronUp className="absolute bottom-3 text-cyan-500/50 w-4 h-4 rotate-180" />
+        <ChevronUp className="absolute left-3 text-cyan-500/50 w-4 h-4 -rotate-90" />
+        <ChevronUp className="absolute right-3 text-cyan-500/50 w-4 h-4 rotate-90" />
+      </div>
+    </div>
+  );
+
   function MobileStationApp(props) {
     const {
       lang,
@@ -364,6 +398,7 @@
     const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
     const [joystickActive, setJoystickActive] = useState(false);
     const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
+    const [mapMode, setMapMode] = useState('pan');
 
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
@@ -482,9 +517,23 @@
                     cruiseMode={cruiseMode}
                     t={props.t}
                     showLogs={false}
+                    controlledMapMode={mapMode}
+                    hideToolbar={true}
                   />
                 </div>
               </div>
+
+              {mapMode === 'add' && (
+                <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
+                  <button 
+                    onClick={() => setMapMode('pan')}
+                    className="pointer-events-auto bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-full shadow-lg border-2 border-green-400 animate-in fade-in zoom-in duration-300 flex items-center gap-2"
+                  >
+                    <Check className="w-5 h-5" />
+                    {props.t ? props.t('finish_add') : (lang === 'zh' ? '添加完成' : 'Done')}
+                  </button>
+                </div>
+              )}
 
               <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-3 pointer-events-none">
                 <div className="pointer-events-auto flex flex-col items-end gap-3">
@@ -497,9 +546,9 @@
                   </button>
                   {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
-                      <button onClick={() => { setShowChart(true); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-purple-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">DATA</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-purple-500/50 hover:bg-purple-900/20 text-purple-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><LineChart className="w-[18px] h-[18px]" /></div>
+                      <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
+                        <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">ADD WP</span>
+                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapIcon className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { sendWaypointsCommand && sendWaypointsCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
                         <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">UPLOAD</span>
@@ -559,39 +608,30 @@
                 </HUDBox>
               </div>
 
-              <div className={`absolute bottom-24 right-6 z-20 transition-opacity ${joystickDisabled ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
-                <div
-                  className="w-32 h-32 rounded-full border border-cyan-500/20 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center relative touch-none shadow-[inset_0_0_20px_rgba(6,182,212,0.1)] cursor-move pointer-events-auto"
-                  onPointerDown={(e) => {
-                    if (joystickDisabled) return;
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                    setJoystickActive(true);
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    handleJoyMove(e.clientX, e.clientY, rect);
-                  }}
-                  onPointerMove={(e) => {
-                    if (!joystickActive) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    handleJoyMove(e.clientX, e.clientY, rect);
-                  }}
-                  onPointerUp={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
-                  onPointerCancel={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
-                >
-                  <div className="absolute inset-2 rounded-full border border-dashed border-cyan-500/30 animate-[spin_10s_linear_infinite]"></div>
-                  <div className="absolute inset-8 rounded-full border border-cyan-500/10"></div>
-                  <div className={`w-14 h-14 rounded-full border-2 shadow-[0_0_15px_rgba(6,182,212,0.4)] flex items-center justify-center transition-transform duration-75 relative z-10 ${joystickActive ? 'bg-cyan-500/20 border-cyan-400 scale-95' : 'bg-slate-800/80 border-cyan-800'}`} style={{ transform: `translate(${joystickPosition.x}px, ${joystickPosition.y}px)` }}>
-                    <div className={`w-2 h-2 rounded-full ${joystickActive ? 'bg-white shadow-[0_0_10px_white]' : 'bg-cyan-600'}`}></div>
-                  </div>
-                  <ChevronUp className="absolute top-3 text-cyan-500/50 w-4 h-4" />
-                  <ChevronUp className="absolute bottom-3 text-cyan-500/50 w-4 h-4 rotate-180" />
-                  <ChevronUp className="absolute left-3 text-cyan-500/50 w-4 h-4 -rotate-90" />
-                  <ChevronUp className="absolute right-3 text-cyan-500/50 w-4 h-4 rotate-90" />
-                </div>
-              </div>
+              <JoystickComponent 
+                joystickActive={joystickActive} 
+                setJoystickActive={setJoystickActive} 
+                joystickPosition={joystickPosition} 
+                setJoystickPosition={setJoystickPosition} 
+                handleJoyMove={handleJoyMove} 
+                joystickDisabled={joystickDisabled} 
+              />
             </div>
           )}
 
-          {activeTab === 'video' && <FeaturePending title="OPTICAL_FEED" />}
+          {activeTab === 'video' && (
+            <div className="relative w-full h-full bg-black overflow-hidden">
+              <FeaturePending title="OPTICAL_FEED" />
+              <JoystickComponent 
+                joystickActive={joystickActive} 
+                setJoystickActive={setJoystickActive} 
+                joystickPosition={joystickPosition} 
+                setJoystickPosition={setJoystickPosition} 
+                handleJoyMove={handleJoyMove} 
+                joystickDisabled={joystickDisabled} 
+              />
+            </div>
+          )}
 
           {activeTab === 'charts' && (
             <div className="w-full h-full bg-slate-950 relative">
