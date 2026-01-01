@@ -324,8 +324,8 @@ function BoatGroundStation() {
 
     const sendData = (cmd) => {
         if (tcpStatus !== 'ONLINE' || !wsRef.current) {
-            addLog('ERR', "未连接设备，无法发送指令", 'error');
-            return;
+            addLog('ERR', t('err_not_connected'), 'error');
+            return false;
         }
         const finalCmd = cmd.endsWith(',') ? cmd : cmd + ',';
         wsRef.current.send(finalCmd);
@@ -335,6 +335,7 @@ function BoatGroundStation() {
         } else {
             addLog('TX', finalCmd, 'info');
         }
+        return true;
     };
 
     const sendWaypointsCommand = () => {
@@ -347,14 +348,19 @@ function BoatGroundStation() {
             cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
         });
         cmd += ",";
-        sendData(cmd);
+        const ok = sendData(cmd);
+        if (!ok) {
+            showToast({ type: 'error', message: t('toast_waypoints_failed'), durationMs: 4500 });
+            return;
+        }
         addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
         showToast({ type: 'success', message: t('toast_waypoints_sent'), durationMs: 2500 });
     };
 
     const sendSCommand = () => {
-        sendData(`S,${streamOn ? '1':'0'},${recvOn ? '3':'2'},q,${controlMode},${cruiseMode},`);
-        if (!devMode) addLog('SYS', "配置已更新", 'info');
+        const ok = sendData(`S,${streamOn ? '1':'0'},${recvOn ? '3':'2'},q,${controlMode},${cruiseMode},`);
+        if (ok && !devMode) addLog('SYS', t('log_config_updated'), 'info');
+        return ok;
     };
 
     const sendKCommand = (w,a,s,d) => sendData(`K,${w},${a},${s},${d},`);
