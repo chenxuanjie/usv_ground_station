@@ -213,6 +213,7 @@ function BoatGroundStation() {
     const [serverIp, setServerIp] = useState('');
     const [serverPort, setServerPort] = useState('');
     const [autoReconnect, setAutoReconnect] = useState(false);
+    const [isAutoReconnectLooping, setIsAutoReconnectLooping] = useState(false); // [新增] 状态用于UI显示取消按钮
 
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0,
@@ -379,6 +380,14 @@ function BoatGroundStation() {
         }
     };
 
+    const cancelAutoReconnect = useCallback(() => {
+        clearReconnectTimer();
+        userInitiatedConnectRef.current = false;
+        connectAttemptManualRef.current = false;
+        setIsAutoReconnectLooping(false);
+        addLog('SYS', t('cancel_auto_reconnect'), 'info');
+    }, [t]);
+
     const scheduleReconnect = () => {
         if (!autoReconnect || !userInitiatedConnectRef.current) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -406,7 +415,10 @@ function BoatGroundStation() {
 
         clearReconnectTimer();
         connectAttemptManualRef.current = !!manual;
-        if (manual) userInitiatedConnectRef.current = true;
+        if (manual) {
+            userInitiatedConnectRef.current = true;
+            setIsAutoReconnectLooping(true);
+        }
 
         const now = Date.now();
         const sinceLast = now - lastConnectAttemptAtRef.current;
@@ -459,11 +471,18 @@ function BoatGroundStation() {
         clearReconnectTimer();
         userInitiatedConnectRef.current = false;
         connectAttemptManualRef.current = false;
+        setIsAutoReconnectLooping(false);
         wsRef.current.send("CMD,DISCONNECT");
     };
 
     const toggleConnection = () => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+        if (autoReconnect && isAutoReconnectLooping && tcpStatus === 'OFFLINE') {
+            cancelAutoReconnect();
+            return;
+        }
+
         if (tcpStatus === 'ONLINE') disconnectFromBoat();
         else if (tcpStatus === 'OFFLINE') startConnect({ manual: true });
     };
@@ -629,6 +648,9 @@ function BoatGroundStation() {
 
     const getBtnConfig = () => {
         if (tcpStatus === 'ONLINE') return { text: t('btn_disconnect'), color: 'bg-red-600/90 hover:bg-red-700 border-red-500 shadow-red-900/50', disabled: false };
+        if (autoReconnect && isAutoReconnectLooping && tcpStatus === 'OFFLINE') {
+            return { text: t('btn_cancel_reconnect'), color: 'bg-orange-600/90 hover:bg-orange-700 border-orange-500 shadow-orange-900/50', disabled: false };
+        }
         if (tcpStatus === 'CONNECTING') return { text: t('btn_connecting'), color: 'bg-yellow-600/90 border-yellow-500 shadow-yellow-900/50', disabled: true };
         return { text: t('btn_connect'), color: 'bg-cyan-600/90 hover:bg-cyan-500 border-cyan-400 shadow-cyan-900/50', disabled: false };
     };
