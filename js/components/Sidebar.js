@@ -38,6 +38,9 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
         sendSCommand(); // 执行原有的发送命令
         setShowDeployHint(false); // 立即隐藏提示
         if (hintTimerRef.current) clearTimeout(hintTimerRef.current); // 清除定时器
+        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+            window.SystemToast.show(t('toast_deploy_success'), { type: 'success', durationMs: 2500 });
+        }
     };
 
     // 罗盘角度计算

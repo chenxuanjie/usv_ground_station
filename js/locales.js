@@ -48,6 +48,8 @@ const AppTranslations = {
         loop_on: "巡航: 开启 (1)",
         loop_off: "巡航: 关闭 (0)",
         hint_deploy: "💡 连接成功，请先点击 [部署配置] 生效!",
+        toast_deploy_success: "部署配置成功",
+        toast_waypoints_sent: "航点任务已下发",
 
         // Mission
         mission_title: "任务航点",
@@ -141,6 +143,8 @@ const AppTranslations = {
         loop_on: "LOOP: ON (1)",
         loop_off: "LOOP: OFF (0)",
         hint_deploy: "💡 Connected. Please [Deploy Config] first!",
+        toast_deploy_success: "Deploy config succeeded",
+        toast_waypoints_sent: "Mission sent",
 
         // Mission
         mission_title: "MISSION",

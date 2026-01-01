@@ -1,8 +1,177 @@
 // js/app.js
 const { useState, useEffect, useRef, useCallback } = React;
 
+function NotificationCenter({ items, onDismiss }) {
+    const [, forceUpdate] = useState({});
+
+    useEffect(() => {
+        const timer = window.setInterval(() => forceUpdate({}), 50);
+        return () => window.clearInterval(timer);
+    }, []);
+
+    const now = Date.now();
+
+    const CheckCircle2 = ({ className }) => (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 12l2.5 2.5L16 9"></path>
+        </svg>
+    );
+
+    const AlertTriangle = ({ className }) => (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12" y2="17"></line>
+        </svg>
+    );
+
+    const XCircle = ({ className }) => (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+    );
+
+    const Info = ({ className }) => (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="8"></line>
+        </svg>
+    );
+
+    const Loader2 = ({ className }) => (
+        <svg className={className} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"></circle>
+            <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"></path>
+        </svg>
+    );
+
+    const getTheme = (type) => {
+        const base = "backdrop-blur-md border shadow-lg transition-all duration-300";
+
+        if (type === 'success') {
+            return {
+                wrapper: `${base} bg-emerald-950/60 border-emerald-500/30 shadow-emerald-900/20`,
+                icon: <CheckCircle2 className="w-5 h-5 text-emerald-400" />,
+                titleColor: "text-emerald-100",
+                msgColor: "text-emerald-200/70",
+                progress: "bg-emerald-500",
+                glow: "shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
+            };
+        }
+        if (type === 'warning') {
+            return {
+                wrapper: `${base} bg-amber-950/60 border-amber-500/30 shadow-amber-900/20`,
+                icon: <AlertTriangle className="w-5 h-5 text-amber-400" />,
+                titleColor: "text-amber-100",
+                msgColor: "text-amber-200/70",
+                progress: "bg-amber-500",
+                glow: "shadow-[0_0_15px_-3px_rgba(245,158,11,0.3)]"
+            };
+        }
+        if (type === 'error') {
+            return {
+                wrapper: `${base} bg-rose-950/60 border-rose-500/30 shadow-rose-900/20`,
+                icon: <XCircle className="w-5 h-5 text-rose-400" />,
+                titleColor: "text-rose-100",
+                msgColor: "text-rose-200/70",
+                progress: "bg-rose-500",
+                glow: "shadow-[0_0_15px_-3px_rgba(244,63,94,0.3)]"
+            };
+        }
+
+        return {
+            wrapper: `${base} bg-slate-900/80 border-cyan-500/30 shadow-cyan-900/20`,
+            icon: <Info className="w-5 h-5 text-cyan-400" />,
+            titleColor: "text-cyan-100",
+            msgColor: "text-cyan-200/70",
+            progress: "bg-cyan-500",
+            glow: "shadow-[0_0_15px_-3px_rgba(6,182,212,0.3)]"
+        };
+    };
+
+    if (!items || items.length === 0) return null;
+
+    return (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-3 w-[380px] max-w-[calc(100vw-2rem)] pointer-events-none">
+            {items.map((item) => {
+                const theme = getTheme(item.type);
+                const showTimer = Number.isFinite(item.durationMs) && item.durationMs > 0 && Number.isFinite(item.dismissAt);
+                const fractionLeft = showTimer ? Math.max(0, Math.min(1, (item.dismissAt - now) / item.durationMs)) : 0;
+                const percent = Number.isFinite(item.progress) ? Math.max(0, Math.min(100, item.progress)) : null;
+
+                return (
+                    <div
+                        key={item.id}
+                        className={`pointer-events-auto group relative overflow-hidden rounded-lg p-3 ${theme.wrapper} ${theme.glow}`}
+                        style={{ animation: 'slideInRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                                {item.loading ? (
+                                    <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                                ) : (
+                                    theme.icon
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-semibold font-mono tracking-wide ${theme.titleColor}`}>
+                                    {String(item.type || 'info').toUpperCase()}
+                                </div>
+                                <div className={`text-sm mt-0.5 leading-5 break-words ${theme.msgColor}`}>{item.message}</div>
+
+                                {item.loading && percent !== null && (
+                                    <div className="mt-2 flex items-center justify-between text-xs font-mono text-slate-400">
+                                        <span>PROCESSING...</span>
+                                        <span>{percent.toFixed(0)}%</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={() => onDismiss(item.id)}
+                                className="flex-shrink-0 text-slate-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                                aria-label="Close"
+                            >
+                                <Icons.X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="absolute bottom-0 left-0 w-full h-[2px] bg-slate-800/50">
+                            {item.loading && percent !== null ? (
+                                <div
+                                    className={`h-full ${theme.progress} transition-all duration-150 ease-linear shadow-[0_0_8px_rgba(255,255,255,0.5)]`}
+                                    style={{ width: `${percent}%` }}
+                                ></div>
+                            ) : showTimer ? (
+                                <div
+                                    className={`h-full ${theme.progress} opacity-60`}
+                                    style={{ width: `${fractionLeft * 100}%`, transition: 'width 0.1s linear' }}
+                                ></div>
+                            ) : null}
+                        </div>
+
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-white/5 to-transparent rounded-bl-3xl pointer-events-none"></div>
+                    </div>
+                );
+            })}
+            <style>{`
+                @keyframes slideInRight {
+                    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+            `}</style>
+        </div>
+    );
+}
+
 function BoatGroundStation() {
     const [lang, setLang] = useState('zh');
+    const langRef = useRef(lang);
     const [showLogs, setShowLogs] = useState(false);
     // [新增] 设置弹窗状态
     const [showSettings, setShowSettings] = useState(false);
@@ -16,6 +185,10 @@ function BoatGroundStation() {
     useEffect(() => {
         devModeRef.current = devMode;
     }, [devMode]);
+
+    useEffect(() => {
+        langRef.current = lang;
+    }, [lang]);
 
     // 图表数据 Ref (全速)
     const [showChart, setShowChart] = useState(false);
@@ -60,6 +233,91 @@ function BoatGroundStation() {
 
     // --- 核心逻辑 ---
 
+    const [notifications, setNotifications] = useState([]);
+    const toastTimersRef = useRef(new Map());
+
+    const dismissToast = useCallback((id) => {
+        const t = toastTimersRef.current.get(id);
+        if (t) {
+            if (t.timeoutId) window.clearTimeout(t.timeoutId);
+            if (t.progressTimerId) window.clearInterval(t.progressTimerId);
+            toastTimersRef.current.delete(id);
+        }
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }, []);
+
+    const updateToast = useCallback((id, patch) => {
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+    }, []);
+
+    const showToast = useCallback((opts) => {
+        const id = `toast_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const createdAt = Date.now();
+        const durationMs = opts && Object.prototype.hasOwnProperty.call(opts, 'durationMs') ? opts.durationMs : 4500;
+        const dismissAt = Number.isFinite(durationMs) && durationMs > 0 ? createdAt + durationMs : null;
+        const toast = {
+            id,
+            type: opts?.type || 'info',
+            message: opts?.message || '',
+            loading: !!opts?.loading,
+            progress: Number.isFinite(opts?.progress) ? opts.progress : null,
+            createdAt,
+            durationMs: Number.isFinite(durationMs) ? durationMs : null,
+            dismissAt
+        };
+
+        setNotifications((prev) => {
+            const next = [toast, ...prev];
+            const trimmed = next.slice(0, 5);
+            const removed = next.slice(5);
+            removed.forEach((r) => {
+                const t = toastTimersRef.current.get(r.id);
+                if (t) {
+                    if (t.timeoutId) window.clearTimeout(t.timeoutId);
+                    if (t.progressTimerId) window.clearInterval(t.progressTimerId);
+                    toastTimersRef.current.delete(r.id);
+                }
+            });
+            return trimmed;
+        });
+
+        if (dismissAt) {
+            const timeoutId = window.setTimeout(() => dismissToast(id), durationMs);
+            toastTimersRef.current.set(id, { timeoutId });
+        }
+
+        return id;
+    }, [dismissToast]);
+
+    const resolveToast = useCallback((id, opts) => {
+        const t = toastTimersRef.current.get(id);
+        if (t && t.progressTimerId) window.clearInterval(t.progressTimerId);
+        if (t && t.timeoutId) window.clearTimeout(t.timeoutId);
+
+        const createdAt = Date.now();
+        const durationMs = opts && Object.prototype.hasOwnProperty.call(opts, 'durationMs') ? opts.durationMs : 4500;
+        const dismissAt = Number.isFinite(durationMs) && durationMs > 0 ? createdAt + durationMs : null;
+
+        updateToast(id, {
+            type: opts?.type || 'info',
+            message: opts?.message || '',
+            loading: false,
+            progress: null,
+            createdAt,
+            durationMs: Number.isFinite(durationMs) ? durationMs : null,
+            dismissAt
+        });
+
+        if (dismissAt) {
+            const timeoutId = window.setTimeout(() => dismissToast(id), durationMs);
+            toastTimersRef.current.set(id, { timeoutId });
+        } else {
+            toastTimersRef.current.delete(id);
+        }
+    }, [dismissToast, updateToast]);
+
+    const connectToastRef = useRef({ id: null });
+
     const addLog = (dir, msg, level = 'info') => {
         setLogs(prev => [{id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), dir, msg, level}, ...prev].slice(0, 100));
     };
@@ -81,7 +339,7 @@ function BoatGroundStation() {
 
     const sendWaypointsCommand = () => {
         if (waypoints.length === 0) {
-            alert("请先在地图上右键添加航点！");
+            showToast({ type: 'warning', message: "请先在地图上右键添加航点！", durationMs: 3500 });
             return;
         }
         let cmd = "P";
@@ -91,6 +349,7 @@ function BoatGroundStation() {
         cmd += ",";
         sendData(cmd);
         addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
+        showToast({ type: 'success', message: t('toast_waypoints_sent'), durationMs: 2500 });
     };
 
     const sendSCommand = () => {
@@ -107,6 +366,15 @@ function BoatGroundStation() {
         } else if (tcpStatus === 'OFFLINE') {
             setTcpStatus('CONNECTING');
             addLog('SYS', `${t('log_connecting')} ${serverIp}:${serverPort}...`, 'info');
+            const toastId = showToast({ type: 'info', message: `${t('log_connecting')} ${serverIp}:${serverPort}...`, loading: true, progress: 0, durationMs: null });
+            connectToastRef.current.id = toastId;
+            const startAt = Date.now();
+            const progressTimerId = window.setInterval(() => {
+                const elapsed = Date.now() - startAt;
+                const p = Math.min(99, Math.max(0, (elapsed / 5000) * 100));
+                updateToast(toastId, { progress: p });
+            }, 120);
+            toastTimersRef.current.set(toastId, { progressTimerId });
             wsRef.current.send(`CMD,CONNECT,${serverIp},${serverPort}`);
             
             if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
@@ -114,7 +382,12 @@ function BoatGroundStation() {
                 if (tcpStatus !== 'ONLINE') {
                     setTcpStatus('OFFLINE');
                     addLog('ERR', t('log_timeout'), 'info');
-                    alert(t('alert_timeout'));
+                    if (connectToastRef.current.id) {
+                        resolveToast(connectToastRef.current.id, { type: 'error', message: t('alert_timeout'), durationMs: 5000 });
+                        connectToastRef.current.id = null;
+                    } else {
+                        showToast({ type: 'error', message: t('alert_timeout'), durationMs: 5000 });
+                    }
                 }
             }, 5000);
         }
@@ -136,7 +409,8 @@ function BoatGroundStation() {
             ws.onclose = () => {
                 setWebConnected(false);
                 setTcpStatus('OFFLINE');
-                addLog('SYS', AppTranslations['zh'].log_ws_disconnect, 'info');
+                const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                addLog('SYS', AppTranslations[curLang].log_ws_disconnect, 'info');
             };
             ws.onmessage = (event) => {
                 const msg = event.data;
@@ -145,18 +419,29 @@ function BoatGroundStation() {
                     if (parts.length >= 3) { setServerIp(parts[1]); setServerPort(parts[2]); }
                 } 
                 else if (msg.startsWith('TCP_STATUS')) {
+                    const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                    const trans = AppTranslations[curLang];
                     const status = msg.split(',')[1]; 
                     clearTimeout(connectTimeoutRef.current);
                     if (status === 'ONLINE') {
                         setTcpStatus('ONLINE');
-                        addLog('SYS', AppTranslations[lang === 'zh' ? 'zh' : 'en'].log_tcp_online, 'info');
+                        addLog('SYS', trans.log_tcp_online, 'info');
+                        if (connectToastRef.current.id) {
+                            resolveToast(connectToastRef.current.id, { type: 'success', message: trans.log_tcp_online, durationMs: 2500 });
+                            connectToastRef.current.id = null;
+                        }
                     } else if (status === 'OFFLINE') {
                         setTcpStatus('OFFLINE');
-                        addLog('SYS', AppTranslations[lang === 'zh' ? 'zh' : 'en'].log_tcp_offline, 'info');
+                        addLog('SYS', trans.log_tcp_offline, 'info');
                     } else if (status === 'FAILED') {
                         setTcpStatus('OFFLINE');
-                        addLog('ERR', AppTranslations[lang === 'zh' ? 'zh' : 'en'].log_tcp_failed, 'info');
-                        alert(AppTranslations[lang === 'zh' ? 'zh' : 'en'].alert_failed);
+                        addLog('ERR', trans.log_tcp_failed, 'info');
+                        if (connectToastRef.current.id) {
+                            resolveToast(connectToastRef.current.id, { type: 'error', message: trans.alert_failed, durationMs: 5500 });
+                            connectToastRef.current.id = null;
+                        } else {
+                            showToast({ type: 'error', message: trans.alert_failed, durationMs: 5500 });
+                        }
                     }
                 }
                 else if (msg.startsWith('R')) {
@@ -232,6 +517,23 @@ function BoatGroundStation() {
         };
     }, [tcpStatus]); 
 
+    useEffect(() => {
+        const ownerId = `owner_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        window.SystemToast = {
+            __owner: ownerId,
+            show: (message, options) => showToast({ ...(options || {}), message, loading: false }),
+            showLoading: (message, options) => showToast({ ...(options || {}), message, loading: true, durationMs: null }),
+            update: (id, patch) => updateToast(id, patch || {}),
+            resolve: (id, options) => resolveToast(id, options || {}),
+            dismiss: (id) => dismissToast(id)
+        };
+        return () => {
+            if (window.SystemToast && window.SystemToast.__owner === ownerId) {
+                delete window.SystemToast;
+            }
+        };
+    }, [dismissToast, resolveToast, showToast, updateToast]);
+
     const getBtnConfig = () => {
         if (tcpStatus === 'ONLINE') return { text: t('btn_disconnect'), color: 'bg-red-600/90 hover:bg-red-700 border-red-500 shadow-red-900/50', disabled: false };
         if (tcpStatus === 'CONNECTING') return { text: t('btn_connecting'), color: 'bg-yellow-600/90 border-yellow-500 shadow-yellow-900/50', disabled: true };
@@ -261,6 +563,8 @@ function BoatGroundStation() {
     return (
         <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
+
+            <NotificationCenter items={notifications} onDismiss={dismissToast} />
 
             <Header 
                 lang={lang} setLang={setLang}
