@@ -37,12 +37,31 @@
     const t = window.MobileTranslations[lang] || window.MobileTranslations.en;
     const isConnected = tcpStatus === 'ONLINE';
     const isLocked = tcpStatus === 'ONLINE' || tcpStatus === 'CONNECTING';
+    const deployTrans = (() => {
+      const curLang = lang === 'zh' ? 'zh' : 'en';
+      if (typeof AppTranslations !== 'undefined' && AppTranslations && AppTranslations[curLang]) return AppTranslations[curLang];
+      return null;
+    })();
 
     const [keyboardSelected, setKeyboardSelected] = useState(false);
 
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
     }, [controlMode]);
+
+    const handleDeployClick = () => {
+      const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
+      if (ok) {
+        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+          window.SystemToast.show(deployTrans ? deployTrans.toast_deploy_success : (lang === 'zh' ? '部署配置成功' : 'Deploy config succeeded'), { type: 'success', durationMs: 2500 });
+        }
+        return;
+      }
+
+      if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+        window.SystemToast.show(deployTrans ? deployTrans.toast_deploy_failed : (lang === 'zh' ? '部署配置失败：未连接设备' : 'Deploy config failed: not connected'), { type: 'error', durationMs: 4500 });
+      }
+    };
 
     const TechHeader = ({ icon: IconComp, title, sub }) => (
       <div className="flex items-end justify-between border-b border-cyber-primary/30 pb-1 mb-4 mt-6">
@@ -255,11 +274,11 @@
 
                 <div className="pt-4 pb-2">
                   <button
-                    onClick={() => sendSCommand && sendSCommand()}
+                    onClick={handleDeployClick}
                     className="w-full py-3 bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 clip-path-slant transition-colors shadow-glow"
                   >
                     <Save className="w-4 h-4" />
-                    Apply System Config
+                    {lang === 'zh' ? (deployTrans ? deployTrans.deploy_config : '部署配置') : 'Deploy setting'}
                   </button>
                 </div>
               </div>
