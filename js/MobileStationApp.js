@@ -63,6 +63,10 @@
     const {
       lang,
       setLang,
+      boatStyle,
+      setBoatStyle,
+      waypointStyle,
+      setWaypointStyle,
       tcpStatus,
       serverIp,
       setServerIp,
@@ -259,6 +263,8 @@
                     showLogs={false}
                     controlledMapMode={mapMode}
                     hideToolbar={true}
+                    boatStyle={boatStyle}
+                    waypointStyle={waypointStyle}
                   />
                 </div>
               </div>
