@@ -21,6 +21,9 @@
   const List = Icon('List');
   const X = Icon('X');
   const Trash = Icon('Trash');
+  const MapPin = Icon('MapPin');
+  const Send = Icon('Send');
+  const Trash2 = Icon('Trash2');
 
   const FeaturePending = ({ title }) => (
     <div className="w-full h-full bg-slate-950 relative flex items-center justify-center">
@@ -113,6 +116,7 @@
     const [mapMode, setMapMode] = useState('pan');
     const [toast, setToast] = useState(null);
     const [showWaypointList, setShowWaypointList] = useState(false);
+    const [locateNonce, setLocateNonce] = useState(0);
 
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
@@ -350,6 +354,7 @@
                     showLogs={false}
                     controlledMapMode={mapMode}
                     hideToolbar={true}
+                    locateNonce={locateNonce}
                   />
                 </div>
               </div>
@@ -377,17 +382,21 @@
                   </button>
                   {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
+                      <button onClick={() => { setLocateNonce(v => v + 1); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
+                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{props.t ? props.t('map_locate') : 'LOCATE'}</span>
+                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Target className="w-[18px] h-[18px]" /></div>
+                      </button>
                       <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
                         <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">ADD WP</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapIcon className="w-[18px] h-[18px]" /></div>
+                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapPin className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { sendWaypointsCommand && sendWaypointsCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
                         <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">UPLOAD</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><UploadCloud className="w-[18px] h-[18px]" /></div>
+                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Send className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { setWaypoints([]); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
                         <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">CLEAR</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Target className="w-[18px] h-[18px]" /></div>
+                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Trash2 className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { sendSCommand && sendSCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
                         <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">DEPLOY</span>
