@@ -273,16 +273,23 @@ function BoatGroundStation() {
             if (t.progressTimerId) window.clearInterval(t.progressTimerId);
             toastTimersRef.current.delete(id);
         }
+        if (window.MobileToast && typeof window.MobileToast.dismiss === 'function') {
+            window.MobileToast.dismiss(id);
+            return;
+        }
         setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, []);
 
     const updateToast = useCallback((id, patch) => {
+        if (window.MobileToast && typeof window.MobileToast.update === 'function') {
+            window.MobileToast.update(id, patch || {});
+            return;
+        }
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
     }, []);
 
     const showToast = useCallback((opts) => {
-        // Delegate to MobileToast if available (MobileStationApp handles UI)
-        if (shouldUseMobile && window.MobileToast) {
+        if (window.MobileToast && typeof window.MobileToast.show === 'function') {
              return window.MobileToast.show(opts);
         }
 
@@ -328,6 +335,12 @@ function BoatGroundStation() {
         const t = toastTimersRef.current.get(id);
         if (t && t.progressTimerId) window.clearInterval(t.progressTimerId);
         if (t && t.timeoutId) window.clearTimeout(t.timeoutId);
+        toastTimersRef.current.delete(id);
+
+        if (window.MobileToast && typeof window.MobileToast.resolve === 'function') {
+            window.MobileToast.resolve(id, opts || {});
+            return;
+        }
 
         const createdAt = Date.now();
         const durationMs = opts && Object.prototype.hasOwnProperty.call(opts, 'durationMs') ? opts.durationMs : 4500;

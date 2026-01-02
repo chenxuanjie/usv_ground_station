@@ -40,7 +40,7 @@
   );
 
   // --- Global Toast Component (Adapted from 1.js) ---
-  const ToastOverlay = ({ toast }) => {
+  const ToastOverlay = ({ toast, onDismiss }) => {
     if (!toast) return null;
     // toast can be a string or an object { message, loading, type, durationMs }
     const msg = typeof toast === 'object' ? toast.message : toast;
@@ -50,13 +50,21 @@
 
     return (
         <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in zoom-in duration-200 pointer-events-none w-full max-w-xs flex justify-center">
-            <div className={`bg-cyan-950/90 border ${isError ? 'border-red-500 text-red-100' : 'border-cyan-500 text-cyan-100'} px-6 py-3 rounded shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-3 font-mono text-sm`}>
+            <div className={`relative pointer-events-auto bg-cyan-950/90 border ${isError ? 'border-red-500 text-red-100' : 'border-cyan-500 text-cyan-100'} px-6 py-3 rounded shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-3 font-mono text-sm`}>
                 {isLoading ? (
                      <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                      <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : 'text-cyan-400 animate-pulse'}`} />
                 )}
-                {msg}
+                <div className="flex-1 min-w-0 pr-6">{msg}</div>
+                <button
+                  type="button"
+                  onClick={onDismiss}
+                  className="absolute right-1.5 top-1.5 w-6 h-6 flex items-center justify-center rounded text-cyan-100/60 hover:text-cyan-50 hover:bg-white/5 active:scale-95 transition-all"
+                  aria-label="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
             </div>
         </div>
     );
@@ -106,32 +114,106 @@
     const [toast, setToast] = useState(null);
     const [showWaypointList, setShowWaypointList] = useState(false);
 
-    const showToast = useCallback((msgOrObj, options = {}) => {
-        // Normalize input to object
-        let toastObj = typeof msgOrObj === 'string' ? { message: msgOrObj, ...options } : { ...msgOrObj, ...options };
-        
-        setToast(toastObj);
-        
-        // Only auto-dismiss if not loading and duration is not null/infinite
-        if (!toastObj.loading) {
-            const duration = toastObj.durationMs || 2500;
-            if (duration > 0) {
-                setTimeout(() => setToast(null), duration);
-            }
-        }
+    const toastTimerRef = useRef(null);
+    const toastIdRef = useRef(null);
+
+    const clearToastTimer = useCallback(() => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
     }, []);
+
+    const computeMobileDurationMs = useCallback((durationMs) => {
+      if (durationMs === null) return null;
+      const base = Number.isFinite(durationMs) ? durationMs : 2500;
+      if (base <= 0) return 0;
+      const reduced = base - 2000;
+      return Math.max(1200, reduced);
+    }, []);
+
+    const showToast = useCallback((messageOrOpts, options = {}) => {
+      const opts = typeof messageOrOpts === 'string'
+        ? { ...(options || {}), message: messageOrOpts }
+        : { ...(messageOrOpts || {}) };
+
+      const id = opts.id || `mtoast_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      toastIdRef.current = id;
+
+      clearToastTimer();
+
+      const durationMs = computeMobileDurationMs(Object.prototype.hasOwnProperty.call(opts, 'durationMs') ? opts.durationMs : undefined);
+      const toastObj = {
+        id,
+        type: opts.type || 'info',
+        message: opts.message || '',
+        loading: !!opts.loading,
+        progress: Number.isFinite(opts.progress) ? opts.progress : null,
+        durationMs
+      };
+
+      setToast(toastObj);
+
+      if (!toastObj.loading && durationMs && durationMs > 0) {
+        toastTimerRef.current = window.setTimeout(() => {
+          if (toastIdRef.current === id) setToast(null);
+        }, durationMs);
+      }
+
+      return id;
+    }, [clearToastTimer, computeMobileDurationMs]);
+
+    const dismissToast = useCallback((id) => {
+      clearToastTimer();
+      setToast((prev) => {
+        if (!prev) return null;
+        if (id && prev.id && prev.id !== id) return prev;
+        return null;
+      });
+    }, [clearToastTimer]);
+
+    const updateToast = useCallback((id, patch) => {
+      if (!id) return;
+      setToast((prev) => {
+        if (!prev || prev.id !== id) return prev;
+        return { ...prev, ...(patch || {}) };
+      });
+    }, []);
+
+    const resolveToast = useCallback((id, options = {}) => {
+      clearToastTimer();
+
+      setToast((prev) => {
+        const target = prev && prev.id === id ? prev : null;
+        const durationMs = computeMobileDurationMs(Object.prototype.hasOwnProperty.call(options, 'durationMs') ? options.durationMs : undefined);
+
+        const next = {
+          id: target ? target.id : `mtoast_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          type: options.type || (target ? target.type : 'info'),
+          message: options.message || (target ? target.message : ''),
+          loading: false,
+          progress: null,
+          durationMs
+        };
+
+        if (durationMs && durationMs > 0) {
+          toastTimerRef.current = window.setTimeout(() => {
+            if (toastIdRef.current === next.id) setToast(null);
+          }, durationMs);
+        }
+        toastIdRef.current = next.id;
+        return next;
+      });
+    }, [clearToastTimer, computeMobileDurationMs]);
 
     useEffect(() => {
         const originalToast = window.SystemToast;
         const mobileToastInterface = {
-            show: showToast,
-            showLoading: (msg) => showToast({ message: msg, loading: true }),
-            update: (id, patch) => {
-                // Simplistic update: just re-set toast if it matches (we only support 1 toast)
-                setToast(prev => prev ? { ...prev, ...patch } : null);
-            },
-            resolve: (id, opts) => showToast({ ...opts, loading: false }),
-            dismiss: () => setToast(null)
+            show: (messageOrOpts, options) => showToast(messageOrOpts, options),
+            showLoading: (message, options) => showToast(message, { ...(options || {}), loading: true, durationMs: null }),
+            update: (id, patch) => updateToast(id, patch || {}),
+            resolve: (id, options) => resolveToast(id, options || {}),
+            dismiss: (id) => dismissToast(id)
         };
 
         window.SystemToast = mobileToastInterface;
@@ -141,7 +223,7 @@
             window.SystemToast = originalToast;
             delete window.MobileToast;
         }
-    }, [showToast]);
+    }, [dismissToast, resolveToast, showToast, updateToast]);
 
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
@@ -224,7 +306,7 @@
 
     return (
       <div className="relative w-full h-full bg-slate-950 flex flex-col overflow-hidden font-sans select-none">
-        <ToastOverlay toast={toast} />
+        <ToastOverlay toast={toast} onDismiss={() => dismissToast(toast && toast.id)} />
         <SideDrawer
           open={sideDrawerOpen}
           onClose={() => setSideDrawerOpen(false)}
