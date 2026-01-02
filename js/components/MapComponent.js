@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
 const { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce }) {
+function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default' }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -38,12 +38,44 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         const map = new BMap.Map(containerRef.current, {enableMapClick: false});
         const initPoint = new BMap.Point(113.3957, 23.0344);
-        map.centerAndZoom(initPoint, 18);
+        const isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+        map.centerAndZoom(initPoint, isMobile ? 19 : 18);
         map.enableScrollWheelZoom();
         map.disableDoubleClickZoom(); 
         map.setMapStyleV2({ styleId: '55610b642646c054e0c441c2d334863c' });
         map.addControl(new BMap.ScaleControl({ anchor: window.BMAP_ANCHOR_BOTTOM_LEFT, offset: new BMap.Size(80, 25) }));
         
+        // --- Custom SVG Icons Definitions ---
+        const cyberBoatSVG = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" width="40" height="80">
+            <defs>
+                <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.5" />
+                    <stop offset="100%" stop-color="#22d3ee" stop-opacity="0" />
+                </linearGradient>
+                <filter id="triangleGlow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="rgba(6,182,212,0.8)" />
+                </filter>
+            </defs>
+            <rect x="19.5" y="0" width="1" height="55" fill="url(#beam)" />
+            <path d="M20 35 L30 65 L10 65 Z" fill="#06b6d4" filter="url(#triangleGlow)" />
+            <circle cx="20" cy="67" r="2" fill="#ffffff">
+                <animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="r" values="1.6;2.2;1.6" dur="1.2s" repeatCount="indefinite" />
+            </circle>
+        </svg>
+        `;
+
+        const cyberWaypointSVG = (index) => `
+        <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+             <div style="width: 16px; height: 16px; border: 2px solid #ef4444; transform: rotate(45deg); background-color: rgba(239,68,68,0.2); box-shadow: 0 0 10px rgba(239,68,68,0.5);"></div>
+             <span style="font-size: 10px; color: #f87171; font-family: monospace; margin-top: 4px; background-color: rgba(0,0,0,0.5); padding: 0 4px; border-radius: 2px;">WP_${index + 1}</span>
+        </div>
+        `;
+
+        // Store these for later use
+        map.customIcons = { cyberBoatSVG, cyberWaypointSVG };
+
         const boatIcon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
         const marker = new BMap.Marker(initPoint, { icon: boatIcon });
         map.addOverlay(marker);
@@ -216,8 +248,37 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathPoints.push(pt);
             
             const marker = new BMap.Marker(pt, {
-                icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 }) 
+                icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 })
             });
+
+            if (waypointStyle === 'cyber' && mapRef.current && mapRef.current.customIcons && typeof mapRef.current.customIcons.cyberWaypointSVG === 'function') {
+                const content = mapRef.current.customIcons.cyberWaypointSVG(index);
+                const label = new BMap.Label(content, { offset: new BMap.Size(-20, -20) });
+                label.setStyle({
+                    border: "none",
+                    backgroundColor: "transparent"
+                });
+                marker.setLabel(label);
+            } else {
+                const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-12, -12) });
+                label.setStyle({
+                    color: "#fff",
+                    backgroundColor: "#ef4444",
+                    border: "2px solid #fff",
+                    borderRadius: "50%",
+                    width: "24px",
+                    height: "24px",
+                    lineHeight: "20px",
+                    textAlign: "center",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                    cursor: "pointer",
+                    fontFamily: "Arial, sans-serif"
+                });
+                marker.setLabel(label);
+            }
+
             marker.enableDragging();
             marker.addEventListener("dragstart", function() {
                 suppressAddUntilRef.current = Date.now() + 800;
@@ -225,24 +286,6 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             marker.addEventListener("click", function() {
                 suppressAddUntilRef.current = Date.now() + 500;
             });
-
-            const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-12, -12) });
-            label.setStyle({
-                color: "#fff",
-                backgroundColor: "#ef4444",
-                border: "2px solid #fff",
-                borderRadius: "50%",
-                width: "24px",
-                height: "24px",
-                lineHeight: "20px",
-                textAlign: "center",
-                fontSize: "12px",
-                fontWeight: "bold",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                cursor: "pointer",
-                fontFamily: "Arial, sans-serif"
-            });
-            marker.setLabel(label);
 
             marker.addEventListener("dragging", function(e) {
                 const currentPt = e.point; 
@@ -296,27 +339,48 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathRef.current.setPath([]);
         }
 
-    }, [waypoints, cruiseMode, t]);
+    }, [waypoints, cruiseMode, t, waypointStyle]);
 
     // --- 5. 实时更新 ---
     useEffect(() => {
-        if (!mapRef.current || !lng || !lat) return;
-        const [bdLng, bdLat] = wgs84tobd09(lng, lat);
-        const pt = new BMap.Point(bdLng, bdLat);
-        markerRef.current.setPosition(pt);
-        const icon = markerRef.current.getIcon();
-        // icon.setRotation(heading || 0);
-        icon.setRotation(heading ? -heading : 0);
-        markerRef.current.setIcon(icon);
+        if (!mapRef.current || !markerRef.current) return;
 
-        if (pathRef.current.length === 0 && lng !== 0) mapRef.current.panTo(pt);
+        const hasGps = Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0);
 
-        const lastPt = pathRef.current[pathRef.current.length - 1];
-        if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
-            pathRef.current.push(pt);
-            boatTrackRef.current.setPath(pathRef.current);
+        let pt = null;
+        let bdLng = null;
+        let bdLat = null;
+        if (hasGps) {
+            [bdLng, bdLat] = wgs84tobd09(lng, lat);
+            pt = new BMap.Point(bdLng, bdLat);
+            markerRef.current.setPosition(pt);
         }
-    }, [lng, lat, heading]);
+
+        let icon;
+        if (boatStyle === 'cyber') {
+            const svgString = mapRef.current.customIcons.cyberBoatSVG;
+            const encodedSVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
+            icon = new BMap.Icon(encodedSVG, new BMap.Size(26, 52));
+            icon.setAnchor(new BMap.Size(13, 42));
+        } else {
+            icon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
+        }
+
+        markerRef.current.setIcon(icon);
+        if (typeof markerRef.current.setRotation === 'function') {
+            markerRef.current.setRotation(heading ? -heading : 0);
+        }
+
+        if (hasGps && pt) {
+            if (pathRef.current.length === 0) mapRef.current.panTo(pt);
+
+            const lastPt = pathRef.current[pathRef.current.length - 1];
+            if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
+                pathRef.current.push(pt);
+                if (boatTrackRef.current) boatTrackRef.current.setPath(pathRef.current);
+            }
+        }
+    }, [lng, lat, heading, boatStyle]);
 
     const handleLocateBoat = () => {
         if(mapRef.current && lng && lat) {

@@ -557,6 +557,8 @@ function BoatGroundStation() {
                         const v = String(parts[3]).trim().toLowerCase();
                         setAutoReconnect(v === '1' || v === 'true' || v === 'yes' || v === 'on');
                     }
+                    if (parts.length >= 5) setBoatStyle(parts[4].trim());
+                    if (parts.length >= 6) setWaypointStyle(parts[5].trim());
                 } 
                 else if (msg.startsWith('TCP_STATUS')) {
                     const curLang = langRef.current === 'zh' ? 'zh' : 'en';
@@ -697,11 +699,17 @@ function BoatGroundStation() {
         return { text: t('btn_connect'), color: 'bg-cyan-600/90 hover:bg-cyan-500 border-cyan-400 shadow-cyan-900/50', disabled: false };
     };
 
-    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect) => {
+    const [boatStyle, setBoatStyle] = useState('default');
+    const [waypointStyle, setWaypointStyle] = useState('default');
+
+    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle) => {
         // 1. 更新本地状态
         setServerIp(newIp);
         setServerPort(newPort);
         setAutoReconnect(!!newAutoReconnect);
+        if (newBoatStyle) setBoatStyle(newBoatStyle);
+        if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
+
         if (newChartFps !== undefined) {
             const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
             setChartFps(fps);
@@ -709,10 +717,13 @@ function BoatGroundStation() {
         }
         
         // 2. 发送指令给后端保存到 config.ini
-        // 协议: CMD,SET_CONFIG,IP,PORT
+        // 协议: CMD,SET_CONFIG,IP,PORT,AUTO_RECONNECT,BOAT_STYLE,WP_STYLE
         if (wsRef.current && webConnected) {
-            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort},${newAutoReconnect ? '1' : '0'}`);
+            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort},${newAutoReconnect ? '1' : '0'},${newBoatStyle || 'default'},${newWaypointStyle || 'default'}`);
             addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
+            if (window.SystemToast && window.SystemToast.show) {
+                window.SystemToast.show(t('msg_save_success'), { type: 'success' });
+            }
         } else {
             addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
         }
@@ -729,6 +740,10 @@ function BoatGroundStation() {
 
             {shouldUseMobile ? (
                 <MobileStationApp
+                    boatStyle={boatStyle}
+                    setBoatStyle={setBoatStyle}
+                    waypointStyle={waypointStyle}
+                    setWaypointStyle={setWaypointStyle}
                     lang={lang}
                     setLang={setLang}
                     tcpStatus={tcpStatus}
@@ -799,6 +814,8 @@ function BoatGroundStation() {
                                 cruiseMode={cruiseMode}
                                 t={t}
                                 showLogs={showLogs}
+                                boatStyle={boatStyle}
+                                waypointStyle={waypointStyle}
                             />
 
                             <div className="absolute top-4 left-4 flex gap-2 z-10">
@@ -853,6 +870,8 @@ function BoatGroundStation() {
                 currentPort={serverPort}
                 currentChartFps={chartFps}
                 currentAutoReconnect={autoReconnect}
+                currentBoatStyle={boatStyle}
+                currentWaypointStyle={waypointStyle}
                 onSave={handleSaveConfig}
                 t={t}
             />

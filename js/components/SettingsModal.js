@@ -27,11 +27,13 @@ const SettingRow = ({ icon: Icon, title, desc, children }) => (
     </div>
 );
 
-function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, onSave, t }) {
+function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, currentBoatStyle, currentWaypointStyle, onSave, t }) {
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
     const [chartFps, setChartFps] = useState(currentChartFps);
     const [autoReconnect, setAutoReconnect] = useState(!!currentAutoReconnect);
+    const [boatStyle, setBoatStyle] = useState(currentBoatStyle || 'default');
+    const [waypointStyle, setWaypointStyle] = useState(currentWaypointStyle || 'default');
     
     const [saveStatus, setSaveStatus] = useState('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -45,6 +47,8 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
             setPort(currentPort);
             setChartFps(currentChartFps);
             setAutoReconnect(!!currentAutoReconnect);
+            setBoatStyle(currentBoatStyle || 'default');
+            setWaypointStyle(currentWaypointStyle || 'default');
             setSaveStatus('idle');
             setErrorMsg('');
             setActiveTab('connection');
@@ -76,7 +80,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
 
         setSaveStatus('saving');
         setTimeout(() => {
-            onSave(ip, port, Math.round(fpsNum), !!autoReconnect);
+            onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle);
             setSaveStatus('success');
             
             if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -186,6 +190,28 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                                     <input type="checkbox" checked={autoReconnect} onChange={e=>setAutoReconnect(e.target.checked)} className="sr-only peer"/>
                                     <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500 shadow-inner"></div>
                                 </label>
+                            </SettingRow>
+
+                            <SettingRow
+                                icon={Icons.Navigation}
+                                title={t ? t('boat_style') : "BOAT STYLE"}
+                                desc={t ? t('desc_boat_style') : "Select boat icon style"}
+                            >
+                                <div className="flex bg-slate-900 rounded p-1 border border-slate-800 w-32">
+                                    <button onClick={() => setBoatStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>DEFAULT</button>
+                                    <button onClick={() => setBoatStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>CYBER</button>
+                                </div>
+                            </SettingRow>
+
+                            <SettingRow
+                                icon={Icons.MapPin}
+                                title={t ? t('wp_style') : "WP STYLE"}
+                                desc={t ? t('desc_wp_style') : "Select waypoint marker style"}
+                            >
+                                <div className="flex bg-slate-900 rounded p-1 border border-slate-800 w-32">
+                                    <button onClick={() => setWaypointStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>DEFAULT</button>
+                                    <button onClick={() => setWaypointStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>CYBER</button>
+                                </div>
                             </SettingRow>
                         </div>
                     )}

@@ -77,6 +77,10 @@
     const {
       lang,
       setLang,
+      boatStyle,
+      setBoatStyle,
+      waypointStyle,
+      setWaypointStyle,
       tcpStatus,
       serverIp,
       setServerIp,
@@ -355,6 +359,8 @@
                     controlledMapMode={mapMode}
                     hideToolbar={true}
                     locateNonce={locateNonce}
+                    boatStyle={boatStyle}
+                    waypointStyle={waypointStyle}
                   />
                 </div>
               </div>
