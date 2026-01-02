@@ -106,6 +106,9 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         mapRef.current.addEventListener("click", handleMapClick);
         
         const el = containerRef.current;
+        const tapMoveTolerancePx = 10;
+        const tapMaxDurationMs = 600;
+        const suppressAfterAddMs = 500;
         const touchState = {
             tracking: false,
             moved: false,
@@ -149,7 +152,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             const { x, y } = getPixel(t0);
             const dx = x - touchState.startX;
             const dy = y - touchState.startY;
-            if ((dx * dx + dy * dy) > (10 * 10)) {
+            if ((dx * dx + dy * dy) > (tapMoveTolerancePx * tapMoveTolerancePx)) {
                 touchState.moved = true;
             }
         };
@@ -158,7 +161,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             if (!touchState.tracking) return;
             touchState.tracking = false;
             if (touchState.moved) return;
-            if (Date.now() - touchState.startAt > 600) return;
+            if (Date.now() - touchState.startAt > tapMaxDurationMs) return;
             if (!ev.changedTouches || ev.changedTouches.length < 1) return;
             if (!mapRef.current) return;
             if (Date.now() < suppressAddUntilRef.current) return;
@@ -169,7 +172,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             const pixel = new BMap.Pixel(x, y);
             const point = mapRef.current.pixelToPoint(pixel);
             if (point) {
-                suppressAddUntilRef.current = Date.now() + 500;
+                suppressAddUntilRef.current = Date.now() + suppressAfterAddMs;
                 handleAddPoint(point, { force: true });
             }
         };

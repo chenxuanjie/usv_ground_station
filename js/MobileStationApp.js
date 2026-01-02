@@ -18,6 +18,9 @@
   const Zap = Icon('Zap');
   const RefreshCw = Icon('RefreshCw');
   const Activity = Icon('Activity');
+  const List = Icon('List');
+  const X = Icon('X');
+  const Trash = Icon('Trash');
 
   const FeaturePending = ({ title }) => (
     <div className="w-full h-full bg-slate-950 relative flex items-center justify-center">
@@ -77,6 +80,7 @@
     const [joystickActive, setJoystickActive] = useState(false);
     const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
     const [mapMode, setMapMode] = useState('pan');
+    const [showWaypointList, setShowWaypointList] = useState(false);
 
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
@@ -104,6 +108,11 @@
     useEffect(() => {
       if (!showLogs && activeTab === 'logs') setActiveTab('map');
     }, [activeTab, showLogs]);
+
+    useEffect(() => {
+      if (mapMode === 'add') setShowWaypointList(true);
+      else setShowWaypointList(false);
+    }, [mapMode]);
 
     const lastCmdRef = useRef({ w: 0, a: 0, s: 0, d: 0 });
     useEffect(() => {
@@ -245,8 +254,8 @@
                 </div>
               </div>
 
-              <div className="absolute bottom-24 left-4 z-20 w-44 pointer-events-none">
-                <HUDBox className="p-3">
+              <div className="absolute bottom-24 left-4 z-20 w-44 flex flex-col-reverse gap-2 pointer-events-none">
+                <HUDBox className="p-3 pointer-events-auto">
                   <div className="space-y-3">
                     <div className="space-y-1 font-mono">
                       <div className="flex justify-between text-[10px] text-cyan-600">
@@ -284,6 +293,53 @@
                     </div>
                   </div>
                 </HUDBox>
+
+                {mapMode === 'add' && showWaypointList && (
+                  <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in">
+                    <style>{`
+                      .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+                      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                      .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(6, 182, 212, 0.4); border-radius: 2px; }
+                    `}</style>
+
+                    <div className="p-2 border-b border-cyan-500/20 flex justify-between items-center bg-cyan-950/50 backdrop-blur">
+                      <div className="flex items-center gap-2 text-cyan-400">
+                        <List className="w-3 h-3" />
+                        <span className="text-[10px] font-mono font-bold tracking-wider">MISSION_WPS ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
+                      </div>
+                      <button
+                        onClick={() => setShowWaypointList(false)}
+                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        aria-label="Close waypoint list"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-1 space-y-0.5 custom-scrollbar">
+                      {(Array.isArray(waypoints) ? waypoints : []).map((wp, idx) => (
+                        <div key={`${idx}-${wp.lng}-${wp.lat}`} className="flex items-center justify-between px-2 py-1.5 rounded-sm bg-slate-900/30 border-l-2 border-transparent transition-all">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[9px] font-mono text-slate-500 w-3 text-right">{String(idx + 1).padStart(2, '0')}</span>
+                            <span className="text-[10px] font-mono text-cyan-100/80 tracking-wide">WAYPOINT_{idx + 1}</span>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setWaypoints && setWaypoints(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx)); }}
+                            className="text-slate-600 hover:text-red-400 transition-all transform hover:scale-110"
+                            aria-label="Delete waypoint"
+                          >
+                            <Trash className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {(!Array.isArray(waypoints) || waypoints.length === 0) && (
+                        <div className="p-3 text-center text-[9px] text-slate-600 font-mono italic">
+                          NO_WAYPOINTS_DEFINED
+                        </div>
+                      )}
+                    </div>
+                  </HUDBox>
+                )}
               </div>
 
               <JoystickComponent 
