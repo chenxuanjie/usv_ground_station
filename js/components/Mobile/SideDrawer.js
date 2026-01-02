@@ -5,7 +5,6 @@
   const Network = Icon('Network');
   const RefreshCw = Icon('RefreshCw');
   const UploadCloud = Icon('UploadCloud');
-  const Settings = Icon('Settings');
   const Unplug = Icon('Unplug');
   const Link = Icon('Link');
 
@@ -29,8 +28,7 @@
     cruiseMode,
     setCruiseMode,
     sendSCommand,
-    sendWaypointsCommand,
-    onOpenSettings
+    sendWaypointsCommand
   }) => {
     const t = window.MobileTranslations[lang] || window.MobileTranslations.en;
     const isConnected = tcpStatus === 'ONLINE';
@@ -130,9 +128,6 @@
               </button>
               <button onClick={() => sendWaypointsCommand && sendWaypointsCommand()} className="w-full py-3 px-4 border border-green-500/40 bg-green-500/10 text-green-300 rounded font-mono text-xs font-bold tracking-wider hover:bg-green-500/15 transition-colors flex items-center justify-center gap-2">
                 <UploadCloud className="w-4 h-4" /> {t.deploy_mission}
-              </button>
-              <button onClick={onOpenSettings} className="w-full py-3 px-4 border border-slate-700 bg-slate-900 text-slate-300 rounded font-mono text-xs font-bold tracking-wider hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                <Settings className="w-4 h-4" /> SYSTEM_SETTINGS
               </button>
               <div className="grid grid-cols-2 gap-2 pt-2">
                 <button onClick={() => setStreamOn && setStreamOn(!streamOn)} className={`py-2 border rounded text-[10px] font-mono font-bold tracking-wider transition-colors ${streamOn ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-500'}`}>
