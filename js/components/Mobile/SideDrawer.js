@@ -144,9 +144,7 @@
 
           <div className="flex-1 p-4 space-y-6 overflow-y-auto">
             <div>
-              <div className="text-[10px] text-slate-500 font-mono mb-2 flex items-center gap-1">
-                <Globe className="w-3 h-3" /> {t.language}
-              </div>
+              <TechHeader icon={Globe} title={t.language} />
               <div className="flex bg-slate-900 rounded p-1 border border-slate-800">
                 <button onClick={() => setLang('en')} className={`flex-1 py-1.5 text-xs font-mono rounded transition-colors ${lang === 'en' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>EN</button>
                 <button onClick={() => setLang('zh')} className={`flex-1 py-1.5 text-xs font-mono rounded transition-colors ${lang === 'zh' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>中文</button>
@@ -156,9 +154,7 @@
             <div className="h-px bg-cyan-900/30 w-full"></div>
 
             <div>
-              <div className="text-[10px] text-slate-500 font-mono mb-2 flex items-center gap-1">
-                <Network className="w-3 h-3" /> {t.connection}
-              </div>
+              <TechHeader icon={Network} title={t.connection} />
               <div className={`bg-slate-900/50 p-3 rounded border ${isConnected ? 'border-green-500/30' : 'border-slate-800'} space-y-3`}>
                 <div className="space-y-1">
                   <label className="text-[9px] text-cyan-600 font-mono block">{t.ip}</label>
