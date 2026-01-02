@@ -84,14 +84,54 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     // --- 3. 监听地图点击添加航点 ---
     useEffect(() => {
         if (!mapRef.current) return;
-        const handleMapClick = (e) => {
+
+        let isDragging = false;
+        const markDragging = () => { isDragging = true; };
+        const unmarkDragging = () => { setTimeout(() => { isDragging = false; }, 200); };
+
+        mapRef.current.addEventListener("dragstart", markDragging);
+        mapRef.current.addEventListener("dragend", unmarkDragging);
+        mapRef.current.addEventListener("movestart", markDragging);
+        mapRef.current.addEventListener("moveend", unmarkDragging);
+
+        let lastAddTimestamp = 0;
+
+        const handleAddPoint = (point) => {
+            if (isDragging) return;
+            
+            const now = Date.now();
+            if (now - lastAddTimestamp < 300) return; // Debounce 300ms
+            lastAddTimestamp = now;
+
             if (mapMode === 'add') {
-                const [wgsLng, wgsLat] = bd09towgs84(e.point.lng, e.point.lat);
+                const [wgsLng, wgsLat] = bd09towgs84(point.lng, point.lat);
                 if (setWaypoints) setWaypoints(prev => [...prev, {lng: wgsLng, lat: wgsLat}]);
             }
         };
+
+        const handleMapClick = (e) => handleAddPoint(e.point);
+        const handleMapTouchEnd = (e) => {
+            let point = e.point;
+            if (!point && e.pixel) {
+                point = mapRef.current.pixelToPoint(e.pixel);
+            }
+            if (point) handleAddPoint(point);
+        };
+
         mapRef.current.addEventListener("click", handleMapClick);
-        return () => { if (mapRef.current) mapRef.current.removeEventListener("click", handleMapClick); };
+        // 增加对移动端触摸事件的支持
+        mapRef.current.addEventListener("touchend", handleMapTouchEnd);
+
+        return () => { 
+            if (mapRef.current) {
+                mapRef.current.removeEventListener("click", handleMapClick);
+                mapRef.current.removeEventListener("touchend", handleMapTouchEnd);
+                mapRef.current.removeEventListener("dragstart", markDragging);
+                mapRef.current.removeEventListener("dragend", unmarkDragging);
+                mapRef.current.removeEventListener("movestart", markDragging);
+                mapRef.current.removeEventListener("moveend", unmarkDragging);
+            }
+        };
     }, [mapMode, setWaypoints]);
 
     // --- 4. 绘制航点和虚线 ---
