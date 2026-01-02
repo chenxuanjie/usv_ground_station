@@ -281,6 +281,11 @@ function BoatGroundStation() {
     }, []);
 
     const showToast = useCallback((opts) => {
+        // Delegate to MobileToast if available (MobileStationApp handles UI)
+        if (shouldUseMobile && window.MobileToast) {
+             return window.MobileToast.show(opts);
+        }
+
         const id = `toast_${Date.now()}_${Math.random().toString(16).slice(2)}`;
         const createdAt = Date.now();
         const durationMs = opts && Object.prototype.hasOwnProperty.call(opts, 'durationMs') ? opts.durationMs : 4500;
@@ -707,7 +712,7 @@ function BoatGroundStation() {
         <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
 
-            <NotificationCenter items={notifications} onDismiss={dismissToast} />
+            {!shouldUseMobile && <NotificationCenter items={notifications} onDismiss={dismissToast} />}
 
             {shouldUseMobile ? (
                 <MobileStationApp

@@ -36,6 +36,29 @@
     </div>
   );
 
+  // --- Global Toast Component (Adapted from 1.js) ---
+  const ToastOverlay = ({ toast }) => {
+    if (!toast) return null;
+    // toast can be a string or an object { message, loading, type, durationMs }
+    const msg = typeof toast === 'object' ? toast.message : toast;
+    const isLoading = typeof toast === 'object' && toast.loading;
+    const isError = typeof toast === 'object' && toast.type === 'error';
+    const isSuccess = typeof toast === 'object' && toast.type === 'success';
+
+    return (
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in zoom-in duration-200 pointer-events-none w-full max-w-xs flex justify-center">
+            <div className={`bg-cyan-950/90 border ${isError ? 'border-red-500 text-red-100' : 'border-cyan-500 text-cyan-100'} px-6 py-3 rounded shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-3 font-mono text-sm`}>
+                {isLoading ? (
+                     <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                     <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : 'text-cyan-400 animate-pulse'}`} />
+                )}
+                {msg}
+            </div>
+        </div>
+    );
+  };
+
   function MobileStationApp(props) {
     const {
       lang,
@@ -77,6 +100,44 @@
     const [joystickActive, setJoystickActive] = useState(false);
     const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
     const [mapMode, setMapMode] = useState('pan');
+    const [toast, setToast] = useState(null);
+
+    const showToast = useCallback((msgOrObj, options = {}) => {
+        // Normalize input to object
+        let toastObj = typeof msgOrObj === 'string' ? { message: msgOrObj, ...options } : { ...msgOrObj, ...options };
+        
+        setToast(toastObj);
+        
+        // Only auto-dismiss if not loading and duration is not null/infinite
+        if (!toastObj.loading) {
+            const duration = toastObj.durationMs || 2500;
+            if (duration > 0) {
+                setTimeout(() => setToast(null), duration);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        const originalToast = window.SystemToast;
+        const mobileToastInterface = {
+            show: showToast,
+            showLoading: (msg) => showToast({ message: msg, loading: true }),
+            update: (id, patch) => {
+                // Simplistic update: just re-set toast if it matches (we only support 1 toast)
+                setToast(prev => prev ? { ...prev, ...patch } : null);
+            },
+            resolve: (id, opts) => showToast({ ...opts, loading: false }),
+            dismiss: () => setToast(null)
+        };
+
+        window.SystemToast = mobileToastInterface;
+        window.MobileToast = mobileToastInterface; // Also expose as MobileToast for app.js to find explicitly
+
+        return () => {
+            window.SystemToast = originalToast;
+            delete window.MobileToast;
+        }
+    }, [showToast]);
 
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
@@ -154,6 +215,7 @@
 
     return (
       <div className="relative w-full h-full bg-slate-950 flex flex-col overflow-hidden font-sans select-none">
+        <ToastOverlay toast={toast} />
         <SideDrawer
           open={sideDrawerOpen}
           onClose={() => setSideDrawerOpen(false)}
