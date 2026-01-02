@@ -398,10 +398,6 @@
                         <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">CLEAR</span>
                         <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Trash2 className="w-[18px] h-[18px]" /></div>
                       </button>
-                      <button onClick={() => { sendSCommand && sendSCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">DEPLOY</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Home className="w-[18px] h-[18px]" /></div>
-                      </button>
                     </div>
                   )}
                 </div>
