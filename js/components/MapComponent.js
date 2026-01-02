@@ -11,6 +11,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
     const contextMenuRef = useRef(null);
+    const suppressAddUntilRef = useRef(0);
     
     const [internalMapMode, setInternalMapMode] = useState('pan');
     const mapMode = controlledMapMode || internalMapMode;
@@ -84,14 +85,120 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     // --- 3. 监听地图点击添加航点 ---
     useEffect(() => {
         if (!mapRef.current) return;
-        const handleMapClick = (e) => {
+
+        let lastAddTimestamp = 0;
+
+        const handleAddPoint = (point, options = {}) => {
+            if (!options.force && Date.now() < suppressAddUntilRef.current) return;
+            
+            const now = Date.now();
+            if (now - lastAddTimestamp < 300) return; // Debounce 300ms
+            lastAddTimestamp = now;
+
             if (mapMode === 'add') {
-                const [wgsLng, wgsLat] = bd09towgs84(e.point.lng, e.point.lat);
+                const [wgsLng, wgsLat] = bd09towgs84(point.lng, point.lat);
                 if (setWaypoints) setWaypoints(prev => [...prev, {lng: wgsLng, lat: wgsLat}]);
             }
         };
+
+        const handleMapClick = (e) => handleAddPoint(e.point);
+
         mapRef.current.addEventListener("click", handleMapClick);
-        return () => { if (mapRef.current) mapRef.current.removeEventListener("click", handleMapClick); };
+        
+        const el = containerRef.current;
+        const tapMoveTolerancePx = 10;
+        const tapMaxDurationMs = 600;
+        const suppressAfterAddMs = 500;
+        const touchState = {
+            tracking: false,
+            moved: false,
+            startX: 0,
+            startY: 0,
+            startAt: 0
+        };
+
+        const getPixel = (touch) => {
+            const rect = el.getBoundingClientRect();
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        };
+
+        const onTouchStart = (ev) => {
+            if (mapMode !== 'add') return;
+            if (!el || !mapRef.current) return;
+            if (Date.now() < suppressAddUntilRef.current) return;
+            if (!ev.touches || ev.touches.length !== 1) {
+                touchState.tracking = false;
+                return;
+            }
+            const t0 = ev.touches[0];
+            const { x, y } = getPixel(t0);
+            touchState.tracking = true;
+            touchState.moved = false;
+            touchState.startX = x;
+            touchState.startY = y;
+            touchState.startAt = Date.now();
+        };
+
+        const onTouchMove = (ev) => {
+            if (!touchState.tracking) return;
+            if (!ev.touches || ev.touches.length !== 1) {
+                touchState.tracking = false;
+                return;
+            }
+            const t0 = ev.touches[0];
+            const { x, y } = getPixel(t0);
+            const dx = x - touchState.startX;
+            const dy = y - touchState.startY;
+            if ((dx * dx + dy * dy) > (tapMoveTolerancePx * tapMoveTolerancePx)) {
+                touchState.moved = true;
+            }
+        };
+
+        const onTouchEnd = (ev) => {
+            if (!touchState.tracking) return;
+            touchState.tracking = false;
+            if (touchState.moved) return;
+            if (Date.now() - touchState.startAt > tapMaxDurationMs) return;
+            if (!ev.changedTouches || ev.changedTouches.length < 1) return;
+            if (!mapRef.current) return;
+            if (Date.now() < suppressAddUntilRef.current) return;
+            if (mapMode !== 'add') return;
+
+            const t0 = ev.changedTouches[0];
+            const { x, y } = getPixel(t0);
+            const pixel = new BMap.Pixel(x, y);
+            const point = mapRef.current.pixelToPoint(pixel);
+            if (point) {
+                suppressAddUntilRef.current = Date.now() + suppressAfterAddMs;
+                handleAddPoint(point, { force: true });
+            }
+        };
+
+        const onTouchCancel = () => {
+            touchState.tracking = false;
+        };
+
+        if (el) {
+            el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+            el.addEventListener('touchmove', onTouchMove, { passive: true, capture: true });
+            el.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+            el.addEventListener('touchcancel', onTouchCancel, { passive: true, capture: true });
+        }
+
+        return () => { 
+            if (mapRef.current) {
+                mapRef.current.removeEventListener("click", handleMapClick);
+            }
+            if (el) {
+                el.removeEventListener('touchstart', onTouchStart, true);
+                el.removeEventListener('touchmove', onTouchMove, true);
+                el.removeEventListener('touchend', onTouchEnd, true);
+                el.removeEventListener('touchcancel', onTouchCancel, true);
+            }
+        };
     }, [mapMode, setWaypoints]);
 
     // --- 4. 绘制航点和虚线 ---
@@ -112,6 +219,12 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                 icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 }) 
             });
             marker.enableDragging();
+            marker.addEventListener("dragstart", function() {
+                suppressAddUntilRef.current = Date.now() + 800;
+            });
+            marker.addEventListener("click", function() {
+                suppressAddUntilRef.current = Date.now() + 500;
+            });
 
             const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-12, -12) });
             label.setStyle({
@@ -144,6 +257,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             });
 
             marker.addEventListener("dragend", function(e) {
+                suppressAddUntilRef.current = Date.now() + 800;
                 const newPt = e.point;
                 const [newWgsLng, newWgsLat] = bd09towgs84(newPt.lng, newPt.lat);
                 if (setWaypoints) {
