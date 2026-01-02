@@ -37,7 +37,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         const map = new BMap.Map(containerRef.current, {enableMapClick: false});
         const initPoint = new BMap.Point(113.3957, 23.0344);
-        map.centerAndZoom(initPoint, 18);
+        const isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+        map.centerAndZoom(initPoint, isMobile ? 19 : 18);
         map.enableScrollWheelZoom();
         map.disableDoubleClickZoom(); 
         map.setMapStyleV2({ styleId: '55610b642646c054e0c441c2d334863c' });
@@ -45,26 +46,22 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         
         // --- Custom SVG Icons Definitions ---
         const cyberBoatSVG = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="40" height="80">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" width="40" height="80">
             <defs>
-                <filter id="glow">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                    <feMerge>
-                        <feMergeNode in="coloredBlur"/>
-                        <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                </filter>
-                <linearGradient id="rayGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-                    <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:0.8" />
-                    <stop offset="100%" style="stop-color:#22d3ee;stop-opacity:0" />
+                <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.5" />
+                    <stop offset="100%" stop-color="#22d3ee" stop-opacity="0" />
                 </linearGradient>
+                <filter id="triangleGlow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="rgba(6,182,212,0.8)" />
+                </filter>
             </defs>
-            <!-- Ray -->
-            <rect x="49.5" y="0" width="1" height="150" fill="url(#rayGradient)" />
-            <!-- Boat Body (Triangle) -->
-            <path d="M50 150 L65 190 L35 190 Z" fill="#06b6d4" stroke="#22d3ee" stroke-width="2" filter="url(#glow)" />
-            <!-- White Dot -->
-            <circle cx="50" cy="180" r="3" fill="#fff" />
+            <rect x="19.5" y="0" width="1" height="55" fill="url(#beam)" />
+            <path d="M20 35 L30 65 L10 65 Z" fill="#06b6d4" filter="url(#triangleGlow)" />
+            <circle cx="20" cy="67" r="2" fill="#ffffff">
+                <animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="r" values="1.6;2.2;1.6" dur="1.2s" repeatCount="indefinite" />
+            </circle>
         </svg>
         `;
 
@@ -244,32 +241,42 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
     // --- 5. 实时更新 ---
     useEffect(() => {
-        if (!mapRef.current || !lng || !lat) return;
-        const [bdLng, bdLat] = wgs84tobd09(lng, lat);
-        const pt = new BMap.Point(bdLng, bdLat);
-        markerRef.current.setPosition(pt);
-        
-        // Update Icon based on Style
+        if (!mapRef.current || !markerRef.current) return;
+
+        const hasGps = Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0);
+
+        let pt = null;
+        let bdLng = null;
+        let bdLat = null;
+        if (hasGps) {
+            [bdLng, bdLat] = wgs84tobd09(lng, lat);
+            pt = new BMap.Point(bdLng, bdLat);
+            markerRef.current.setPosition(pt);
+        }
+
         let icon;
         if (boatStyle === 'cyber') {
-            // Encode SVG string to Data URI
             const svgString = mapRef.current.customIcons.cyberBoatSVG;
             const encodedSVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
-            icon = new BMap.Icon(encodedSVG, new BMap.Size(40, 80));
-            icon.setAnchor(new BMap.Size(20, 65)); // Adjusted anchor for triangle center
+            icon = new BMap.Icon(encodedSVG, new BMap.Size(26, 52));
+            icon.setAnchor(new BMap.Size(13, 42));
         } else {
-             icon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
+            icon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
         }
-        
-        icon.setRotation(heading ? -heading : 0);
-        markerRef.current.setIcon(icon);
 
-        if (pathRef.current.length === 0 && lng !== 0) mapRef.current.panTo(pt);
-        
-        const lastPt = pathRef.current[pathRef.current.length - 1];
-        if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
-            pathRef.current.push(pt);
-            boatTrackRef.current.setPath(pathRef.current);
+        markerRef.current.setIcon(icon);
+        if (typeof markerRef.current.setRotation === 'function') {
+            markerRef.current.setRotation(heading ? -heading : 0);
+        }
+
+        if (hasGps && pt) {
+            if (pathRef.current.length === 0) mapRef.current.panTo(pt);
+
+            const lastPt = pathRef.current[pathRef.current.length - 1];
+            if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
+                pathRef.current.push(pt);
+                if (boatTrackRef.current) boatTrackRef.current.setPath(pathRef.current);
+            }
         }
     }, [lng, lat, heading, boatStyle]);
 
