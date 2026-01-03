@@ -25,6 +25,7 @@
         const [zoomPoints, setZoomPoints] = useState(300);
         const [isChannelExpanded, setIsChannelExpanded] = useState(true);
         const [isHudDragging, setIsHudDragging] = useState(false);
+        const isPausedRef = useRef(isPaused);
         
         const isZoomModeRef = useRef(false); 
         const zoomLockRef = useRef(false);
@@ -45,6 +46,10 @@
         const zoomWindowRef = useRef({ start: 0, end: 100 });
 
         const isConnected = tcpStatus === 'ONLINE';
+
+        useEffect(() => {
+            isPausedRef.current = isPaused;
+        }, [isPaused]);
 
         useEffect(() => {
             zoomPointsRef.current = zoomPoints;
@@ -187,6 +192,14 @@
             const liveRef = dataRefLive.current;
             const len = liveRef && liveRef.current && Array.isArray(liveRef.current) ? liveRef.current.length : 0;
             applyTimeZoom(zoomPointsRef.current, len);
+
+            const tryRender = () => {
+                if (!echartsInstance.current) return;
+                const fn = renderChartFrameRef.current;
+                if (isPausedRef.current && typeof fn === 'function') fn();
+            };
+            window.setTimeout(tryRender, 0);
+            window.requestAnimationFrame(tryRender);
         }, [exitZoomMode, applyTimeZoom, syncEchartsSize]);
 
         useEffect(() => {
@@ -286,145 +299,150 @@
             applyTimeZoom(zoomPoints, len);
         }, [applyTimeZoom, dataRef, zoomPoints]);
 
-        useEffect(() => {
-            const renderFrame = () => {
-                if (isZoomModeRef.current || isInteractingRef.current) return;
+        const renderChartFrame = useCallback(() => {
+            if (isZoomModeRef.current || isInteractingRef.current) return;
 
-                if (!echartsInstance.current || !dataRef || !dataRef.current) return;
-                const fullData = dataRef.current;
-                if (fullData.length === 0) return;
+            if (!echartsInstance.current || !dataRef || !dataRef.current) return;
+            const fullData = dataRef.current;
+            if (fullData.length === 0) return;
 
-                const now = Date.now();
-                if (now - lastHudUpdateRef.current > 100) {
-                    setHudData(fullData[fullData.length - 1]); 
-                    lastHudUpdateRef.current = now;
+            const now = Date.now();
+            if (now - lastHudUpdateRef.current > 100) {
+                setHudData(fullData[fullData.length - 1]);
+                lastHudUpdateRef.current = now;
+            }
+
+            const activeSeriesKeys = [];
+            for (let i = 0; i < CHART_CONFIG.length; i++) {
+                const key = CHART_CONFIG[i].key;
+                if (activeKeys.has(key)) activeSeriesKeys.push(key);
+            }
+
+            let yMin = Infinity;
+            let yMax = -Infinity;
+            for (let i = 0; i < fullData.length; i++) {
+                const row = fullData[i];
+                for (let k = 0; k < activeSeriesKeys.length; k++) {
+                    const v = Number(row[activeSeriesKeys[k]]);
+                    if (!Number.isFinite(v)) continue;
+                    if (v < yMin) yMin = v;
+                    if (v > yMax) yMax = v;
                 }
+            }
+            if (yMin === Infinity || yMax === -Infinity) return;
 
-                const activeSeriesKeys = [];
-                for (let i = 0; i < CHART_CONFIG.length; i++) {
-                    const key = CHART_CONFIG[i].key;
-                    if (activeKeys.has(key)) activeSeriesKeys.push(key);
-                }
+            const centerZero = yMin < 0 && yMax > 0;
+            const span = Math.max(1e-6, yMax - yMin);
+            const pad = span * 0.08;
 
-                let yMin = Infinity;
-                let yMax = -Infinity;
-                for (let i = 0; i < fullData.length; i++) {
-                    const row = fullData[i];
-                    for (let k = 0; k < activeSeriesKeys.length; k++) {
-                        const v = Number(row[activeSeriesKeys[k]]);
-                        if (!Number.isFinite(v)) continue;
-                        if (v < yMin) yMin = v;
-                        if (v > yMax) yMax = v;
-                    }
-                }
-                if (yMin === Infinity || yMax === -Infinity) return;
+            let nextMin = yMin - pad;
+            let nextMax = yMax + pad;
+            if (centerZero) {
+                const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
+                const lim = absMax + Math.max(absMax * 0.08, 1e-6);
+                nextMin = -lim;
+                nextMax = lim;
+            }
 
-                const centerZero = yMin < 0 && yMax > 0;
-                const span = Math.max(1e-6, yMax - yMin);
-                const pad = span * 0.08;
+            const rangeForStep = nextMax - nextMin;
+            const step = rangeForStep <= 5 ? 0.1 : (rangeForStep <= 50 ? 1 : 5);
+            const niceMin = Math.floor(nextMin / step) * step;
+            const niceMax = Math.ceil(nextMax / step) * step;
 
-                let nextMin = yMin - pad;
-                let nextMax = yMax + pad;
-                if (centerZero) {
-                    const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
-                    const lim = absMax + Math.max(absMax * 0.08, 1e-6);
-                    nextMin = -lim;
-                    nextMax = lim;
-                }
+            const yTickCount = 5;
+            const ySpan = Math.max(1e-9, niceMax - niceMin);
+            const yDecimals = ySpan <= 5 ? 1 : 0;
+            const nextYTicks = [];
+            for (let i = 0; i < yTickCount; i++) {
+                const v = niceMax - (ySpan * i) / (yTickCount - 1);
+                nextYTicks.push(Number(v).toFixed(yDecimals));
+            }
 
-                const rangeForStep = nextMax - nextMin;
-                const step = rangeForStep <= 5 ? 0.1 : (rangeForStep <= 50 ? 1 : 5);
-                const niceMin = Math.floor(nextMin / step) * step;
-                const niceMax = Math.ceil(nextMax / step) * step;
+            const len = fullData.length;
+            const dz = zoomWindowRef.current || { start: 0, end: 100 };
+            const a = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.start) || 0) / 100) * (len - 1))));
+            const b = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.end) || 100) / 100) * (len - 1))));
+            const left = Math.min(a, b);
+            const right = Math.max(a, b);
 
-                const yTickCount = 5;
-                const ySpan = Math.max(1e-9, niceMax - niceMin);
-                const yDecimals = ySpan <= 5 ? 1 : 0;
-                const nextYTicks = [];
-                for (let i = 0; i < yTickCount; i++) {
-                    const v = niceMax - (ySpan * i) / (yTickCount - 1);
-                    nextYTicks.push(Number(v).toFixed(yDecimals));
-                }
+            const xTickCount = 4;
+            const nextXTicks = [];
+            for (let i = 0; i < xTickCount; i++) {
+                const idx = Math.round(left + ((right - left) * i) / (xTickCount - 1));
+                const tRaw = fullData[idx] && fullData[idx].time ? String(fullData[idx].time) : '';
+                nextXTicks.push(tRaw ? tRaw.split(' ').pop() : '');
+            }
 
-                const len = fullData.length;
-                const dz = zoomWindowRef.current || { start: 0, end: 100 };
-                const a = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.start) || 0) / 100) * (len - 1))));
-                const b = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.end) || 100) / 100) * (len - 1))));
-                const left = Math.min(a, b);
-                const right = Math.max(a, b);
+            const nextAxisKey = nextYTicks.join('|') + '~~' + nextXTicks.join('|');
+            if (nextAxisKey !== axisTicksKeyRef.current) {
+                axisTicksKeyRef.current = nextAxisKey;
+                setAxisTicks({ y: nextYTicks, x: nextXTicks });
+            }
 
-                const xTickCount = 4;
-                const nextXTicks = [];
-                for (let i = 0; i < xTickCount; i++) {
-                    const idx = Math.round(left + ((right - left) * i) / (xTickCount - 1));
-                    const tRaw = fullData[idx] && fullData[idx].time ? String(fullData[idx].time) : '';
-                    nextXTicks.push(tRaw ? tRaw.split(' ').pop() : '');
-                }
+            const zeroLine = centerZero ? {
+                silent: true,
+                symbol: 'none',
+                label: { show: false },
+                lineStyle: { color: '#475569', type: 'dashed', width: 1 },
+                data: [{ yAxis: 0 }]
+            } : null;
 
-                const nextAxisKey = nextYTicks.join('|') + '~~' + nextXTicks.join('|');
-                if (nextAxisKey !== axisTicksKeyRef.current) {
-                    axisTicksKeyRef.current = nextAxisKey;
-                    setAxisTicks({ y: nextYTicks, x: nextXTicks });
-                }
-
-                const zeroLine = centerZero ? {
-                    silent: true,
+            const dynamicSeries = CHART_CONFIG.map(config => {
+                if (!activeKeys.has(config.key)) return null;
+                return {
+                    name: t ? t(config.labelKey) : config.key,
+                    type: 'line',
+                    smooth: true,
                     symbol: 'none',
-                    label: { show: false },
-                    lineStyle: { color: '#475569', type: 'dashed', width: 1 },
-                    data: [{ yAxis: 0 }]
-                } : null;
+                    yAxisIndex: config.yAxisIndex,
+                    data: fullData.map(item => item[config.key]),
+                    lineStyle: { color: config.color, width: 2 },
+                    itemStyle: { color: config.color },
+                    areaStyle: config.unit === 'V' ? {
+                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: config.color + '4D' },
+                            { offset: 1, color: config.color + '03' }
+                        ])
+                    } : null,
+                    markLine: zeroLine
+                };
+            }).filter(s => s !== null);
 
-                const dynamicSeries = CHART_CONFIG.map(config => {
-                    if (!activeKeys.has(config.key)) return null;
-                    return {
-                        name: t ? t(config.labelKey) : config.key, 
-                        type: 'line',
-                        smooth: true,
-                        symbol: 'none',
-                        yAxisIndex: config.yAxisIndex,
-                        data: fullData.map(item => item[config.key]),
-                        lineStyle: { color: config.color, width: 2 },
-                        itemStyle: { color: config.color },
-                        areaStyle: config.unit === 'V' ? {
-                            color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: config.color + '4D' }, 
-                                { offset: 1, color: config.color + '03' }
-                            ])
-                        } : null,
-                        markLine: zeroLine
-                    };
-                }).filter(s => s !== null);
+            echartsInstance.current.setOption({
+                xAxis: { data: fullData.map(item => item.time) },
+                yAxis: [{ min: niceMin, max: niceMax }],
+                series: dynamicSeries
+            }, { lazyUpdate: false, replaceMerge: ['series'] });
 
-                echartsInstance.current.setOption({
-                    xAxis: { data: fullData.map(item => item.time) },
-                    yAxis: [{ min: niceMin, max: niceMax }],
-                    series: dynamicSeries
-                }, { lazyUpdate: false, replaceMerge: ['series'] });
+            const nextLen = fullData.length;
+            const applied = lastAppliedZoomRef.current;
+            if (applied.points !== zoomPoints || applied.len !== nextLen) {
+                applyTimeZoom(zoomPoints, nextLen);
+                lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
+            }
+        }, [activeKeys, t, dataRef, zoomPoints, applyTimeZoom]);
 
-                const nextLen = fullData.length;
-                const applied = lastAppliedZoomRef.current;
-                if (applied.points !== zoomPoints || applied.len !== nextLen) {
-                    applyTimeZoom(zoomPoints, nextLen);
-                    lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
-                }
-            };
+        const renderChartFrameRef = useRef(renderChartFrame);
+        useEffect(() => {
+            renderChartFrameRef.current = renderChartFrame;
+        }, [renderChartFrame]);
 
+        useEffect(() => {
             let renderTimer;
             if (!isPaused) {
                 const fpsNum = Number.isFinite(Number(fps)) ? Number(fps) : 60; // Mobile lower FPS default
                 const clampedFps = Math.min(60, Math.max(5, fpsNum));
                 const intervalMs = Math.max(16, Math.round(1000 / clampedFps));
-                renderTimer = setInterval(renderFrame, intervalMs);
+                renderTimer = setInterval(renderChartFrame, intervalMs);
             } else {
-                renderFrame();
+                renderChartFrame();
             }
 
             return () => {
                 if (renderTimer) clearInterval(renderTimer);
             };
 
-        }, [isPaused, activeKeys, fps, t, dataRef, zoomPoints, applyTimeZoom]);
+        }, [isPaused, fps, renderChartFrame]);
 
         const toggleChannel = (key) => {
             const newSet = new Set(activeKeys);
