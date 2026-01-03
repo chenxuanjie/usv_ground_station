@@ -15,6 +15,7 @@
 
     const EmbeddedChart = memo(({ dataRef, fps, t }) => {
         const chartRef = useRef(null);
+        const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
         
         const [isPaused, setIsPaused] = useState(false);
@@ -28,10 +29,20 @@
         const isInteractingRef = useRef(false);
         const lastMousePosRef = useRef(null);
         const lastAppliedZoomRef = useRef({ points: 300, len: 0 });
+        const zoomPointsRef = useRef(zoomPoints);
+        const dataRefLive = useRef(dataRef);
         
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
         const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
         const lastHudUpdateRef = useRef(0);
+
+        useEffect(() => {
+            zoomPointsRef.current = zoomPoints;
+        }, [zoomPoints]);
+
+        useEffect(() => {
+            dataRefLive.current = dataRef;
+        }, [dataRef]);
 
         const exitZoomMode = useCallback(() => {
             isZoomModeRef.current = false;
@@ -62,114 +73,192 @@
             });
         }, []);
 
-        useEffect(() => {
-            if (!echartsInstance.current) return;
-            const timer = setTimeout(() => {
-                if (echartsInstance.current) echartsInstance.current.resize();
-            }, 80);
-            return () => clearTimeout(timer);
-        }, [isFullscreen]);
+        const syncEchartsSize = useCallback(() => {
+            if (!echartsInstance.current || !chartCardRef.current) return;
+            const w = Math.round(chartCardRef.current.clientWidth || 0);
+            const h = Math.round(chartCardRef.current.clientHeight || 0);
+            if (w <= 0 || h <= 0) return;
+            echartsInstance.current.resize({ width: w, height: h });
+        }, []);
 
-        useEffect(() => {
-            const prev = document.body.style.overflow;
-            if (isFullscreen) document.body.style.overflow = 'hidden';
-            return () => {
-                document.body.style.overflow = prev;
-            };
-        }, [isFullscreen]);
+        const initEchartsIfNeeded = useCallback(() => {
+            if (!chartRef.current || !window.echarts) return;
 
-        useEffect(() => {
+            const currentDom = chartRef.current;
+            const existingDom = echartsInstance.current && typeof echartsInstance.current.getDom === 'function'
+                ? echartsInstance.current.getDom()
+                : null;
+
+            if (echartsInstance.current && existingDom === currentDom) return;
+
             if (echartsInstance.current) {
                 echartsInstance.current.dispose();
                 echartsInstance.current = null;
             }
 
-            const timer = setTimeout(() => {
-                if (!chartRef.current || !window.echarts) return;
+            echartsInstance.current = window.echarts.init(currentDom, 'dark', { renderer: 'canvas', devicePixelRatio: window.devicePixelRatio || 1 });
 
-                echartsInstance.current = window.echarts.init(chartRef.current, 'dark', { renderer: 'canvas' });
-
-                const baseOption = {
-                    backgroundColor: 'transparent',
-                    animation: false, 
-                    hoverLayerThreshold: Infinity,
-                    
-                    toolbox: {
-                        show: false, // 隐藏自带工具栏
-                        feature: {
-                            dataZoom: { yAxisIndex: 'none' }
-                        }
-                    },
-                    
-                    tooltip: {
-                        trigger: 'axis',
-                        animation: false, 
-                        transitionDuration: 0, 
-                        axisPointer: { type: 'cross', animation: false, snap: false },
-                        confine: true,
-                        backgroundColor: 'rgba(50, 50, 50, 0.9)',
-                        textStyle: { color: '#fff', fontSize: 10 }
-                    },
-                    legend: { show: false },
-                    dataZoom: [
-                        { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }
-                    ],
-                    grid: { left: 40, right: 10, bottom: 20, top: 10, containLabel: false },
-                    yAxis: [{ 
-                        type: 'value', 
-                        position: 'left', 
-                        splitLine: { lineStyle: { color: '#1e293b' } }, 
-                        axisLabel: { color: '#64748b', fontSize: 9 } 
-                    }],
-                    xAxis: { 
-                        type: 'category', 
-                        boundaryGap: false, 
-                        axisLine: { lineStyle: { color: '#334155' } }, 
-                        axisLabel: { color: '#64748b', fontSize: 9 }, 
-                        data: [] 
-                    },
-                    series: []
-                };
-                
-                echartsInstance.current.setOption(baseOption);
-
-                const zr = echartsInstance.current.getZr();
-                zr.on('mousemove', function(e) {
-                    lastMousePosRef.current = { x: e.offsetX, y: e.offsetY };
-                });
-                zr.on('mousedown', function(e) {
-                    isInteractingRef.current = true;
-                });
-                zr.on('mouseup', function(e) {
-                    setTimeout(() => { isInteractingRef.current = false; }, 100);
-                });
-                zr.on('globalout', function() {
-                    lastMousePosRef.current = null;
-                    isInteractingRef.current = false;
-                });
-
-                echartsInstance.current.on('dataZoom', () => {
-                    if (isZoomModeRef.current && !zoomLockRef.current) {
-                        exitZoomMode();
+            const baseOption = {
+                backgroundColor: 'transparent',
+                animation: false,
+                hoverLayerThreshold: Infinity,
+                toolbox: {
+                    show: false,
+                    feature: {
+                        dataZoom: { yAxisIndex: 'none' }
                     }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    animation: false,
+                    transitionDuration: 0,
+                    axisPointer: { type: 'cross', animation: false, snap: false },
+                    confine: true,
+                    backgroundColor: 'rgba(50, 50, 50, 0.9)',
+                    textStyle: { color: '#fff', fontSize: 10 }
+                },
+                legend: { show: false },
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }
+                ],
+                grid: { left: 40, right: 10, bottom: 20, top: 10, containLabel: false },
+                yAxis: [{
+                    type: 'value',
+                    position: 'left',
+                    splitLine: { lineStyle: { color: '#1e293b' } },
+                    axisLabel: { color: '#64748b', fontSize: 9 }
+                }],
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: '#64748b', fontSize: 9 },
+                    data: []
+                },
+                series: []
+            };
+
+            echartsInstance.current.setOption(baseOption);
+
+            const zr = echartsInstance.current.getZr();
+            zr.on('mousemove', function(e) {
+                lastMousePosRef.current = { x: e.offsetX, y: e.offsetY };
+            });
+            zr.on('mousedown', function() {
+                isInteractingRef.current = true;
+            });
+            zr.on('mouseup', function() {
+                setTimeout(() => { isInteractingRef.current = false; }, 100);
+            });
+            zr.on('globalout', function() {
+                lastMousePosRef.current = null;
+                isInteractingRef.current = false;
+            });
+
+            echartsInstance.current.on('dataZoom', () => {
+                if (isZoomModeRef.current && !zoomLockRef.current) {
+                    exitZoomMode();
+                }
+            });
+
+            syncEchartsSize();
+
+            const liveRef = dataRefLive.current;
+            const len = liveRef && liveRef.current && Array.isArray(liveRef.current) ? liveRef.current.length : 0;
+            applyTimeZoom(zoomPointsRef.current, len);
+        }, [exitZoomMode, applyTimeZoom, syncEchartsSize]);
+
+        useEffect(() => {
+            if (!echartsInstance.current) return;
+            let raf1 = 0;
+            let raf2 = 0;
+            const t1 = window.setTimeout(() => syncEchartsSize(), 60);
+            const t2 = window.setTimeout(() => syncEchartsSize(), 180);
+            const t3 = window.setTimeout(() => syncEchartsSize(), 420);
+
+            raf1 = window.requestAnimationFrame(() => {
+                raf2 = window.requestAnimationFrame(() => {
+                    syncEchartsSize();
                 });
+            });
 
-                echartsInstance.current.resize();
-                applyTimeZoom(zoomPoints, (dataRef && dataRef.current && Array.isArray(dataRef.current)) ? dataRef.current.length : 0);
-            }, 50);
+            const onResize = () => syncEchartsSize();
+            window.addEventListener('resize', onResize);
+            window.addEventListener('orientationchange', onResize);
 
-            const handleResize = () => echartsInstance.current && echartsInstance.current.resize();
+            return () => {
+                window.removeEventListener('resize', onResize);
+                window.removeEventListener('orientationchange', onResize);
+                window.cancelAnimationFrame(raf1);
+                window.cancelAnimationFrame(raf2);
+                window.clearTimeout(t1);
+                window.clearTimeout(t2);
+                window.clearTimeout(t3);
+            };
+        }, [isFullscreen, syncEchartsSize]);
+
+        useEffect(() => {
+            const prev = document.body.style.overflow;
+            const prevHtml = document.documentElement.style.overflow;
+            if (isFullscreen) {
+                document.body.style.overflow = 'hidden';
+                document.documentElement.style.overflow = 'hidden';
+            }
+            return () => {
+                document.body.style.overflow = prev;
+                document.documentElement.style.overflow = prevHtml;
+            };
+        }, [isFullscreen]);
+
+        useEffect(() => {
+            let raf1 = 0;
+            let raf2 = 0;
+            const t1 = window.setTimeout(() => initEchartsIfNeeded(), 50);
+            const t2 = window.setTimeout(() => initEchartsIfNeeded(), 180);
+
+            raf1 = window.requestAnimationFrame(() => {
+                raf2 = window.requestAnimationFrame(() => {
+                    initEchartsIfNeeded();
+                });
+            });
+
+            const handleResize = () => syncEchartsSize();
             window.addEventListener('resize', handleResize);
 
             return () => {
-                clearTimeout(timer);
+                window.clearTimeout(t1);
+                window.clearTimeout(t2);
+                window.cancelAnimationFrame(raf1);
+                window.cancelAnimationFrame(raf2);
                 window.removeEventListener('resize', handleResize);
                 if (echartsInstance.current) {
                     echartsInstance.current.dispose();
                     echartsInstance.current = null;
                 }
             };
-        }, [exitZoomMode, applyTimeZoom]);
+        }, [initEchartsIfNeeded, syncEchartsSize]);
+
+        useEffect(() => {
+            let raf1 = 0;
+            let raf2 = 0;
+            const t1 = window.setTimeout(() => initEchartsIfNeeded(), 60);
+            const t2 = window.setTimeout(() => initEchartsIfNeeded(), 200);
+            const t3 = window.setTimeout(() => initEchartsIfNeeded(), 460);
+
+            raf1 = window.requestAnimationFrame(() => {
+                raf2 = window.requestAnimationFrame(() => {
+                    initEchartsIfNeeded();
+                });
+            });
+
+            return () => {
+                window.clearTimeout(t1);
+                window.clearTimeout(t2);
+                window.clearTimeout(t3);
+                window.cancelAnimationFrame(raf1);
+                window.cancelAnimationFrame(raf2);
+            };
+        }, [isFullscreen, initEchartsIfNeeded]);
 
         useEffect(() => {
             const len = dataRef && dataRef.current && Array.isArray(dataRef.current) ? dataRef.current.length : 0;
@@ -261,6 +350,40 @@
             applyTimeZoom(300, 0);
         };
 
+        const chartCard = (
+            <section ref={chartCardRef} className={`embedded-canvas-container relative group ${isFullscreen ? 'embedded-fullscreen-card' : ''}`}>
+                <div
+                    className="absolute inset-0 pointer-events-none opacity-20"
+                    style={{
+                        backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
+                        backgroundSize: '20px 20px'
+                    }}
+                ></div>
+
+                <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
+
+                <div className="absolute top-3 right-12 bg-slate-900/80 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-slate-700 z-10 pointer-events-none">
+                    <span className="text-xs text-slate-400 mr-1">Hdg:</span>
+                    <span className="font-mono text-cyan-300 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                    <span className="text-xs text-slate-400">°</span>
+                </div>
+
+                <button
+                    onClick={() => setIsFullscreen(v => !v)}
+                    className="absolute top-2 right-2 p-2 bg-slate-950/50 hover:bg-slate-900/70 rounded-full text-slate-200 transition-colors z-20 backdrop-blur-sm border border-slate-700"
+                    aria-label="Toggle fullscreen"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </section>
+        );
+
         return (
             <div className="w-full h-full bg-slate-950 text-slate-200 overflow-y-auto">
                 <style>{`
@@ -275,31 +398,31 @@
                         transition: all 0.3s ease-in-out;
                         border: 1px solid rgba(51, 65, 85, 0.7);
                     }
-                    .embedded-canvas-container.fullscreen-active {
+                    .embedded-fullscreen-layer {
                         position: fixed;
-                        z-index: 9999;
-                        top: 0;
-                        left: 0;
+                        inset: 0;
+                        z-index: 99999;
+                        background-color: #020617;
+                    }
+                    .embedded-fullscreen-card {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        width: 100vw;
+                        height: 100vh;
                         border-radius: 0;
                         margin: 0;
                         box-shadow: none;
                         border: 0;
                         background-color: #020617;
+                        transform-origin: center;
+                        transform: translate(-50%, -50%);
                     }
                     @media (orientation: portrait) {
-                        .embedded-canvas-container.fullscreen-active {
+                        .embedded-fullscreen-card {
                             width: 100vh;
                             height: 100vw;
-                            transform-origin: top left;
-                            transform: rotate(90deg) translateY(-100%);
-                            left: 100vw;
-                            top: 0;
-                        }
-                    }
-                    @media (orientation: landscape) {
-                        .embedded-canvas-container.fullscreen-active {
-                            width: 100vw;
-                            height: 100vh;
+                            transform: translate(-50%, -50%) rotate(90deg);
                         }
                     }
 
@@ -327,38 +450,17 @@
                     }
                 `}</style>
 
+                {isFullscreen && typeof document !== 'undefined' && document.body
+                    ? ReactDOM.createPortal(
+                        <div className="embedded-fullscreen-layer">
+                            {chartCard}
+                        </div>,
+                        document.body
+                    )
+                    : null}
+
                 <main className="max-w-md mx-auto px-4 py-4 space-y-4">
-                    <section className={`embedded-canvas-container relative group ${isFullscreen ? 'fullscreen-active' : ''}`}>
-                        <div
-                            className="absolute inset-0 pointer-events-none opacity-20"
-                            style={{
-                                backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
-                                backgroundSize: '20px 20px'
-                            }}
-                        ></div>
-
-                        <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
-
-                        <div className="absolute top-3 right-12 bg-slate-900/80 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-slate-700 z-10 pointer-events-none">
-                            <span className="text-xs text-slate-400 mr-1">Hdg:</span>
-                            <span className="font-mono text-cyan-300 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
-                            <span className="text-xs text-slate-400">°</span>
-                        </div>
-
-                        <button
-                            onClick={() => setIsFullscreen(v => !v)}
-                            className="absolute top-2 right-2 p-2 bg-slate-950/50 hover:bg-slate-900/70 rounded-full text-slate-200 transition-colors z-20 backdrop-blur-sm border border-slate-700"
-                            aria-label="Toggle fullscreen"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </section>
+                    {!isFullscreen ? chartCard : null}
 
                     <div className="grid grid-cols-3 gap-3">
                         <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
