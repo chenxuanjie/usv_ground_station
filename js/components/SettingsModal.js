@@ -97,9 +97,9 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
             <HUDBox className="w-full max-w-sm p-0 overflow-hidden shadow-2xl shadow-cyan-900/50 flex flex-col max-h-[85vh]">
                 
                 {/* 头部 */}
-                <div className="p-4 bg-cyan-950/30 border-b border-cyan-500/20 flex justify-between items-center shrink-0">
-                    <h3 className="font-mono font-bold text-cyan-100 flex items-center gap-2 text-sm">
-                        <Icons.Settings size={16} className="text-cyan-400" />
+                <div className="h-16 px-4 bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent border-b border-cyan-500/20 flex justify-between items-center shrink-0">
+                    <h3 className="font-mono font-bold text-cyan-100 flex items-center gap-2 text-sm tracking-wider">
+                        <Icons.Settings className="text-cyan-400 w-5 h-5" />
                         {t ? t('settings_title') : 'SYSTEM_CONFIG'}
                     </h3>
                     <button onClick={onClose} className="text-cyan-500 hover:text-white transition-colors">

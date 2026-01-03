@@ -137,9 +137,9 @@
       <>
         {open && <div className="absolute inset-0 bg-black/60 z-50 backdrop-blur-sm transition-opacity" onClick={onClose} />}
         <div className={`absolute top-0 left-0 h-full w-72 bg-slate-950/95 border-r border-cyan-500/30 z-[55] transform transition-transform duration-300 ease-out flex flex-col ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="h-16 flex items-center px-4 border-b border-cyan-500/20 bg-cyan-900/10">
+          <div className="h-16 flex items-center px-4 border-b border-cyan-500/20 bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent">
             <Ship className="text-cyan-400 mr-2 w-5 h-5" />
-            <span className="text-cyan-100 font-mono font-bold tracking-wider">USV CONTROL</span>
+            <span className="text-cyan-100 font-mono font-bold tracking-wider text-sm">USV CONTROL</span>
           </div>
 
           <div className="flex-1 p-4 space-y-6 overflow-y-auto">
