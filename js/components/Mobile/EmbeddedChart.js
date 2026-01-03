@@ -128,7 +128,7 @@
                 dataZoom: [
                     { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }
                 ],
-                grid: { left: 40, right: 10, bottom: 20, top: 10, containLabel: false },
+                grid: { left: 44, right: 16, bottom: 26, top: 18, containLabel: true },
                 yAxis: [{
                     type: 'value',
                     position: 'left',
@@ -465,8 +465,7 @@
                         display: flex;
                         flex-direction: column;
                         position: relative;
-                        height: 40vh;
-                        min-height: 260px;
+                        height: clamp(260px, 52vh, 620px);
                         width: 100%;
                         background-color: rgba(15, 23, 42, 0.55);
                         border-radius: 16px;
@@ -576,10 +575,14 @@
                 </header>
 
                 <main className="flex-1 overflow-y-auto embedded-no-scrollbar">
-                    <div className="max-w-md mx-auto p-4 space-y-4 pb-24">
-                        {!isFullscreen ? chartCard : null}
+                    <div className="max-w-md mx-auto p-4 pb-24 min-h-full flex flex-col">
+                        <div className="flex-1 flex items-center">
+                            <div className="w-full">
+                                {!isFullscreen ? chartCard : null}
+                            </div>
+                        </div>
 
-                        <section className="space-y-3">
+                        <section className="space-y-3 mt-4">
                             <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-shadow">
                                 <button
                                     onClick={() => setIsChannelExpanded(v => !v)}
