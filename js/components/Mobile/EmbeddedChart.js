@@ -13,7 +13,7 @@
         Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     };
 
-    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus }) => {
+    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus, persistedChannelExpanded, persistedChannelEnabled, onPersistConfig }) => {
         const chartRef = useRef(null);
         const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
@@ -23,7 +23,17 @@
         const [isZoomLock, setIsZoomLock] = useState(false);
         const [isFullscreen, setIsFullscreen] = useState(false);
         const [zoomPoints, setZoomPoints] = useState(300);
-        const [isChannelExpanded, setIsChannelExpanded] = useState(true);
+        const [isChannelExpanded, setIsChannelExpanded] = useState(() => {
+            if (typeof persistedChannelExpanded === 'boolean') return persistedChannelExpanded;
+            try {
+                const v = window.localStorage ? window.localStorage.getItem('embedded_channel_expanded') : null;
+                if (v == null) return true;
+                const s = String(v).trim().toLowerCase();
+                return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+            } catch (_) {
+                return true;
+            }
+        });
         const [isHudDragging, setIsHudDragging] = useState(false);
         const isPausedRef = useRef(isPaused);
         
@@ -39,11 +49,38 @@
         const hudDragRef = useRef({ active: false, pointerId: null, startX: 0, startScrollLeft: 0 });
         
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
-        const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
+        const [activeKeys, setActiveKeys] = useState(() => {
+            const enabled = persistedChannelEnabled && typeof persistedChannelEnabled === 'object' ? persistedChannelEnabled : null;
+            const s = new Set();
+            if (enabled) {
+                if (enabled.heading) s.add('heading');
+                if (enabled.batL) s.add('batL');
+                if (enabled.batR) s.add('batR');
+                return s;
+            }
+            try {
+                const readFlag = (k) => {
+                    const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                    if (v == null) return null;
+                    const t = String(v).trim().toLowerCase();
+                    return t === '1' || t === 'true' || t === 'yes' || t === 'on';
+                };
+                const hdg = readFlag('embedded_channel_enabled_heading');
+                const bl = readFlag('embedded_channel_enabled_batL');
+                const br = readFlag('embedded_channel_enabled_batR');
+                if (hdg) s.add('heading');
+                if (bl) s.add('batL');
+                if (br) s.add('batR');
+            } catch (_) {}
+            return s;
+        });
         const lastHudUpdateRef = useRef(0);
         const [axisTicks, setAxisTicks] = useState({ y: [], x: [] });
         const axisTicksKeyRef = useRef('');
         const zoomWindowRef = useRef({ start: 0, end: 100 });
+        const didApplyPersistedRef = useRef(false);
+        const activeKeysRef = useRef(activeKeys);
+        const isChannelExpandedRef = useRef(isChannelExpanded);
 
         const isConnected = tcpStatus === 'ONLINE';
 
@@ -52,12 +89,70 @@
         }, [isPaused]);
 
         useEffect(() => {
+            activeKeysRef.current = activeKeys;
+        }, [activeKeys]);
+
+        useEffect(() => {
+            isChannelExpandedRef.current = isChannelExpanded;
+        }, [isChannelExpanded]);
+
+        useEffect(() => {
             zoomPointsRef.current = zoomPoints;
         }, [zoomPoints]);
 
         useEffect(() => {
             dataRefLive.current = dataRef;
         }, [dataRef]);
+
+        const computeEnabledFlags = useCallback((keys) => {
+            return {
+                heading: !!(keys && keys.has && keys.has('heading')),
+                batL: !!(keys && keys.has && keys.has('batL')),
+                batR: !!(keys && keys.has && keys.has('batR'))
+            };
+        }, []);
+
+        useEffect(() => {
+            if (didApplyPersistedRef.current) return;
+            const hasExpanded = typeof persistedChannelExpanded === 'boolean';
+            const hasEnabled = persistedChannelEnabled && typeof persistedChannelEnabled === 'object';
+            if (hasExpanded) setIsChannelExpanded(!!persistedChannelExpanded);
+            if (hasEnabled) {
+                const s = new Set();
+                if (persistedChannelEnabled.heading) s.add('heading');
+                if (persistedChannelEnabled.batL) s.add('batL');
+                if (persistedChannelEnabled.batR) s.add('batR');
+                setActiveKeys(s);
+            }
+
+            if (!hasExpanded && !hasEnabled) {
+                try {
+                    const v = window.localStorage ? window.localStorage.getItem('embedded_channel_expanded') : null;
+                    if (v != null) {
+                        const s = String(v).trim().toLowerCase();
+                        setIsChannelExpanded(s === '1' || s === 'true' || s === 'yes' || s === 'on');
+                    }
+
+                    const readFlag = (k) => {
+                        const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                        if (v == null) return null;
+                        const t = String(v).trim().toLowerCase();
+                        return t === '1' || t === 'true' || t === 'yes' || t === 'on';
+                    };
+                    const hdg = readFlag('embedded_channel_enabled_heading');
+                    const bl = readFlag('embedded_channel_enabled_batL');
+                    const br = readFlag('embedded_channel_enabled_batR');
+                    if (hdg != null || bl != null || br != null) {
+                        const set2 = new Set();
+                        if (hdg) set2.add('heading');
+                        if (bl) set2.add('batL');
+                        if (br) set2.add('batR');
+                        setActiveKeys(set2);
+                    }
+                } catch (_) {}
+            }
+            didApplyPersistedRef.current = true;
+        }, [persistedChannelExpanded, persistedChannelEnabled]);
 
         const exitZoomMode = useCallback(() => {
             isZoomModeRef.current = false;
@@ -444,11 +539,40 @@
 
         }, [isPaused, fps, renderChartFrame]);
 
-        const toggleChannel = (key) => {
-            const newSet = new Set(activeKeys);
-            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
-            setActiveKeys(newSet);
-        };
+        const persistConfig = useCallback((nextExpanded, nextKeys) => {
+            const expanded = !!nextExpanded;
+            const enabled = computeEnabledFlags(nextKeys);
+            try {
+                if (window.localStorage) {
+                    window.localStorage.setItem('embedded_channel_expanded', expanded ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_heading', enabled.heading ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_batL', enabled.batL ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_batR', enabled.batR ? '1' : '0');
+                }
+            } catch (_) {}
+
+            if (!onPersistConfig) return;
+            onPersistConfig({ embeddedChannelExpanded: expanded, embeddedChannelEnabled: enabled });
+        }, [computeEnabledFlags, onPersistConfig]);
+
+        const toggleChannel = useCallback((key) => {
+            didApplyPersistedRef.current = true;
+            setActiveKeys((prev) => {
+                const newSet = new Set(prev);
+                if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
+                persistConfig(isChannelExpandedRef.current, newSet);
+                return newSet;
+            });
+        }, [isChannelExpanded, persistConfig]);
+
+        const toggleExpanded = useCallback(() => {
+            didApplyPersistedRef.current = true;
+            setIsChannelExpanded((prev) => {
+                const next = !prev;
+                persistConfig(next, activeKeysRef.current);
+                return next;
+            });
+        }, [persistConfig]);
 
         const handleClear = () => {
             if(dataRef) dataRef.current = [];
@@ -699,7 +823,7 @@
                         <section className="space-y-3 mt-4">
                             <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-shadow">
                                 <button
-                                    onClick={() => setIsChannelExpanded(v => !v)}
+                                    onClick={toggleExpanded}
                                     className="w-full flex justify-between items-center p-4 bg-slate-900/40 active:bg-slate-900/60 transition-colors z-10 relative"
                                     aria-label={t ? t('toggle_channel_config') : 'Toggle channel config'}
                                 >
