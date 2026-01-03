@@ -767,6 +767,8 @@ function BoatGroundStation() {
                     sendWaypointsCommand={sendWaypointsCommand}
                     sendKCommand={sendKCommand}
                     setShowChart={setShowChart}
+                    chartDataRef={chartDataRef}
+                    chartFps={chartFps}
                     setShowSettings={setShowSettings}
                     showLogs={showLogs}
                     setShowLogs={setShowLogs}
