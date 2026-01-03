@@ -24,8 +24,8 @@ function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData
                     
                     <div className="w-[1px] h-3 bg-slate-700"></div>
                     
-                    <button onClick={()=>setLogs([])} className="text-slate-500 hover:text-white transition-colors" title="Clear Logs"><Icons.RefreshCw size={12}/></button>
-                    <button onClick={()=>setShow(false)} className="text-slate-500 hover:text-white transition-colors" title="Close"><Icons.X size={14}/></button>
+                    <button onClick={()=>setLogs([])} className="text-slate-500 hover:text-white transition-colors" title={t('clear_logs')}><Icons.RefreshCw size={12}/></button>
+                    <button onClick={()=>setShow(false)} className="text-slate-500 hover:text-white transition-colors" title={t('close')}><Icons.X size={14}/></button>
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3 font-mono space-y-2">
@@ -46,7 +46,7 @@ function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData
                     </div>
                 ))}
                 {/* 空状态提示 */}
-                {logs.length === 0 && <div className="text-center text-slate-600 mt-10 italic">System Ready</div>}
+                {logs.length === 0 && <div className="text-center text-slate-600 mt-10 italic">{t('system_ready')}</div>}
                 <div ref={logEndRef}></div>
             </div>
             <div className="p-3 border-t border-cyan-900/30 bg-slate-900/90">

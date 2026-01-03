@@ -35,6 +35,8 @@
     sendWaypointsCommand
   }) => {
     const t = window.MobileTranslations[lang] || window.MobileTranslations.en;
+    const tZh = window.MobileTranslations && window.MobileTranslations.zh ? window.MobileTranslations.zh : (window.MobileTranslations && window.MobileTranslations.en ? window.MobileTranslations.en : {});
+    const tEn = window.MobileTranslations && window.MobileTranslations.en ? window.MobileTranslations.en : {};
     const isConnected = tcpStatus === 'ONLINE';
     const isLocked = tcpStatus === 'ONLINE' || tcpStatus === 'CONNECTING';
     const deployTrans = (() => {
@@ -53,13 +55,13 @@
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-          window.SystemToast.show(deployTrans ? deployTrans.toast_deploy_success : (lang === 'zh' ? '部署配置成功' : 'Deploy config succeeded'), { type: 'success', durationMs: 2500 });
+          window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
         }
         return;
       }
 
       if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-        window.SystemToast.show(deployTrans ? deployTrans.toast_deploy_failed : (lang === 'zh' ? '部署配置失败：未连接设备' : 'Deploy config failed: not connected'), { type: 'error', durationMs: 4500 });
+        window.SystemToast.show(t.toast_deploy_failed, { type: 'error', durationMs: 4500 });
       }
     };
 
@@ -139,7 +141,7 @@
         <div className={`absolute top-0 left-0 h-full w-72 bg-slate-950/95 border-r border-cyan-500/30 z-[55] transform transition-transform duration-300 ease-out flex flex-col ${open ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="h-16 flex items-center px-4 border-b border-cyan-500/20 bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent">
             <Ship className="text-cyan-400 mr-2 w-5 h-5" />
-            <span className="text-cyan-100 font-mono font-bold tracking-wider text-sm">USV CONTROL</span>
+            <span className="text-cyan-100 font-mono font-bold tracking-wider text-sm">{t.usv_control}</span>
           </div>
 
           <div className="flex-1 p-4 space-y-6 overflow-y-auto">
@@ -196,13 +198,13 @@
             <div className="h-px bg-cyan-900/30 w-full"></div>
 
             <div>
-              <TechHeader icon={Anchor} title="Deployment" sub="OP_MODE" />
+              <TechHeader icon={Anchor} title={t.deployment} sub={t.op_mode} />
 
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-2">
                   <ModeButton
-                    label={lang === 'zh' ? '手动' : 'MANUAL'}
-                    sub="MANUAL"
+                    label={lang === 'zh' ? tZh.manual : tEn.manual}
+                    sub={lang === 'zh' ? tEn.manual_sub : tZh.manual_sub}
                     active={controlMode === '@' && !keyboardSelected}
                     onClick={() => {
                       setKeyboardSelected(false);
@@ -211,8 +213,8 @@
                     colorClass="cyan"
                   />
                   <ModeButton
-                    label={lang === 'zh' ? '键盘' : 'KEYBOARD'}
-                    sub="KEYBOARD"
+                    label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
+                    sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
                     active={controlMode === '@' && keyboardSelected}
                     onClick={() => {
                       setKeyboardSelected(true);
@@ -221,8 +223,8 @@
                     colorClass="purple"
                   />
                   <ModeButton
-                    label={lang === 'zh' ? '自动' : 'AUTO'}
-                    sub="AUTO"
+                    label={lang === 'zh' ? tZh.auto : tEn.auto}
+                    sub={lang === 'zh' ? tEn.auto_sub : tZh.auto_sub}
                     active={controlMode === '#'}
                     onClick={() => {
                       setKeyboardSelected(false);
@@ -234,21 +236,21 @@
 
                 <div className="tech-border p-2">
                   <TechToggle
-                    label="Video Feed (图传)"
+                    label={t.video_feed}
                     icon={Video}
                     checked={!!streamOn}
                     onChange={() => setStreamOn && setStreamOn(!streamOn)}
                     activeColor="text-blue-400"
                   />
                   <TechToggle
-                    label="Telemetry (数据)"
+                    label={t.telemetry}
                     icon={CloudDownload}
                     checked={!!recvOn}
                     onChange={() => setRecvOn && setRecvOn(!recvOn)}
                     activeColor="text-purple-400"
                   />
                   <TechToggle
-                    label="循环模式 (Loop Mode)"
+                    label={t.loop_mode}
                     icon={Repeat}
                     checked={cruiseMode === '1'}
                     onChange={() => setCruiseMode && setCruiseMode(cruiseMode === '1' ? '0' : '1')}
@@ -259,7 +261,7 @@
                 <div className="hidden tech-border p-4">
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center gap-2 text-cyan-500">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Speed Limit</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{t.speed_limit}</span>
                     </div>
                     <div className="font-mono text-cyan-300 text-lg">
                       0 <span className="text-xs text-slate-500">m/s</span>
@@ -274,7 +276,7 @@
                     className="w-full py-3 bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 clip-path-slant transition-colors shadow-glow"
                   >
                     <Save className="w-4 h-4" />
-                    {lang === 'zh' ? (deployTrans ? deployTrans.deploy_config : '部署配置') : 'Deploy setting'}
+                    {t.deploy_config}
                   </button>
                 </div>
               </div>
@@ -284,7 +286,7 @@
           </div>
 
           <div className="p-4 border-t border-cyan-900/30 bg-slate-900/50 text-[10px] text-slate-600 font-mono text-center">
-            USV_GCS MOBILE
+            {t.mobile_footer}
           </div>
         </div>
       </>

@@ -12,9 +12,14 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const waypointMarkersRef = useRef([]);
     const contextMenuRef = useRef(null);
     const suppressAddUntilRef = useRef(0);
+    const tRef = useRef(t);
     
     const [internalMapMode, setInternalMapMode] = useState('pan');
     const mapMode = controlledMapMode || internalMapMode;
+
+    useEffect(() => {
+        tRef.current = t;
+    }, [t]);
 
     // --- 坐标转换算法集 ---
     const PI = 3.1415926535897932384626;
@@ -66,12 +71,16 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         </svg>
         `;
 
-        const cyberWaypointSVG = (index) => `
+        const cyberWaypointSVG = (index) => {
+            const tCur = tRef.current;
+            const prefix = tCur ? tCur('waypoint_prefix') : 'WP';
+            return `
         <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
              <div style="width: 16px; height: 16px; border: 2px solid #ef4444; transform: rotate(45deg); background-color: rgba(239,68,68,0.2); box-shadow: 0 0 10px rgba(239,68,68,0.5);"></div>
-             <span style="font-size: 10px; color: #f87171; font-family: monospace; margin-top: 4px; background-color: rgba(0,0,0,0.5); padding: 0 4px; border-radius: 2px;">WP_${index + 1}</span>
+             <span style="font-size: 10px; color: #f87171; font-family: monospace; margin-top: 4px; background-color: rgba(0,0,0,0.5); padding: 0 4px; border-radius: 2px;">${prefix}_${index + 1}</span>
         </div>
         `;
+        };
 
         // Store these for later use
         map.customIcons = { cyberBoatSVG, cyberWaypointSVG };

@@ -488,7 +488,7 @@
                     onPointerLeave={endHudDrag}
                 >
                     <div className={`flex-none w-28 flex flex-col items-center justify-center bg-purple-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-purple-500/10 ${activeKeys.has('heading') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider mb-0.5">Heading</span>
+                        <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('heading') : 'HEADING'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-purple-200">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
                             <span className="text-[10px] text-purple-300 ml-0.5">°</span>
@@ -496,7 +496,7 @@
                     </div>
 
                     <div className={`flex-none w-28 flex flex-col items-center justify-center bg-cyan-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-cyan-500/10 ${activeKeys.has('batL') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider mb-0.5">L. Bat</span>
+                        <span className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batL') : 'L. BAT'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-cyan-200">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
                             <span className="text-[10px] text-cyan-300 ml-0.5">V</span>
@@ -504,7 +504,7 @@
                     </div>
 
                     <div className={`flex-none w-28 flex flex-col items-center justify-center bg-emerald-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-emerald-500/10 ${activeKeys.has('batR') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mb-0.5">R. Bat</span>
+                        <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batR') : 'R. BAT'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-emerald-200">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
                             <span className="text-[10px] text-emerald-300 ml-0.5">V</span>
@@ -540,7 +540,7 @@
                     <button
                         onClick={() => setIsFullscreen(v => !v)}
                         className="absolute top-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
-                        aria-label="Toggle fullscreen"
+                        aria-label={t ? t('toggle_fullscreen') : 'Toggle fullscreen'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -664,7 +664,7 @@
                     <div className="w-full max-w-md mx-auto px-4 h-16 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-                            <h1 className="text-sm font-mono font-bold text-cyan-100 tracking-wider">ROBOT MONITOR</h1>
+                            <h1 className="text-sm font-mono font-bold text-cyan-100 tracking-wider">{t ? t('robot_monitor') : 'ROBOT MONITOR'}</h1>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]' : 'bg-slate-500 shadow-none'}`}></span>
@@ -686,16 +686,16 @@
                                 <button
                                     onClick={() => setIsChannelExpanded(v => !v)}
                                     className="w-full flex justify-between items-center p-4 bg-slate-900/40 active:bg-slate-900/60 transition-colors z-10 relative"
-                                    aria-label="Toggle channel config"
+                                    aria-label={t ? t('toggle_channel_config') : 'Toggle channel config'}
                                 >
                                     <div className="flex items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                                         </svg>
-                                        <span className="font-semibold text-slate-200">显示通道配置</span>
+                                        <span className="font-semibold text-slate-200">{t ? t('show_channels') : '显示通道配置'}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-slate-400">
-                                        <span className="text-xs font-medium bg-slate-800/70 px-2 py-0.5 rounded-full border border-slate-700">{activeKeys.size} 开启</span>
+                                        <span className="text-xs font-medium bg-slate-800/70 px-2 py-0.5 rounded-full border border-slate-700">{activeKeys.size} {t ? t('channels_on') : '开启'}</span>
                                         <svg className={`w-5 h-5 transition-transform ${isChannelExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                         </svg>
@@ -707,7 +707,7 @@
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-3 h-3 rounded-full bg-purple-400 shadow-sm"></div>
-                                                <span className="text-sm font-medium text-slate-200">航向角 (Heading)</span>
+                                        <span className="text-sm font-medium text-slate-200">{t ? t('heading') : '航向角'}</span>
                                             </div>
                                             <div className="relative inline-block w-10 align-middle select-none">
                                                 <input
@@ -724,7 +724,7 @@
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-sm"></div>
-                                                <span className="text-sm font-medium text-slate-200">左电池 (L.Bat)</span>
+                                                <span className="text-sm font-medium text-slate-200">{t ? t('batL') : '左电池'}</span>
                                             </div>
                                             <div className="relative inline-block w-10 align-middle select-none">
                                                 <input
@@ -741,7 +741,7 @@
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm"></div>
-                                                <span className="text-sm font-medium text-slate-200">右电池 (R.Bat)</span>
+                                                <span className="text-sm font-medium text-slate-200">{t ? t('batR') : '右电池'}</span>
                                             </div>
                                             <div className="relative inline-block w-10 align-middle select-none">
                                                 <input
@@ -798,10 +798,14 @@
                                         {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
                                     </button>
                                     <button
-                                        onClick={handleClear}
+                                        onClick={() => {
+                                            if (window.confirm(t ? t('chart_clear_confirm') : 'Are you sure to clear data?')) {
+                                                handleClear();
+                                            }
+                                        }}
                                         className="w-full bg-red-900/10 active:bg-red-900/20 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
                                     >
-                                        {t ? t('chart_clear') : '清空数据'}
+                                        {t ? t('clear_btn') : '清空数据'}
                                     </button>
                                 </div>
                             </div>

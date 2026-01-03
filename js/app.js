@@ -388,7 +388,7 @@ function BoatGroundStation() {
 
     const sendWaypointsCommand = () => {
         if (waypoints.length === 0) {
-            showToast({ type: 'warning', message: "请先在地图上右键添加航点！", durationMs: 3500 });
+            showToast({ type: 'warning', message: t('toast_add_waypoints_first'), durationMs: 3500 });
             return;
         }
         let cmd = "P";
@@ -401,7 +401,9 @@ function BoatGroundStation() {
             showToast({ type: 'error', message: t('toast_waypoints_failed'), durationMs: 4500 });
             return;
         }
-        addLog('SYS', `已下发 ${waypoints.length} 个航点任务`, 'info');
+        addLog('SYS', lang === 'zh'
+            ? `已下发 ${waypoints.length} 个航点任务`
+            : `Sent ${waypoints.length} waypoint(s)`, 'info');
         showToast({ type: 'success', message: t('toast_waypoints_sent'), durationMs: 2500 });
     };
 

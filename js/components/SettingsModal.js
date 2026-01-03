@@ -113,14 +113,14 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                         onClick={() => setActiveTab('connection')} 
                         className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'connection' ? 'bg-cyan-500/20 text-cyan-100 shadow-[inset_0_-2px_0_0_rgba(6,182,212,1)]' : 'text-slate-500 hover:bg-slate-800'}`}
                     >
-                        CONNECTION
+                        {t ? t('connection_tab') : 'CONNECTION'}
                     </button>
                     <div className="w-px bg-cyan-900/50"></div>
                     <button 
                         onClick={() => setActiveTab('system')} 
                         className={`flex-1 py-3 text-xs font-mono font-bold tracking-wider transition-colors ${activeTab === 'system' ? 'bg-cyan-500/20 text-cyan-100 shadow-[inset_0_-2px_0_0_rgba(6,182,212,1)]' : 'text-slate-500 hover:bg-slate-800'}`}
                     >
-                        SYSTEM
+                        {t ? t('system_tab') : 'SYSTEM'}
                     </button>
                 </div>
 
@@ -198,8 +198,8 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                                 desc={t ? t('desc_boat_style') : "Select boat icon style"}
                             >
                                 <div className="flex bg-slate-900 rounded p-1 border border-slate-800 w-32">
-                                    <button onClick={() => setBoatStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>DEFAULT</button>
-                                    <button onClick={() => setBoatStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>CYBER</button>
+                                    <button onClick={() => setBoatStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t ? t('default') : 'DEFAULT'}</button>
+                                    <button onClick={() => setBoatStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${boatStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t ? t('cyber') : 'CYBER'}</button>
                                 </div>
                             </SettingRow>
 
@@ -209,8 +209,8 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                                 desc={t ? t('desc_wp_style') : "Select waypoint marker style"}
                             >
                                 <div className="flex bg-slate-900 rounded p-1 border border-slate-800 w-32">
-                                    <button onClick={() => setWaypointStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>DEFAULT</button>
-                                    <button onClick={() => setWaypointStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>CYBER</button>
+                                    <button onClick={() => setWaypointStyle('default')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'default' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t ? t('default') : 'DEFAULT'}</button>
+                                    <button onClick={() => setWaypointStyle('cyber')} className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${waypointStyle === 'cyber' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t ? t('cyber') : 'CYBER'}</button>
                                 </div>
                             </SettingRow>
                         </div>
@@ -240,7 +240,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                         )}
                         {saveStatus === 'success' && <Icons.Check className="w-4 h-4" />}
                         <span>
-                            {saveStatus === 'saving' ? 'APPLYING...' : (saveStatus === 'success' ? 'SAVED' : (t ? t('btn_save') : 'SAVE CHANGES'))}
+                            {saveStatus === 'saving' ? (t ? t('saving') : 'APPLYING...') : (saveStatus === 'success' ? (t ? t('saved') : 'SAVED') : (t ? t('btn_save') : 'SAVE CHANGES'))}
                         </span>
                     </button>
                 </div>

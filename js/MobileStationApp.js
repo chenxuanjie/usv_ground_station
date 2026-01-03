@@ -25,17 +25,17 @@
   const Send = Icon('Send');
   const Trash2 = Icon('Trash2');
 
-  const FeaturePending = ({ title }) => (
+  const FeaturePending = ({ title, t }) => (
     <div className="w-full h-full bg-slate-950 relative flex items-center justify-center">
       <div className="absolute top-0 w-full h-16 z-30 px-4 flex items-center bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent pointer-events-none">
-        <div className="text-cyan-400 font-mono font-bold text-lg flex items-center gap-2">{title}</div>
+        <div className="text-cyan-400 font-mono font-bold text-lg flex items-center gap-2">{t ? t(title.toLowerCase()) : title}</div>
       </div>
       <HUDBox className="p-6 w-[90%] max-w-sm">
         <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
           <Activity className="w-8 h-8 text-cyan-500/60 animate-pulse" />
           <div className="text-center space-y-1">
             <span className="font-mono text-xs block text-slate-400">FEATURE_PENDING</span>
-            <span className="text-xs text-amber-500/80">待开发</span>
+            <span className="text-xs text-amber-500/80">待开发...</span>
           </div>
         </div>
       </HUDBox>
@@ -113,6 +113,21 @@
       setDevMode,
       sendData
     } = props;
+
+    const t = useCallback((key) => {
+      const mobileTrans = window.MobileTranslations && window.MobileTranslations[lang]
+        ? window.MobileTranslations[lang]
+        : (window.MobileTranslations && window.MobileTranslations.en ? window.MobileTranslations.en : null);
+
+      if (mobileTrans && Object.prototype.hasOwnProperty.call(mobileTrans, key)) return mobileTrans[key];
+      if (typeof AppTranslations !== 'undefined' && AppTranslations && AppTranslations[lang] && Object.prototype.hasOwnProperty.call(AppTranslations[lang], key)) {
+        return AppTranslations[lang][key];
+      }
+      if (typeof AppTranslations !== 'undefined' && AppTranslations && AppTranslations.en && Object.prototype.hasOwnProperty.call(AppTranslations.en, key)) {
+        return AppTranslations.en[key];
+      }
+      return key;
+    }, [lang]);
 
     const [activeTab, setActiveTab] = useState('map');
     const [quickMenuOpen, setQuickMenuOpen] = useState(false);
@@ -344,7 +359,7 @@
         <div className="flex-1 relative overflow-hidden">
           {activeTab === 'map' && (
             <div className="relative w-full h-full bg-[#0f172a] overflow-hidden">
-              <StatusBar title="USV_OP_CORE" signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} />
+              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} />
 
               <div className="absolute inset-0 z-0">
                 <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
@@ -356,7 +371,7 @@
                     waypoints={waypoints}
                     setWaypoints={setWaypoints}
                     cruiseMode={cruiseMode}
-                    t={props.t}
+                    t={t}
                     showLogs={false}
                     controlledMapMode={mapMode}
                     hideToolbar={true}
@@ -374,7 +389,7 @@
                     className="pointer-events-auto bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-full shadow-lg border-2 border-green-400 animate-in fade-in zoom-in duration-300 flex items-center gap-2"
                   >
                     <Check className="w-5 h-5" />
-                    {props.t ? props.t('finish_add') : (lang === 'zh' ? '添加完成' : 'Done')}
+                    {t('finish_add')}
                   </button>
                 </div>
               )}
@@ -391,19 +406,19 @@
                   {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
                       <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">ADD WP</span>
+                        <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('add_wp_btn')}</span>
                         <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapPin className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { sendWaypointsCommand && sendWaypointsCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">UPLOAD</span>
+                        <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('upload_btn')}</span>
                         <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Send className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { setWaypoints([]); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-red-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">CLEAR</span>
+                        <span className="text-[10px] font-mono text-red-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('clear_btn')}</span>
                         <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-red-500/50 hover:bg-red-900/20 text-red-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Trash2 className="w-[18px] h-[18px]" /></div>
                       </button>
                       <button onClick={() => { setLocateNonce(v => v + 1); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{props.t ? props.t('map_locate') : 'LOCATE'}</span>
+                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('map_locate')}</span>
                         <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Home className="w-[18px] h-[18px]" /></div>
                       </button>
                     </div>
@@ -416,36 +431,36 @@
                   <div className="space-y-3">
                     <div className="space-y-1 font-mono">
                       <div className="flex justify-between text-[10px] text-cyan-600">
-                        <span>LAT</span>
+                        <span>{t('latitude')}</span>
                         <span className="text-cyan-100">{lat ? lat.toFixed(6) : '0.000000'}</span>
                       </div>
                       <div className="flex justify-between text-[10px] text-cyan-600">
-                        <span>LNG</span>
+                        <span>{t('longitude')}</span>
                         <span className="text-cyan-100">{lng ? lng.toFixed(6) : '0.000000'}</span>
                       </div>
                     </div>
                     <div className="h-px bg-cyan-900/50 w-full"></div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">HDG</div>
+                        <div className="text-[9px] text-slate-400 mb-1">{t('heading')}</div>
                         <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{heading.toFixed(0)}°</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">WP</div>
+                        <div className="text-[9px] text-slate-400 mb-1">{t('waypoint')}</div>
                         <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px]">
-                        <span className="text-slate-400 flex items-center gap-1"><Zap className="w-3 h-3" /> BAT</span>
+                        <span className="text-slate-400 flex items-center gap-1"><Zap className="w-3 h-3" /> {t('battery')}</span>
                         <span className={`${batteryPct < 30 ? 'text-red-400' : 'text-cyan-400'}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
                       </div>
                       <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                         <div className={`h-full shadow-[0_0_10px_currentColor] transition-all duration-500 ${batteryPct < 30 ? 'bg-red-500 text-red-500' : 'bg-cyan-500 text-cyan-500'}`} style={{ width: `${batteryPct}%` }}></div>
                       </div>
                       <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                        <span>L:{batL ? batL.toFixed(2) : '0.00'}</span>
-                        <span>R:{batR ? batR.toFixed(2) : '0.00'}</span>
+                        <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
+                        <span>{t('batR')}:{batR ? batR.toFixed(2) : '0.00'}</span>
                       </div>
                     </div>
                   </div>
@@ -462,7 +477,7 @@
                     <div className="p-2 border-b border-cyan-500/20 flex justify-between items-center bg-cyan-950/50 backdrop-blur">
                       <div className="flex items-center gap-2 text-cyan-400">
                         <List className="w-3 h-3" />
-                        <span className="text-[10px] font-mono font-bold tracking-wider">MISSION_WPS ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
+                        <span className="text-[10px] font-mono font-bold tracking-wider">{t('mission_wps')} ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
                       </div>
                       <button
                         onClick={() => setShowWaypointList(false)}
@@ -478,7 +493,7 @@
                         <div key={`${idx}-${wp.lng}-${wp.lat}`} className="flex items-center justify-between px-2 py-1.5 rounded-sm bg-slate-900/30 border-l-2 border-transparent transition-all">
                           <div className="flex items-center gap-3">
                             <span className="text-[9px] font-mono text-slate-500 w-3 text-right">{String(idx + 1).padStart(2, '0')}</span>
-                            <span className="text-[10px] font-mono text-cyan-100/80 tracking-wide">WAYPOINT_{idx + 1}</span>
+                            <span className="text-[10px] font-mono text-cyan-100/80 tracking-wide">{t('waypoint')}_{idx + 1}</span>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setWaypoints && setWaypoints(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx)); }}
@@ -491,7 +506,7 @@
                       ))}
                       {(!Array.isArray(waypoints) || waypoints.length === 0) && (
                         <div className="p-3 text-center text-[9px] text-slate-600 font-mono italic">
-                          NO_WAYPOINTS_DEFINED
+                          {t('no_waypoints')}
                         </div>
                       )}
                     </div>
@@ -512,7 +527,7 @@
 
           {activeTab === 'video' && (
             <div className="relative w-full h-full bg-black overflow-hidden">
-              <FeaturePending title="OPTICAL_FEED" />
+              <FeaturePending title="OPTICAL_FEED" t={t} />
               <JoystickComponent 
                 joystickActive={joystickActive} 
                 setJoystickActive={setJoystickActive} 
@@ -529,7 +544,7 @@
                <EmbeddedChart 
                   dataRef={chartDataRef}
                   fps={chartFps}
-                  t={props.t}
+                  t={t}
                   tcpStatus={tcpStatus}
                />
             </div>
@@ -546,7 +561,7 @@
           devMode={devMode}
           setDevMode={setDevMode}
           sendData={sendData}
-          t={props.t}
+          t={t}
           topOffsetPx={0}
           fullWidth={true}
         />
