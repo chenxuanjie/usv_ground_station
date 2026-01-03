@@ -20,11 +20,14 @@
         const [isPaused, setIsPaused] = useState(false);
         const [isZoomMode, setIsZoomMode] = useState(false);
         const [isZoomLock, setIsZoomLock] = useState(false);
+        const [isFullscreen, setIsFullscreen] = useState(false);
+        const [zoomPoints, setZoomPoints] = useState(300);
         
         const isZoomModeRef = useRef(false); 
         const zoomLockRef = useRef(false);
         const isInteractingRef = useRef(false);
         const lastMousePosRef = useRef(null);
+        const lastAppliedZoomRef = useRef({ points: 300, len: 0 });
         
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
         const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
@@ -45,6 +48,35 @@
                 echartsInstance.current.getZr().setCursorStyle('default');
             }
         }, []);
+
+        const applyTimeZoom = useCallback((nextPoints, dataLen) => {
+            if (!echartsInstance.current) return;
+            const len = Number.isFinite(Number(dataLen)) ? Number(dataLen) : 0;
+            const points = Math.max(50, Math.min(600, Math.round(Number(nextPoints) || 300)));
+            const percent = len > 0 ? Math.min(100, Math.max(1, (points / len) * 100)) : 100;
+            const start = Math.max(0, 100 - percent);
+            echartsInstance.current.dispatchAction({
+                type: 'dataZoom',
+                start,
+                end: 100
+            });
+        }, []);
+
+        useEffect(() => {
+            if (!echartsInstance.current) return;
+            const timer = setTimeout(() => {
+                if (echartsInstance.current) echartsInstance.current.resize();
+            }, 80);
+            return () => clearTimeout(timer);
+        }, [isFullscreen]);
+
+        useEffect(() => {
+            const prev = document.body.style.overflow;
+            if (isFullscreen) document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = prev;
+            };
+        }, [isFullscreen]);
 
         useEffect(() => {
             if (echartsInstance.current) {
@@ -123,6 +155,7 @@
                 });
 
                 echartsInstance.current.resize();
+                applyTimeZoom(zoomPoints, (dataRef && dataRef.current && Array.isArray(dataRef.current)) ? dataRef.current.length : 0);
             }, 50);
 
             const handleResize = () => echartsInstance.current && echartsInstance.current.resize();
@@ -136,7 +169,12 @@
                     echartsInstance.current = null;
                 }
             };
-        }, [exitZoomMode]);
+        }, [exitZoomMode, applyTimeZoom]);
+
+        useEffect(() => {
+            const len = dataRef && dataRef.current && Array.isArray(dataRef.current) ? dataRef.current.length : 0;
+            applyTimeZoom(zoomPoints, len);
+        }, [applyTimeZoom, dataRef, zoomPoints]);
 
         useEffect(() => {
             const renderFrame = () => {
@@ -183,6 +221,13 @@
                     }],
                     series: dynamicSeries
                 }, { lazyUpdate: false, replaceMerge: ['series'] });
+
+                const nextLen = fullData.length;
+                const applied = lastAppliedZoomRef.current;
+                if (applied.points !== zoomPoints || applied.len !== nextLen) {
+                    applyTimeZoom(zoomPoints, nextLen);
+                    lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
+                }
             };
 
             let renderTimer;
@@ -199,7 +244,7 @@
                 if (renderTimer) clearInterval(renderTimer);
             };
 
-        }, [isPaused, activeKeys, fps, t, dataRef]);
+        }, [isPaused, activeKeys, fps, t, dataRef, zoomPoints, applyTimeZoom]);
 
         const toggleChannel = (key) => {
             const newSet = new Set(activeKeys);
@@ -211,53 +256,182 @@
             if(dataRef) dataRef.current = [];
             if(echartsInstance.current) echartsInstance.current.setOption({ xAxis: { data: [] }, series: [] });
             setHudData({ batL: 0, batR: 0, heading: 0 });
+            setZoomPoints(300);
+            lastAppliedZoomRef.current = { points: 300, len: 0 };
+            applyTimeZoom(300, 0);
         };
 
         return (
-            <div className="flex flex-col h-full w-full bg-slate-950">
-                {/* 顶部控制栏 - 优化为横向滚动 */}
-                <div className="flex items-center gap-2 p-2 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm overflow-x-auto scrollbar-hide shrink-0">
-                    <div className="flex gap-2">
-                         {CHART_CONFIG.map(config => {
-                            const isActive = activeKeys.has(config.key);
-                            const value = hudData[config.key] !== undefined ? hudData[config.key] : 0;
-                            return (
-                                <button 
-                                    key={config.key} 
-                                    onClick={() => toggleChannel(config.key)} 
-                                    className={`flex flex-col items-center px-3 py-1.5 rounded border transition-all min-w-[70px] ${isActive ? 'bg-slate-800 border-slate-600' : 'bg-slate-900 border-slate-800 opacity-60'}`}
-                                    style={{ borderColor: isActive ? config.color : undefined }}
-                                >
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase" style={{ color: isActive ? config.color : undefined }}>{config.key}</span>
-                                    <span className="text-sm font-mono font-bold text-white">
-                                        {typeof value === 'number' ? value.toFixed(1) : value}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                    
-                    <div className="w-px h-8 bg-slate-800 shrink-0"></div>
+            <div className="w-full h-full bg-[#F2F2F7] text-gray-900 overflow-y-auto">
+                <style>{`
+                    .embedded-canvas-container {
+                        position: relative;
+                        height: 280px;
+                        width: 100%;
+                        background-color: #ffffff;
+                        border-radius: 16px;
+                        overflow: hidden;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                        transition: all 0.3s ease-in-out;
+                    }
+                    .embedded-canvas-container.fullscreen-active {
+                        position: fixed;
+                        z-index: 9999;
+                        top: 0;
+                        left: 0;
+                        border-radius: 0;
+                        margin: 0;
+                        box-shadow: none;
+                        background-color: #ffffff;
+                    }
+                    @media (orientation: portrait) {
+                        .embedded-canvas-container.fullscreen-active {
+                            width: 100vh;
+                            height: 100vw;
+                            transform-origin: top left;
+                            transform: rotate(90deg) translateY(-100%);
+                            left: 100vw;
+                            top: 0;
+                        }
+                    }
+                    @media (orientation: landscape) {
+                        .embedded-canvas-container.fullscreen-active {
+                            width: 100vw;
+                            height: 100vh;
+                        }
+                    }
 
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => setIsPaused(!isPaused)} className={`p-2 rounded border ${isPaused ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                            {isPaused ? <span className="text-[10px] font-bold">PLAY</span> : <span className="text-[10px] font-bold">PAUSE</span>}
-                        </button>
-                        <button onClick={handleClear} className="p-2 rounded border border-slate-700 bg-slate-800 text-slate-400">
-                             <span className="text-[10px] font-bold">CLR</span>
-                        </button>
-                    </div>
-                </div>
+                    .embedded-controls input[type=range] {
+                        -webkit-appearance: none;
+                        width: 100%;
+                        background: transparent;
+                    }
+                    .embedded-controls input[type=range]::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        height: 28px;
+                        width: 28px;
+                        border-radius: 50%;
+                        background: #ffffff;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                        margin-top: -12px;
+                        cursor: pointer;
+                    }
+                    .embedded-controls input[type=range]::-webkit-slider-runnable-track {
+                        width: 100%;
+                        height: 4px;
+                        cursor: pointer;
+                        background: #E5E5EA;
+                        border-radius: 2px;
+                    }
+                `}</style>
 
-                {/* 图表区域 */}
-                <div className="flex-1 relative min-h-0 w-full">
-                    <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
-                    {(isPaused || isZoomMode) && (
-                        <div className="absolute top-2 right-2 px-2 py-1 rounded bg-black/50 backdrop-blur text-[10px] font-bold text-yellow-500 border border-yellow-500/30 pointer-events-none">
-                            {isZoomMode ? "ZOOM MODE" : "PAUSED"}
+                <main className="max-w-md mx-auto px-4 py-4 space-y-4">
+                    <section className={`embedded-canvas-container relative group ${isFullscreen ? 'fullscreen-active' : ''}`}>
+                        <div
+                            className="absolute inset-0 pointer-events-none opacity-20"
+                            style={{
+                                backgroundImage: 'linear-gradient(#007AFF 1px, transparent 1px), linear-gradient(90deg, #007AFF 1px, transparent 1px)',
+                                backgroundSize: '20px 20px'
+                            }}
+                        ></div>
+
+                        <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
+
+                        <div className="absolute top-3 right-12 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-gray-100 z-10 pointer-events-none">
+                            <span className="text-xs text-gray-400 mr-1">Hdg:</span>
+                            <span className="font-mono text-blue-600 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                            <span className="text-xs text-gray-400">°</span>
                         </div>
-                    )}
-                </div>
+
+                        <button
+                            onClick={() => setIsFullscreen(v => !v)}
+                            className="absolute top-2 right-2 p-2 bg-black/5 hover:bg-black/10 rounded-full text-gray-500 transition-colors z-20 backdrop-blur-sm"
+                            aria-label="Toggle fullscreen"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </section>
+
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">左电池</div>
+                            <div className="flex items-end justify-center gap-0.5">
+                                <div className="font-mono font-medium text-lg leading-none text-gray-800">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : '-'}</div>
+                                <span className="text-[10px] text-gray-400 mb-0.5">V</span>
+                            </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">右电池</div>
+                            <div className="flex items-end justify-center gap-0.5">
+                                <div className="font-mono font-medium text-lg leading-none text-gray-800">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : '-'}</div>
+                                <span className="text-[10px] text-gray-400 mb-0.5">V</span>
+                            </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">航向角</div>
+                            <div className="flex items-end justify-center gap-0.5">
+                                <div className="font-mono font-medium text-lg leading-none text-blue-600">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : '-'}</div>
+                                <span className="text-[10px] text-gray-400 mb-0.5">°</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section className="bg-white rounded-2xl shadow-sm overflow-hidden embedded-controls">
+                        <div className="p-5 space-y-6">
+                            <div>
+                                <div className="flex justify-between mb-2 items-center">
+                                    <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                                        </svg>
+                                        {t ? t('chart_time_zoom') : '时间轴缩放'}
+                                    </label>
+                                    <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-500">{(300 / zoomPoints).toFixed(1)}x</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="50"
+                                    max="600"
+                                    step="10"
+                                    value={zoomPoints}
+                                    onChange={(e) => {
+                                        const next = Math.max(50, Math.min(600, Math.round(Number(e.target.value) || 300)));
+                                        const len = dataRef && dataRef.current && Array.isArray(dataRef.current) ? dataRef.current.length : 0;
+                                        setZoomPoints(next);
+                                        lastAppliedZoomRef.current = { points: next, len };
+                                        applyTimeZoom(next, len);
+                                    }}
+                                    className="w-full"
+                                />
+                                <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+                                    <span>缩小 (更多数据)</span>
+                                    <span>放大 (细节)</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                <button
+                                    onClick={() => setIsPaused(v => !v)}
+                                    className="w-full bg-gray-100 active:bg-gray-200 text-blue-600 font-semibold py-3 rounded-xl transition-colors"
+                                >
+                                    {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
+                                </button>
+                                <button
+                                    onClick={handleClear}
+                                    className="w-full bg-red-50 active:bg-red-100 text-red-500 font-semibold py-3 rounded-xl transition-colors"
+                                >
+                                    {t ? t('chart_clear') : '清空数据'}
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </main>
             </div>
         );
     });
