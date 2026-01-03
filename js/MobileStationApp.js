@@ -319,6 +319,7 @@
                   dataRef={chartDataRef}
                   fps={chartFps}
                   t={props.t}
+                  tcpStatus={tcpStatus}
                />
             </div>
           )}

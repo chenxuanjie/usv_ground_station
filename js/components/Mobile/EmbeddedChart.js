@@ -13,7 +13,7 @@
         Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     };
 
-    const EmbeddedChart = memo(({ dataRef, fps, t }) => {
+    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus }) => {
         const chartRef = useRef(null);
         const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
@@ -23,6 +23,8 @@
         const [isZoomLock, setIsZoomLock] = useState(false);
         const [isFullscreen, setIsFullscreen] = useState(false);
         const [zoomPoints, setZoomPoints] = useState(300);
+        const [isChannelExpanded, setIsChannelExpanded] = useState(true);
+        const [isHudDragging, setIsHudDragging] = useState(false);
         
         const isZoomModeRef = useRef(false); 
         const zoomLockRef = useRef(false);
@@ -31,10 +33,15 @@
         const lastAppliedZoomRef = useRef({ points: 300, len: 0 });
         const zoomPointsRef = useRef(zoomPoints);
         const dataRefLive = useRef(dataRef);
+        const chartViewportRef = useRef(null);
+        const hudStripRef = useRef(null);
+        const hudDragRef = useRef({ active: false, pointerId: null, startX: 0, startScrollLeft: 0 });
         
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
         const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
         const lastHudUpdateRef = useRef(0);
+
+        const isConnected = tcpStatus === 'ONLINE';
 
         useEffect(() => {
             zoomPointsRef.current = zoomPoints;
@@ -74,9 +81,9 @@
         }, []);
 
         const syncEchartsSize = useCallback(() => {
-            if (!echartsInstance.current || !chartCardRef.current) return;
-            const w = Math.round(chartCardRef.current.clientWidth || 0);
-            const h = Math.round(chartCardRef.current.clientHeight || 0);
+            if (!echartsInstance.current || !chartViewportRef.current) return;
+            const w = Math.round(chartViewportRef.current.clientWidth || 0);
+            const h = Math.round(chartViewportRef.current.clientHeight || 0);
             if (w <= 0 || h <= 0) return;
             echartsInstance.current.resize({ width: w, height: h });
         }, []);
@@ -350,46 +357,116 @@
             applyTimeZoom(300, 0);
         };
 
+        const onHudPointerDown = useCallback((e) => {
+            if (e.pointerType === 'touch') return;
+            if (e.button != null && e.button !== 0) return;
+            const el = hudStripRef.current;
+            if (!el) return;
+
+            hudDragRef.current = {
+                active: true,
+                pointerId: e.pointerId,
+                startX: e.clientX,
+                startScrollLeft: el.scrollLeft
+            };
+            setIsHudDragging(true);
+            try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        }, []);
+
+        const onHudPointerMove = useCallback((e) => {
+            const el = hudStripRef.current;
+            const st = hudDragRef.current;
+            if (!el || !st.active || st.pointerId !== e.pointerId) return;
+            el.scrollLeft = st.startScrollLeft - (e.clientX - st.startX);
+        }, []);
+
+        const endHudDrag = useCallback((e) => {
+            const el = hudStripRef.current;
+            const st = hudDragRef.current;
+            if (!st.active) return;
+            if (e && st.pointerId != null && e.pointerId != null && st.pointerId !== e.pointerId) return;
+            hudDragRef.current = { active: false, pointerId: null, startX: 0, startScrollLeft: 0 };
+            setIsHudDragging(false);
+            if (el && e && e.pointerId != null) {
+                try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+        }, []);
+
         const chartCard = (
-            <section ref={chartCardRef} className={`embedded-canvas-container relative group ${isFullscreen ? 'embedded-fullscreen-card' : ''}`}>
+            <section ref={chartCardRef} className={`embedded-canvas-container group ${isFullscreen ? 'embedded-fullscreen-card' : ''}`}>
                 <div
-                    className="absolute inset-0 pointer-events-none opacity-20"
-                    style={{
-                        backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
-                        backgroundSize: '20px 20px'
-                    }}
-                ></div>
+                    ref={hudStripRef}
+                    className={`flex-none flex items-center px-3 py-2 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 z-10 gap-2 overflow-x-auto embedded-no-scrollbar select-none ${isHudDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    onPointerDown={onHudPointerDown}
+                    onPointerMove={onHudPointerMove}
+                    onPointerUp={endHudDrag}
+                    onPointerCancel={endHudDrag}
+                    onPointerLeave={endHudDrag}
+                >
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-purple-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-purple-500/10 ${activeKeys.has('heading') ? '' : 'opacity-40'}`}>
+                        <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider mb-0.5">Heading</span>
+                        <div className="flex items-baseline">
+                            <span className="font-mono text-sm font-bold text-purple-200">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                            <span className="text-[10px] text-purple-300 ml-0.5">°</span>
+                        </div>
+                    </div>
 
-                <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-cyan-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-cyan-500/10 ${activeKeys.has('batL') ? '' : 'opacity-40'}`}>
+                        <span className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider mb-0.5">L. Bat</span>
+                        <div className="flex items-baseline">
+                            <span className="font-mono text-sm font-bold text-cyan-200">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
+                            <span className="text-[10px] text-cyan-300 ml-0.5">V</span>
+                        </div>
+                    </div>
 
-                <div className="absolute top-3 right-12 bg-slate-900/80 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-slate-700 z-10 pointer-events-none">
-                    <span className="text-xs text-slate-400 mr-1">Hdg:</span>
-                    <span className="font-mono text-cyan-300 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
-                    <span className="text-xs text-slate-400">°</span>
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-emerald-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-emerald-500/10 ${activeKeys.has('batR') ? '' : 'opacity-40'}`}>
+                        <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mb-0.5">R. Bat</span>
+                        <div className="flex items-baseline">
+                            <span className="font-mono text-sm font-bold text-emerald-200">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
+                            <span className="text-[10px] text-emerald-300 ml-0.5">V</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-none w-1"></div>
                 </div>
 
-                <button
-                    onClick={() => setIsFullscreen(v => !v)}
-                    className="absolute top-2 right-2 p-2 bg-slate-950/50 hover:bg-slate-900/70 rounded-full text-slate-200 transition-colors z-20 backdrop-blur-sm border border-slate-700"
-                    aria-label="Toggle fullscreen"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <div ref={chartViewportRef} className="relative flex-1 w-full min-h-0 bg-slate-950">
+                    <div
+                        className="absolute inset-0 pointer-events-none opacity-20"
+                        style={{
+                            backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
+                            backgroundSize: '20px 20px'
+                        }}
+                    ></div>
+
+                    <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
+
+                    <button
+                        onClick={() => setIsFullscreen(v => !v)}
+                        className="absolute bottom-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
+                        aria-label="Toggle fullscreen"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             </section>
         );
 
         return (
-            <div className="w-full h-full bg-slate-950 text-slate-200 overflow-y-auto">
+            <div className="w-full h-full bg-slate-950 text-slate-200 overflow-hidden flex flex-col">
                 <style>{`
                     .embedded-canvas-container {
+                        display: flex;
+                        flex-direction: column;
                         position: relative;
-                        height: 280px;
+                        height: 40vh;
+                        min-height: 260px;
                         width: 100%;
                         background-color: rgba(15, 23, 42, 0.55);
                         border-radius: 16px;
@@ -426,6 +503,35 @@
                         }
                     }
 
+                    .embedded-no-scrollbar::-webkit-scrollbar { display: none; }
+                    .embedded-no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+                    .embedded-dropdown-content {
+                        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+                        max-height: 0;
+                        opacity: 0;
+                        overflow-y: hidden;
+                    }
+                    .embedded-dropdown-content.expanded {
+                        max-height: 200px;
+                        opacity: 1;
+                        overflow-y: auto;
+                        -webkit-overflow-scrolling: touch;
+                    }
+
+                    .embedded-toggle-checkbox {
+                        top: 0;
+                        left: 0;
+                    }
+                    .embedded-toggle-checkbox:checked {
+                        left: auto;
+                        right: 0;
+                        border-color: #22d3ee;
+                    }
+                    .embedded-toggle-checkbox:checked + .embedded-toggle-label {
+                        background-color: rgba(34, 211, 238, 0.75);
+                    }
+
                     .embedded-controls input[type=range] {
                         -webkit-appearance: none;
                         width: 100%;
@@ -459,82 +565,146 @@
                     )
                     : null}
 
-                <main className="max-w-md mx-auto px-4 py-4 space-y-4">
-                    {!isFullscreen ? chartCard : null}
-
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">左电池</div>
-                            <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-slate-100">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : '-'}</div>
-                                <span className="text-[10px] text-slate-400 mb-0.5">V</span>
-                            </div>
-                        </div>
-                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">右电池</div>
-                            <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-slate-100">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : '-'}</div>
-                                <span className="text-[10px] text-slate-400 mb-0.5">V</span>
-                            </div>
-                        </div>
-                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">航向角</div>
-                            <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-cyan-300">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : '-'}</div>
-                                <span className="text-[10px] text-slate-400 mb-0.5">°</span>
-                            </div>
+                <header className="flex-none bg-slate-950/70 backdrop-blur-md border-b border-slate-800 z-40" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+                    <div className="w-full max-w-md mx-auto px-4 h-14 flex items-center justify-between">
+                        <h1 className="text-lg font-semibold text-slate-100">Robot Monitor</h1>
+                        <div className="flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]' : 'bg-slate-500 shadow-none'}`}></span>
+                            <span className={`text-xs font-medium uppercase ${isConnected ? 'text-emerald-300' : 'text-slate-400'}`}>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
                         </div>
                     </div>
+                </header>
 
-                    <section className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden embedded-controls">
-                        <div className="p-5 space-y-6">
-                            <div>
-                                <div className="flex justify-between mb-2 items-center">
-                                    <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                <main className="flex-1 overflow-y-auto embedded-no-scrollbar">
+                    <div className="max-w-md mx-auto p-4 space-y-4 pb-24">
+                        {!isFullscreen ? chartCard : null}
+
+                        <section className="space-y-3">
+                            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-shadow">
+                                <button
+                                    onClick={() => setIsChannelExpanded(v => !v)}
+                                    className="w-full flex justify-between items-center p-4 bg-slate-900/40 active:bg-slate-900/60 transition-colors z-10 relative"
+                                    aria-label="Toggle channel config"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                                         </svg>
-                                        {t ? t('chart_time_zoom') : '时间轴缩放'}
-                                    </label>
-                                    <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300 border border-slate-700">{(300 / zoomPoints).toFixed(1)}x</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="50"
-                                    max="600"
-                                    step="10"
-                                    value={zoomPoints}
-                                    onChange={(e) => {
-                                        const next = Math.max(50, Math.min(600, Math.round(Number(e.target.value) || 300)));
-                                        const len = dataRef && dataRef.current && Array.isArray(dataRef.current) ? dataRef.current.length : 0;
-                                        setZoomPoints(next);
-                                        lastAppliedZoomRef.current = { points: next, len };
-                                        applyTimeZoom(next, len);
-                                    }}
-                                    className="w-full"
-                                />
-                                <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
-                                    <span>缩小 (更多数据)</span>
-                                    <span>放大 (细节)</span>
+                                        <span className="font-semibold text-slate-200">显示通道配置</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <span className="text-xs font-medium bg-slate-800/70 px-2 py-0.5 rounded-full border border-slate-700">{activeKeys.size} 开启</span>
+                                        <svg className={`w-5 h-5 transition-transform ${isChannelExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </button>
+
+                                <div className={`embedded-dropdown-content bg-slate-950/40 border-t border-slate-800 ${isChannelExpanded ? 'expanded' : ''} embedded-no-scrollbar`}>
+                                    <div className="p-4 space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-purple-400 shadow-sm"></div>
+                                                <span className="text-sm font-medium text-slate-200">航向角 (Heading)</span>
+                                            </div>
+                                            <div className="relative inline-block w-10 align-middle select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={activeKeys.has('heading')}
+                                                    onChange={() => toggleChannel('heading')}
+                                                    id="embedded-toggle-hdg"
+                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                />
+                                                <label htmlFor="embedded-toggle-hdg" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-sm"></div>
+                                                <span className="text-sm font-medium text-slate-200">左电池 (L.Bat)</span>
+                                            </div>
+                                            <div className="relative inline-block w-10 align-middle select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={activeKeys.has('batL')}
+                                                    onChange={() => toggleChannel('batL')}
+                                                    id="embedded-toggle-left"
+                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                />
+                                                <label htmlFor="embedded-toggle-left" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm"></div>
+                                                <span className="text-sm font-medium text-slate-200">右电池 (R.Bat)</span>
+                                            </div>
+                                            <div className="relative inline-block w-10 align-middle select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={activeKeys.has('batR')}
+                                                    onChange={() => toggleChannel('batR')}
+                                                    id="embedded-toggle-right"
+                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                />
+                                                <label htmlFor="embedded-toggle-right" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 pt-2">
-                                <button
-                                    onClick={() => setIsPaused(v => !v)}
-                                    className="w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-700 text-cyan-300 font-semibold py-3 rounded-xl transition-colors border border-slate-700"
-                                >
-                                    {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
-                                </button>
-                                <button
-                                    onClick={handleClear}
-                                    className="w-full bg-red-900/20 hover:bg-red-900/30 active:bg-red-900/40 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
-                                >
-                                    {t ? t('chart_clear') : '清空数据'}
-                                </button>
+                            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm p-4 space-y-5 embedded-controls">
+                                <div>
+                                    <div className="flex justify-between mb-3 items-center">
+                                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                            {t ? t('chart_time_zoom') : '时间轴缩放'}
+                                        </span>
+                                        <span className="text-xs bg-slate-800/70 px-2 py-0.5 rounded text-slate-300 font-mono border border-slate-700">{(300 / zoomPoints).toFixed(1)}x</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="50"
+                                        max="600"
+                                        step="10"
+                                        value={zoomPoints}
+                                        onChange={(e) => {
+                                            const next = Math.max(50, Math.min(600, Math.round(Number(e.target.value) || 300)));
+                                            const len = dataRef && dataRef.current && Array.isArray(dataRef.current) ? dataRef.current.length : 0;
+                                            setZoomPoints(next);
+                                            lastAppliedZoomRef.current = { points: next, len };
+                                            applyTimeZoom(next, len);
+                                        }}
+                                        className="w-full"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+                                        <span>全览</span>
+                                        <span>细节</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => setIsPaused(v => !v)}
+                                        className="w-full bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 font-semibold py-3 rounded-xl transition-colors border border-slate-800"
+                                    >
+                                        {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
+                                    </button>
+                                    <button
+                                        onClick={handleClear}
+                                        className="w-full bg-red-900/10 active:bg-red-900/20 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
+                                    >
+                                        {t ? t('chart_clear') : '清空数据'}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </section>
+                        </section>
+                    </div>
                 </main>
             </div>
         );
