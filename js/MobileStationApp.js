@@ -104,6 +104,9 @@
       setShowChart,
       chartDataRef, // [Added]
       chartFps,     // [Added]
+      embeddedChannelExpanded,
+      embeddedChannelEnabled,
+      onPersistEmbeddedChartConfig,
       setShowSettings,
       showLogs,
       setShowLogs,
@@ -546,6 +549,9 @@
                   fps={chartFps}
                   t={t}
                   tcpStatus={tcpStatus}
+                  persistedChannelExpanded={embeddedChannelExpanded}
+                  persistedChannelEnabled={embeddedChannelEnabled}
+                  onPersistConfig={onPersistEmbeddedChartConfig}
                />
             </div>
           )}

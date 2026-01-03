@@ -13,7 +13,7 @@
         Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     };
 
-    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus }) => {
+    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus, persistedChannelExpanded, persistedChannelEnabled, onPersistConfig }) => {
         const chartRef = useRef(null);
         const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
@@ -23,8 +23,19 @@
         const [isZoomLock, setIsZoomLock] = useState(false);
         const [isFullscreen, setIsFullscreen] = useState(false);
         const [zoomPoints, setZoomPoints] = useState(300);
-        const [isChannelExpanded, setIsChannelExpanded] = useState(true);
+        const [isChannelExpanded, setIsChannelExpanded] = useState(() => {
+            if (typeof persistedChannelExpanded === 'boolean') return persistedChannelExpanded;
+            try {
+                const v = window.localStorage ? window.localStorage.getItem('embedded_channel_expanded') : null;
+                if (v == null) return true;
+                const s = String(v).trim().toLowerCase();
+                return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+            } catch (_) {
+                return true;
+            }
+        });
         const [isHudDragging, setIsHudDragging] = useState(false);
+        const isPausedRef = useRef(isPaused);
         
         const isZoomModeRef = useRef(false); 
         const zoomLockRef = useRef(false);
@@ -38,13 +49,52 @@
         const hudDragRef = useRef({ active: false, pointerId: null, startX: 0, startScrollLeft: 0 });
         
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
-        const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
+        const [activeKeys, setActiveKeys] = useState(() => {
+            const enabled = persistedChannelEnabled && typeof persistedChannelEnabled === 'object' ? persistedChannelEnabled : null;
+            const s = new Set();
+            if (enabled) {
+                if (enabled.heading) s.add('heading');
+                if (enabled.batL) s.add('batL');
+                if (enabled.batR) s.add('batR');
+                return s;
+            }
+            try {
+                const readFlag = (k) => {
+                    const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                    if (v == null) return null;
+                    const t = String(v).trim().toLowerCase();
+                    return t === '1' || t === 'true' || t === 'yes' || t === 'on';
+                };
+                const hdg = readFlag('embedded_channel_enabled_heading');
+                const bl = readFlag('embedded_channel_enabled_batL');
+                const br = readFlag('embedded_channel_enabled_batR');
+                if (hdg) s.add('heading');
+                if (bl) s.add('batL');
+                if (br) s.add('batR');
+            } catch (_) {}
+            return s;
+        });
         const lastHudUpdateRef = useRef(0);
         const [axisTicks, setAxisTicks] = useState({ y: [], x: [] });
         const axisTicksKeyRef = useRef('');
         const zoomWindowRef = useRef({ start: 0, end: 100 });
+        const didApplyPersistedRef = useRef(false);
+        const activeKeysRef = useRef(activeKeys);
+        const isChannelExpandedRef = useRef(isChannelExpanded);
 
         const isConnected = tcpStatus === 'ONLINE';
+
+        useEffect(() => {
+            isPausedRef.current = isPaused;
+        }, [isPaused]);
+
+        useEffect(() => {
+            activeKeysRef.current = activeKeys;
+        }, [activeKeys]);
+
+        useEffect(() => {
+            isChannelExpandedRef.current = isChannelExpanded;
+        }, [isChannelExpanded]);
 
         useEffect(() => {
             zoomPointsRef.current = zoomPoints;
@@ -53,6 +103,56 @@
         useEffect(() => {
             dataRefLive.current = dataRef;
         }, [dataRef]);
+
+        const computeEnabledFlags = useCallback((keys) => {
+            return {
+                heading: !!(keys && keys.has && keys.has('heading')),
+                batL: !!(keys && keys.has && keys.has('batL')),
+                batR: !!(keys && keys.has && keys.has('batR'))
+            };
+        }, []);
+
+        useEffect(() => {
+            if (didApplyPersistedRef.current) return;
+            const hasExpanded = typeof persistedChannelExpanded === 'boolean';
+            const hasEnabled = persistedChannelEnabled && typeof persistedChannelEnabled === 'object';
+            if (hasExpanded) setIsChannelExpanded(!!persistedChannelExpanded);
+            if (hasEnabled) {
+                const s = new Set();
+                if (persistedChannelEnabled.heading) s.add('heading');
+                if (persistedChannelEnabled.batL) s.add('batL');
+                if (persistedChannelEnabled.batR) s.add('batR');
+                setActiveKeys(s);
+            }
+
+            if (!hasExpanded && !hasEnabled) {
+                try {
+                    const v = window.localStorage ? window.localStorage.getItem('embedded_channel_expanded') : null;
+                    if (v != null) {
+                        const s = String(v).trim().toLowerCase();
+                        setIsChannelExpanded(s === '1' || s === 'true' || s === 'yes' || s === 'on');
+                    }
+
+                    const readFlag = (k) => {
+                        const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                        if (v == null) return null;
+                        const t = String(v).trim().toLowerCase();
+                        return t === '1' || t === 'true' || t === 'yes' || t === 'on';
+                    };
+                    const hdg = readFlag('embedded_channel_enabled_heading');
+                    const bl = readFlag('embedded_channel_enabled_batL');
+                    const br = readFlag('embedded_channel_enabled_batR');
+                    if (hdg != null || bl != null || br != null) {
+                        const set2 = new Set();
+                        if (hdg) set2.add('heading');
+                        if (bl) set2.add('batL');
+                        if (br) set2.add('batR');
+                        setActiveKeys(set2);
+                    }
+                } catch (_) {}
+            }
+            didApplyPersistedRef.current = true;
+        }, [persistedChannelExpanded, persistedChannelEnabled]);
 
         const exitZoomMode = useCallback(() => {
             isZoomModeRef.current = false;
@@ -187,6 +287,14 @@
             const liveRef = dataRefLive.current;
             const len = liveRef && liveRef.current && Array.isArray(liveRef.current) ? liveRef.current.length : 0;
             applyTimeZoom(zoomPointsRef.current, len);
+
+            const tryRender = () => {
+                if (!echartsInstance.current) return;
+                const fn = renderChartFrameRef.current;
+                if (isPausedRef.current && typeof fn === 'function') fn();
+            };
+            window.setTimeout(tryRender, 0);
+            window.requestAnimationFrame(tryRender);
         }, [exitZoomMode, applyTimeZoom, syncEchartsSize]);
 
         useEffect(() => {
@@ -286,151 +394,185 @@
             applyTimeZoom(zoomPoints, len);
         }, [applyTimeZoom, dataRef, zoomPoints]);
 
-        useEffect(() => {
-            const renderFrame = () => {
-                if (isZoomModeRef.current || isInteractingRef.current) return;
+        const renderChartFrame = useCallback(() => {
+            if (isZoomModeRef.current || isInteractingRef.current) return;
 
-                if (!echartsInstance.current || !dataRef || !dataRef.current) return;
-                const fullData = dataRef.current;
-                if (fullData.length === 0) return;
+            if (!echartsInstance.current || !dataRef || !dataRef.current) return;
+            const fullData = dataRef.current;
+            if (fullData.length === 0) return;
 
-                const now = Date.now();
-                if (now - lastHudUpdateRef.current > 100) {
-                    setHudData(fullData[fullData.length - 1]); 
-                    lastHudUpdateRef.current = now;
+            const now = Date.now();
+            if (now - lastHudUpdateRef.current > 100) {
+                setHudData(fullData[fullData.length - 1]);
+                lastHudUpdateRef.current = now;
+            }
+
+            const activeSeriesKeys = [];
+            for (let i = 0; i < CHART_CONFIG.length; i++) {
+                const key = CHART_CONFIG[i].key;
+                if (activeKeys.has(key)) activeSeriesKeys.push(key);
+            }
+
+            let yMin = Infinity;
+            let yMax = -Infinity;
+            for (let i = 0; i < fullData.length; i++) {
+                const row = fullData[i];
+                for (let k = 0; k < activeSeriesKeys.length; k++) {
+                    const v = Number(row[activeSeriesKeys[k]]);
+                    if (!Number.isFinite(v)) continue;
+                    if (v < yMin) yMin = v;
+                    if (v > yMax) yMax = v;
                 }
+            }
+            if (yMin === Infinity || yMax === -Infinity) return;
 
-                const activeSeriesKeys = [];
-                for (let i = 0; i < CHART_CONFIG.length; i++) {
-                    const key = CHART_CONFIG[i].key;
-                    if (activeKeys.has(key)) activeSeriesKeys.push(key);
-                }
+            const centerZero = yMin < 0 && yMax > 0;
+            const span = Math.max(1e-6, yMax - yMin);
+            const pad = span * 0.08;
 
-                let yMin = Infinity;
-                let yMax = -Infinity;
-                for (let i = 0; i < fullData.length; i++) {
-                    const row = fullData[i];
-                    for (let k = 0; k < activeSeriesKeys.length; k++) {
-                        const v = Number(row[activeSeriesKeys[k]]);
-                        if (!Number.isFinite(v)) continue;
-                        if (v < yMin) yMin = v;
-                        if (v > yMax) yMax = v;
-                    }
-                }
-                if (yMin === Infinity || yMax === -Infinity) return;
+            let nextMin = yMin - pad;
+            let nextMax = yMax + pad;
+            if (centerZero) {
+                const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
+                const lim = absMax + Math.max(absMax * 0.08, 1e-6);
+                nextMin = -lim;
+                nextMax = lim;
+            }
 
-                const centerZero = yMin < 0 && yMax > 0;
-                const span = Math.max(1e-6, yMax - yMin);
-                const pad = span * 0.08;
+            const rangeForStep = nextMax - nextMin;
+            const step = rangeForStep <= 5 ? 0.1 : (rangeForStep <= 50 ? 1 : 5);
+            const niceMin = Math.floor(nextMin / step) * step;
+            const niceMax = Math.ceil(nextMax / step) * step;
 
-                let nextMin = yMin - pad;
-                let nextMax = yMax + pad;
-                if (centerZero) {
-                    const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
-                    const lim = absMax + Math.max(absMax * 0.08, 1e-6);
-                    nextMin = -lim;
-                    nextMax = lim;
-                }
+            const yTickCount = 5;
+            const ySpan = Math.max(1e-9, niceMax - niceMin);
+            const yDecimals = ySpan <= 5 ? 1 : 0;
+            const nextYTicks = [];
+            for (let i = 0; i < yTickCount; i++) {
+                const v = niceMax - (ySpan * i) / (yTickCount - 1);
+                nextYTicks.push(Number(v).toFixed(yDecimals));
+            }
 
-                const rangeForStep = nextMax - nextMin;
-                const step = rangeForStep <= 5 ? 0.1 : (rangeForStep <= 50 ? 1 : 5);
-                const niceMin = Math.floor(nextMin / step) * step;
-                const niceMax = Math.ceil(nextMax / step) * step;
+            const len = fullData.length;
+            const dz = zoomWindowRef.current || { start: 0, end: 100 };
+            const a = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.start) || 0) / 100) * (len - 1))));
+            const b = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.end) || 100) / 100) * (len - 1))));
+            const left = Math.min(a, b);
+            const right = Math.max(a, b);
 
-                const yTickCount = 5;
-                const ySpan = Math.max(1e-9, niceMax - niceMin);
-                const yDecimals = ySpan <= 5 ? 1 : 0;
-                const nextYTicks = [];
-                for (let i = 0; i < yTickCount; i++) {
-                    const v = niceMax - (ySpan * i) / (yTickCount - 1);
-                    nextYTicks.push(Number(v).toFixed(yDecimals));
-                }
+            const xTickCount = 4;
+            const nextXTicks = [];
+            for (let i = 0; i < xTickCount; i++) {
+                const idx = Math.round(left + ((right - left) * i) / (xTickCount - 1));
+                const tRaw = fullData[idx] && fullData[idx].time ? String(fullData[idx].time) : '';
+                nextXTicks.push(tRaw ? tRaw.split(' ').pop() : '');
+            }
 
-                const len = fullData.length;
-                const dz = zoomWindowRef.current || { start: 0, end: 100 };
-                const a = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.start) || 0) / 100) * (len - 1))));
-                const b = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.end) || 100) / 100) * (len - 1))));
-                const left = Math.min(a, b);
-                const right = Math.max(a, b);
+            const nextAxisKey = nextYTicks.join('|') + '~~' + nextXTicks.join('|');
+            if (nextAxisKey !== axisTicksKeyRef.current) {
+                axisTicksKeyRef.current = nextAxisKey;
+                setAxisTicks({ y: nextYTicks, x: nextXTicks });
+            }
 
-                const xTickCount = 4;
-                const nextXTicks = [];
-                for (let i = 0; i < xTickCount; i++) {
-                    const idx = Math.round(left + ((right - left) * i) / (xTickCount - 1));
-                    const tRaw = fullData[idx] && fullData[idx].time ? String(fullData[idx].time) : '';
-                    nextXTicks.push(tRaw ? tRaw.split(' ').pop() : '');
-                }
+            const zeroLine = centerZero ? {
+                silent: true,
+                symbol: 'none',
+                label: { show: false },
+                lineStyle: { color: '#475569', type: 'dashed', width: 1 },
+                data: [{ yAxis: 0 }]
+            } : null;
 
-                const nextAxisKey = nextYTicks.join('|') + '~~' + nextXTicks.join('|');
-                if (nextAxisKey !== axisTicksKeyRef.current) {
-                    axisTicksKeyRef.current = nextAxisKey;
-                    setAxisTicks({ y: nextYTicks, x: nextXTicks });
-                }
-
-                const zeroLine = centerZero ? {
-                    silent: true,
+            const dynamicSeries = CHART_CONFIG.map(config => {
+                if (!activeKeys.has(config.key)) return null;
+                return {
+                    name: t ? t(config.labelKey) : config.key,
+                    type: 'line',
+                    smooth: true,
                     symbol: 'none',
-                    label: { show: false },
-                    lineStyle: { color: '#475569', type: 'dashed', width: 1 },
-                    data: [{ yAxis: 0 }]
-                } : null;
+                    yAxisIndex: config.yAxisIndex,
+                    data: fullData.map(item => item[config.key]),
+                    lineStyle: { color: config.color, width: 2 },
+                    itemStyle: { color: config.color },
+                    areaStyle: config.unit === 'V' ? {
+                        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: config.color + '4D' },
+                            { offset: 1, color: config.color + '03' }
+                        ])
+                    } : null,
+                    markLine: zeroLine
+                };
+            }).filter(s => s !== null);
 
-                const dynamicSeries = CHART_CONFIG.map(config => {
-                    if (!activeKeys.has(config.key)) return null;
-                    return {
-                        name: t ? t(config.labelKey) : config.key, 
-                        type: 'line',
-                        smooth: true,
-                        symbol: 'none',
-                        yAxisIndex: config.yAxisIndex,
-                        data: fullData.map(item => item[config.key]),
-                        lineStyle: { color: config.color, width: 2 },
-                        itemStyle: { color: config.color },
-                        areaStyle: config.unit === 'V' ? {
-                            color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: config.color + '4D' }, 
-                                { offset: 1, color: config.color + '03' }
-                            ])
-                        } : null,
-                        markLine: zeroLine
-                    };
-                }).filter(s => s !== null);
+            echartsInstance.current.setOption({
+                xAxis: { data: fullData.map(item => item.time) },
+                yAxis: [{ min: niceMin, max: niceMax }],
+                series: dynamicSeries
+            }, { lazyUpdate: false, replaceMerge: ['series'] });
 
-                echartsInstance.current.setOption({
-                    xAxis: { data: fullData.map(item => item.time) },
-                    yAxis: [{ min: niceMin, max: niceMax }],
-                    series: dynamicSeries
-                }, { lazyUpdate: false, replaceMerge: ['series'] });
+            const nextLen = fullData.length;
+            const applied = lastAppliedZoomRef.current;
+            if (applied.points !== zoomPoints || applied.len !== nextLen) {
+                applyTimeZoom(zoomPoints, nextLen);
+                lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
+            }
+        }, [activeKeys, t, dataRef, zoomPoints, applyTimeZoom]);
 
-                const nextLen = fullData.length;
-                const applied = lastAppliedZoomRef.current;
-                if (applied.points !== zoomPoints || applied.len !== nextLen) {
-                    applyTimeZoom(zoomPoints, nextLen);
-                    lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
-                }
-            };
+        const renderChartFrameRef = useRef(renderChartFrame);
+        useEffect(() => {
+            renderChartFrameRef.current = renderChartFrame;
+        }, [renderChartFrame]);
 
+        useEffect(() => {
             let renderTimer;
             if (!isPaused) {
                 const fpsNum = Number.isFinite(Number(fps)) ? Number(fps) : 60; // Mobile lower FPS default
                 const clampedFps = Math.min(60, Math.max(5, fpsNum));
                 const intervalMs = Math.max(16, Math.round(1000 / clampedFps));
-                renderTimer = setInterval(renderFrame, intervalMs);
+                renderTimer = setInterval(renderChartFrame, intervalMs);
             } else {
-                renderFrame();
+                renderChartFrame();
             }
 
             return () => {
                 if (renderTimer) clearInterval(renderTimer);
             };
 
-        }, [isPaused, activeKeys, fps, t, dataRef, zoomPoints, applyTimeZoom]);
+        }, [isPaused, fps, renderChartFrame]);
 
-        const toggleChannel = (key) => {
-            const newSet = new Set(activeKeys);
-            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
-            setActiveKeys(newSet);
-        };
+        const persistConfig = useCallback((nextExpanded, nextKeys) => {
+            const expanded = !!nextExpanded;
+            const enabled = computeEnabledFlags(nextKeys);
+            try {
+                if (window.localStorage) {
+                    window.localStorage.setItem('embedded_channel_expanded', expanded ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_heading', enabled.heading ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_batL', enabled.batL ? '1' : '0');
+                    window.localStorage.setItem('embedded_channel_enabled_batR', enabled.batR ? '1' : '0');
+                }
+            } catch (_) {}
+
+            if (!onPersistConfig) return;
+            onPersistConfig({ embeddedChannelExpanded: expanded, embeddedChannelEnabled: enabled });
+        }, [computeEnabledFlags, onPersistConfig]);
+
+        const toggleChannel = useCallback((key) => {
+            didApplyPersistedRef.current = true;
+            setActiveKeys((prev) => {
+                const newSet = new Set(prev);
+                if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
+                persistConfig(isChannelExpandedRef.current, newSet);
+                return newSet;
+            });
+        }, [isChannelExpanded, persistConfig]);
+
+        const toggleExpanded = useCallback(() => {
+            didApplyPersistedRef.current = true;
+            setIsChannelExpanded((prev) => {
+                const next = !prev;
+                persistConfig(next, activeKeysRef.current);
+                return next;
+            });
+        }, [persistConfig]);
 
         const handleClear = () => {
             if(dataRef) dataRef.current = [];
@@ -681,7 +823,7 @@
                         <section className="space-y-3 mt-4">
                             <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-shadow">
                                 <button
-                                    onClick={() => setIsChannelExpanded(v => !v)}
+                                    onClick={toggleExpanded}
                                     className="w-full flex justify-between items-center p-4 bg-slate-900/40 active:bg-slate-900/60 transition-colors z-10 relative"
                                     aria-label={t ? t('toggle_channel_config') : 'Toggle channel config'}
                                 >
