@@ -565,6 +565,7 @@ function BoatGroundStation() {
                     }
                     if (parts.length >= 5) setBoatStyle(parts[4].trim());
                     if (parts.length >= 6) setWaypointStyle(parts[5].trim());
+                    if (parts.length >= 11) setUiStyle(String(parts[10] || '').trim() || 'cyber');
                     if (parts.length >= 7) setEmbeddedChannelExpanded(parseBool(parts[6], true));
                     if (parts.length >= 10) {
                         setEmbeddedChannelEnabled({
@@ -599,9 +600,10 @@ function BoatGroundStation() {
                                 const nextAuto = parts.length >= 4 ? parseBool(parts[3], false) : false;
                                 const nextBoatStyle = parts.length >= 5 ? String(parts[4] || '').trim() : 'default';
                                 const nextWpStyle = parts.length >= 6 ? String(parts[5] || '').trim() : 'default';
+                                const nextUiStyle = parts.length >= 11 ? String(parts[10] || '').trim() : 'cyber';
 
                                 ws.send(
-                                    `CMD,SET_CONFIG,${parts[1]},${parts[2]},${nextAuto ? '1' : '0'},${nextBoatStyle || 'default'},${nextWpStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'}`
+                                    `CMD,SET_CONFIG,${parts[1]},${parts[2]},${nextAuto ? '1' : '0'},${nextBoatStyle || 'default'},${nextWpStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
                                 );
                             }
                         } catch (_) {}
@@ -748,6 +750,7 @@ function BoatGroundStation() {
 
     const [boatStyle, setBoatStyle] = useState('default');
     const [waypointStyle, setWaypointStyle] = useState('default');
+    const [uiStyle, setUiStyle] = useState('cyber');
     const [embeddedChannelExpanded, setEmbeddedChannelExpanded] = useState(true);
     const [embeddedChannelEnabled, setEmbeddedChannelEnabled] = useState({ heading: false, batL: false, batR: false });
     const pendingEmbeddedChartConfigRef = useRef(null);
@@ -761,11 +764,12 @@ function BoatGroundStation() {
         const nextAutoReconnect = Object.prototype.hasOwnProperty.call(opts, 'autoReconnect') ? opts.autoReconnect : autoReconnect;
         const nextBoatStyle = Object.prototype.hasOwnProperty.call(opts, 'boatStyle') ? opts.boatStyle : boatStyle;
         const nextWaypointStyle = Object.prototype.hasOwnProperty.call(opts, 'waypointStyle') ? opts.waypointStyle : waypointStyle;
+        const nextUiStyle = Object.prototype.hasOwnProperty.call(opts, 'uiStyle') ? opts.uiStyle : uiStyle;
         const nextExpanded = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelExpanded') ? opts.embeddedChannelExpanded : embeddedChannelExpanded;
         const nextEnabled = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelEnabled') ? opts.embeddedChannelEnabled : embeddedChannelEnabled;
 
         wsRef.current.send(
-            `CMD,SET_CONFIG,${nextIp},${nextPort},${nextAutoReconnect ? '1' : '0'},${nextBoatStyle || 'default'},${nextWaypointStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'}`
+            `CMD,SET_CONFIG,${nextIp},${nextPort},${nextAutoReconnect ? '1' : '0'},${nextBoatStyle || 'default'},${nextWaypointStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
         );
         return true;
     }, [
@@ -775,17 +779,19 @@ function BoatGroundStation() {
         embeddedChannelExpanded,
         serverIp,
         serverPort,
+        uiStyle,
         waypointStyle,
         webConnected
     ]);
 
-    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle) => {
+    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle, newUiStyle) => {
         // 1. 更新本地状态
         setServerIp(newIp);
         setServerPort(newPort);
         setAutoReconnect(!!newAutoReconnect);
         if (newBoatStyle) setBoatStyle(newBoatStyle);
         if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
+        if (newUiStyle) setUiStyle(newUiStyle);
 
         if (newChartFps !== undefined) {
             const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
@@ -799,7 +805,8 @@ function BoatGroundStation() {
             port: newPort,
             autoReconnect: !!newAutoReconnect,
             boatStyle: newBoatStyle || 'default',
-            waypointStyle: newWaypointStyle || 'default'
+            waypointStyle: newWaypointStyle || 'default',
+            uiStyle: newUiStyle || uiStyle || 'cyber'
         })) {
             addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
             if (window.SystemToast && window.SystemToast.show) {
@@ -976,18 +983,21 @@ function BoatGroundStation() {
                 t={t}
             />
 
-            <SettingsModal 
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
-                currentIp={serverIp}
-                currentPort={serverPort}
-                currentChartFps={chartFps}
-                currentAutoReconnect={autoReconnect}
-                currentBoatStyle={boatStyle}
-                currentWaypointStyle={waypointStyle}
-                onSave={handleSaveConfig}
-                t={t}
-            />
+            {showSettings && (
+                <SettingsModal 
+                    isOpen={true}
+                    onClose={() => setShowSettings(false)}
+                    currentIp={serverIp}
+                    currentPort={serverPort}
+                    currentChartFps={chartFps}
+                    currentAutoReconnect={autoReconnect}
+                    currentBoatStyle={boatStyle}
+                    currentWaypointStyle={waypointStyle}
+                    currentUiStyle={uiStyle}
+                    onSave={handleSaveConfig}
+                    t={t}
+                />
+            )}
         </div>
     );
 }

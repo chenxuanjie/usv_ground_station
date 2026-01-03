@@ -27,33 +27,27 @@ const SettingRow = ({ icon: Icon, title, desc, children }) => (
     </div>
 );
 
-function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, currentBoatStyle, currentWaypointStyle, onSave, t }) {
+function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, currentBoatStyle, currentWaypointStyle, currentUiStyle, onSave, t }) {
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
     const [chartFps, setChartFps] = useState(currentChartFps);
     const [autoReconnect, setAutoReconnect] = useState(!!currentAutoReconnect);
     const [boatStyle, setBoatStyle] = useState(currentBoatStyle || 'default');
     const [waypointStyle, setWaypointStyle] = useState(currentWaypointStyle || 'default');
+    const [uiStyle, setUiStyle] = useState(typeof currentUiStyle === 'string' && currentUiStyle ? currentUiStyle : 'cyber');
     
     const [saveStatus, setSaveStatus] = useState('idle');
     const [errorMsg, setErrorMsg] = useState('');
     const [activeTab, setActiveTab] = useState('connection'); // 'connection' | 'system'
     const closeTimerRef = useRef(null);
+    const saveTimerRef = useRef(null);
 
     useEffect(() => {
-        if (isOpen) {
+        return () => {
             if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-            setIp(currentIp);
-            setPort(currentPort);
-            setChartFps(currentChartFps);
-            setAutoReconnect(!!currentAutoReconnect);
-            setBoatStyle(currentBoatStyle || 'default');
-            setWaypointStyle(currentWaypointStyle || 'default');
-            setSaveStatus('idle');
-            setErrorMsg('');
-            setActiveTab('connection');
-        }
-    }, [isOpen]);
+            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        };
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -79,8 +73,9 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
         }
 
         setSaveStatus('saving');
-        setTimeout(() => {
-            onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle);
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+            onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle, uiStyle);
             setSaveStatus('success');
             
             if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -91,6 +86,11 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     };
 
     if (!isOpen) return null;
+
+    const uiStyleOptions = [
+        { value: 'cyber', labelKey: 'style_cyber', fallback: 'CYBER' },
+        { value: 'ios', labelKey: 'style_ios', fallback: 'iOS' }
+    ];
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -190,6 +190,24 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                                     <input type="checkbox" checked={autoReconnect} onChange={e=>setAutoReconnect(e.target.checked)} className="sr-only peer"/>
                                     <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500 shadow-inner"></div>
                                 </label>
+                            </SettingRow>
+
+                            <SettingRow
+                                icon={Icons.Sidebar}
+                                title={t ? t('ui_style') : "UI STYLE"}
+                                desc={t ? t('desc_ui_style') : "Switch UI theme"}
+                            >
+                                <div className="flex bg-slate-900 rounded p-1 border border-slate-800 w-40">
+                                    {uiStyleOptions.map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setUiStyle(opt.value)}
+                                            className={`flex-1 py-1 text-[10px] font-mono rounded transition-colors ${uiStyle === opt.value ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            {t ? t(opt.labelKey) : opt.fallback}
+                                        </button>
+                                    ))}
+                                </div>
                             </SettingRow>
 
                             <SettingRow
