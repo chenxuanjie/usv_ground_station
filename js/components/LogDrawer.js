@@ -1,14 +1,17 @@
-function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData, t }) {
+function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData, t, topOffsetPx = 56, fullWidth = false }) {
     const { useState, useRef } = React;
     const [inputCmd, setInputCmd] = useState('');
     const logEndRef = useRef(null);
 
     return (
         <div 
-            className={`fixed right-0 top-14 bottom-0 w-80 bg-slate-950/95 flex flex-col text-xs border-l border-cyan-900/50 backdrop-blur-md shadow-2xl transition-transform duration-300 ease-in-out z-30 ${show ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`fixed right-0 bottom-0 ${fullWidth ? 'w-full' : 'w-80'} bg-slate-950/95 flex flex-col text-xs border-l border-cyan-900/50 backdrop-blur-md shadow-2xl transition-transform duration-300 ease-in-out z-30 ${show ? 'translate-x-0' : 'translate-x-full'}`}
+            style={{ top: `${Number.isFinite(Number(topOffsetPx)) ? Number(topOffsetPx) : 56}px` }}
         >
-            <div className="p-3 border-b border-cyan-900/30 flex justify-between items-center bg-slate-900/50">
-                <span className="font-bold text-cyan-500 tracking-wider flex items-center gap-2"><Icons.Activity size={14}/> {t('system_logs')}</span>
+            <div className="h-16 px-4 border-b border-cyan-500/20 flex justify-between items-center bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent">
+                <span className="font-mono font-bold text-cyan-100 tracking-wider flex items-center gap-2 text-sm">
+                    <Icons.Activity className="w-5 h-5 text-cyan-400"/> {t('system_logs')}
+                </span>
                 <div className="flex gap-3 items-center">
                     {/* 开发者模式开关 */}
                     <label className="flex items-center gap-1.5 cursor-pointer group">
@@ -21,8 +24,8 @@ function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData
                     
                     <div className="w-[1px] h-3 bg-slate-700"></div>
                     
-                    <button onClick={()=>setLogs([])} className="text-slate-500 hover:text-white transition-colors" title="Clear Logs"><Icons.RefreshCw size={12}/></button>
-                    <button onClick={()=>setShow(false)} className="text-slate-500 hover:text-white transition-colors" title="Close"><Icons.X size={14}/></button>
+                    <button onClick={()=>setLogs([])} className="text-slate-500 hover:text-white transition-colors" title={t('clear_logs')}><Icons.RefreshCw size={12}/></button>
+                    <button onClick={()=>setShow(false)} className="text-slate-500 hover:text-white transition-colors" title={t('close')}><Icons.X size={14}/></button>
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3 font-mono space-y-2">
@@ -43,7 +46,7 @@ function LogDrawer({ show, setShow, logs, setLogs, devMode, setDevMode, sendData
                     </div>
                 ))}
                 {/* 空状态提示 */}
-                {logs.length === 0 && <div className="text-center text-slate-600 mt-10 italic">System Ready</div>}
+                {logs.length === 0 && <div className="text-center text-slate-600 mt-10 italic">{t('system_ready')}</div>}
                 <div ref={logEndRef}></div>
             </div>
             <div className="p-3 border-t border-cyan-900/30 bg-slate-900/90">

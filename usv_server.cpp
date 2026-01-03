@@ -35,51 +35,17 @@
 struct AppConfig {
     string boat_ip = "120.77.0.8";
     int boat_port = 6202;
-    int local_web_port = 8080; // Web服务端口
+    int local_web_port = 8888; // Web服务端口
     bool auto_reconnect = false;
+    string boat_style = "default";
+    string waypoint_style = "default";
 };
  
  AppConfig g_config;
  const string CONFIG_FILE = "config.ini";
- 
-void load_config() {
-    ifstream file(CONFIG_FILE);
-    if (file.is_open()) {
-        string line;
-        while (getline(file, line)) {
-             if (line.empty() || line[0] == '#') continue;
-             auto delimiterPos = line.find("=");
-             if (delimiterPos != string::npos) {
-                 string key = line.substr(0, delimiterPos);
-                 string value = line.substr(delimiterPos + 1);
-                 // 简单的去空格处理
-                 key.erase(0, key.find_first_not_of(" \t"));
-                 key.erase(key.find_last_not_of(" \t") + 1);
-                 value.erase(0, value.find_first_not_of(" \t"));
-                 value.erase(value.find_last_not_of(" \t") + 1);
- 
-                if (key == "boat_ip") g_config.boat_ip = value;
-                else if (key == "boat_port") g_config.boat_port = stoi(value);
-                else if (key == "local_web_port") g_config.local_web_port = stoi(value);
-                else if (key == "auto_reconnect") {
-                    string v = value;
-                    transform(v.begin(), v.end(), v.begin(), ::tolower);
-                    g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
-                }
-            }
-        }
-        cout << "[Config] Loaded from " << CONFIG_FILE << endl;
-    } else {
-        ofstream outfile(CONFIG_FILE);
-        outfile << "boat_ip=" << g_config.boat_ip << endl;
-        outfile << "boat_port=" << g_config.boat_port << endl;
-        outfile << "local_web_port=" << g_config.local_web_port << endl;
-        outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
-        cout << "[Config] Default config created: " << CONFIG_FILE << endl;
-    }
-}
- 
-// [新增] 保存配置到文件
+ const string DEFAULT_CONFIG_FILE = "config_default.ini";
+
+ // [新增] 保存配置到文件 (前置声明或提前定义)
 void save_config() {
    ofstream outfile(CONFIG_FILE);
    if (outfile.is_open()) {
@@ -87,10 +53,65 @@ void save_config() {
        outfile << "boat_port=" << g_config.boat_port << endl;
        outfile << "local_web_port=" << g_config.local_web_port << endl;
        outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
-       cout << "[Config] Saved to " << CONFIG_FILE << endl;
+       outfile << "boat_style=" << g_config.boat_style << endl;
+       outfile << "waypoint_style=" << g_config.waypoint_style << endl;
+       cout << "[Config] Saved to " << CONFIG_FILE << " (Styles: " << g_config.boat_style << ", " << g_config.waypoint_style << ")" << endl;
    } else {
        cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
    }
+}
+
+void parse_config_stream(ifstream& file) {
+    string line;
+    while (getline(file, line)) {
+         if (line.empty() || line[0] == '#') continue;
+         auto delimiterPos = line.find("=");
+         if (delimiterPos != string::npos) {
+             string key = line.substr(0, delimiterPos);
+             string value = line.substr(delimiterPos + 1);
+             // 简单的去空格处理
+             if (!key.empty()) {
+                key.erase(0, key.find_first_not_of(" \t\r\n"));
+                if (!key.empty()) key.erase(key.find_last_not_of(" \t\r\n") + 1);
+             }
+             if (!value.empty()) {
+                value.erase(0, value.find_first_not_of(" \t\r\n"));
+                if (!value.empty()) value.erase(value.find_last_not_of(" \t\r\n") + 1);
+             }
+ 
+            if (key == "boat_ip") g_config.boat_ip = value;
+            else if (key == "boat_port") g_config.boat_port = stoi(value);
+            else if (key == "local_web_port") g_config.local_web_port = stoi(value);
+            else if (key == "auto_reconnect") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
+            else if (key == "boat_style") g_config.boat_style = value;
+            else if (key == "waypoint_style") g_config.waypoint_style = value;
+        }
+    }
+}
+ 
+void load_config() {
+    ifstream file(CONFIG_FILE);
+    if (file.is_open()) {
+        parse_config_stream(file);
+        cout << "[Config] Loaded from " << CONFIG_FILE << endl;
+    } else {
+        // [新增] 尝试加载 config_default.ini
+        ifstream default_file(DEFAULT_CONFIG_FILE);
+        if (default_file.is_open()) {
+            parse_config_stream(default_file);
+            cout << "[Config] config.ini not found. Loaded defaults from " << DEFAULT_CONFIG_FILE << endl;
+            // 从默认配置加载后，立即保存一份 config.ini
+            save_config();
+        } else {
+            // 都没有，则使用硬编码默认值并保存
+            save_config();
+            cout << "[Config] No config found. Created default " << CONFIG_FILE << endl;
+        }
+    }
 }
 
  // === 全局状态 ===
@@ -309,8 +330,8 @@ void boat_listener_loop() {
                     
                     // [新增] 处理获取配置请求 (前端初始化时调用)
                     if (decoded == "GET_CONFIG") {
-                        // 格式: CURRENT_CONFIG,IP,PORT
-                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," + (g_config.auto_reconnect ? "1" : "0");
+                        // 格式: CURRENT_CONFIG,IP,PORT,AUTO_RECONNECT,BOAT_STYLE,WAYPOINT_STYLE
+                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," + (g_config.auto_reconnect ? "1" : "0") + "," + g_config.boat_style + "," + g_config.waypoint_style;
                         send_ws_frame(msg);
                         cout << "[Config] Sent current config to client." << endl;
                     }
@@ -331,6 +352,9 @@ void boat_listener_loop() {
                                 transform(v.begin(), v.end(), v.begin(), ::tolower);
                                 g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
                             }
+                            if (parts.size() >= 6) g_config.boat_style = parts[5];
+                            if (parts.size() >= 7) g_config.waypoint_style = parts[6];
+
                             save_config();
                             cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
                         }

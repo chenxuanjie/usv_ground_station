@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
 const { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs }) {
+function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default' }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -11,8 +11,15 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
     const contextMenuRef = useRef(null);
+    const suppressAddUntilRef = useRef(0);
+    const tRef = useRef(t);
     
-    const [mapMode, setMapMode] = useState('pan');
+    const [internalMapMode, setInternalMapMode] = useState('pan');
+    const mapMode = controlledMapMode || internalMapMode;
+
+    useEffect(() => {
+        tRef.current = t;
+    }, [t]);
 
     // --- 坐标转换算法集 ---
     const PI = 3.1415926535897932384626;
@@ -36,12 +43,48 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         const map = new BMap.Map(containerRef.current, {enableMapClick: false});
         const initPoint = new BMap.Point(113.3957, 23.0344);
-        map.centerAndZoom(initPoint, 18);
+        const isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+        map.centerAndZoom(initPoint, isMobile ? 19 : 18);
         map.enableScrollWheelZoom();
         map.disableDoubleClickZoom(); 
         map.setMapStyleV2({ styleId: '55610b642646c054e0c441c2d334863c' });
         map.addControl(new BMap.ScaleControl({ anchor: window.BMAP_ANCHOR_BOTTOM_LEFT, offset: new BMap.Size(80, 25) }));
         
+        // --- Custom SVG Icons Definitions ---
+        const cyberBoatSVG = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" width="40" height="80">
+            <defs>
+                <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.5" />
+                    <stop offset="100%" stop-color="#22d3ee" stop-opacity="0" />
+                </linearGradient>
+                <filter id="triangleGlow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="rgba(6,182,212,0.8)" />
+                </filter>
+            </defs>
+            <rect x="19.5" y="0" width="1" height="55" fill="url(#beam)" />
+            <path d="M20 35 L30 65 L10 65 Z" fill="#06b6d4" filter="url(#triangleGlow)" />
+            <circle cx="20" cy="67" r="2" fill="#ffffff">
+                <animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="r" values="1.6;2.2;1.6" dur="1.2s" repeatCount="indefinite" />
+            </circle>
+        </svg>
+        `;
+
+        const cyberWaypointSVG = (index) => {
+            const tCur = tRef.current;
+            const prefix = tCur ? tCur('waypoint_prefix') : 'WP';
+            return `
+        <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+             <div style="width: 16px; height: 16px; border: 2px solid #ef4444; transform: rotate(45deg); background-color: rgba(239,68,68,0.2); box-shadow: 0 0 10px rgba(239,68,68,0.5);"></div>
+             <span style="font-size: 10px; color: #f87171; font-family: monospace; margin-top: 4px; background-color: rgba(0,0,0,0.5); padding: 0 4px; border-radius: 2px;">${prefix}_${index + 1}</span>
+        </div>
+        `;
+        };
+
+        // Store these for later use
+        map.customIcons = { cyberBoatSVG, cyberWaypointSVG };
+
         const boatIcon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
         const marker = new BMap.Marker(initPoint, { icon: boatIcon });
         map.addOverlay(marker);
@@ -83,14 +126,120 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     // --- 3. 监听地图点击添加航点 ---
     useEffect(() => {
         if (!mapRef.current) return;
-        const handleMapClick = (e) => {
+
+        let lastAddTimestamp = 0;
+
+        const handleAddPoint = (point, options = {}) => {
+            if (!options.force && Date.now() < suppressAddUntilRef.current) return;
+            
+            const now = Date.now();
+            if (now - lastAddTimestamp < 300) return; // Debounce 300ms
+            lastAddTimestamp = now;
+
             if (mapMode === 'add') {
-                const [wgsLng, wgsLat] = bd09towgs84(e.point.lng, e.point.lat);
+                const [wgsLng, wgsLat] = bd09towgs84(point.lng, point.lat);
                 if (setWaypoints) setWaypoints(prev => [...prev, {lng: wgsLng, lat: wgsLat}]);
             }
         };
+
+        const handleMapClick = (e) => handleAddPoint(e.point);
+
         mapRef.current.addEventListener("click", handleMapClick);
-        return () => { if (mapRef.current) mapRef.current.removeEventListener("click", handleMapClick); };
+        
+        const el = containerRef.current;
+        const tapMoveTolerancePx = 10;
+        const tapMaxDurationMs = 600;
+        const suppressAfterAddMs = 500;
+        const touchState = {
+            tracking: false,
+            moved: false,
+            startX: 0,
+            startY: 0,
+            startAt: 0
+        };
+
+        const getPixel = (touch) => {
+            const rect = el.getBoundingClientRect();
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        };
+
+        const onTouchStart = (ev) => {
+            if (mapMode !== 'add') return;
+            if (!el || !mapRef.current) return;
+            if (Date.now() < suppressAddUntilRef.current) return;
+            if (!ev.touches || ev.touches.length !== 1) {
+                touchState.tracking = false;
+                return;
+            }
+            const t0 = ev.touches[0];
+            const { x, y } = getPixel(t0);
+            touchState.tracking = true;
+            touchState.moved = false;
+            touchState.startX = x;
+            touchState.startY = y;
+            touchState.startAt = Date.now();
+        };
+
+        const onTouchMove = (ev) => {
+            if (!touchState.tracking) return;
+            if (!ev.touches || ev.touches.length !== 1) {
+                touchState.tracking = false;
+                return;
+            }
+            const t0 = ev.touches[0];
+            const { x, y } = getPixel(t0);
+            const dx = x - touchState.startX;
+            const dy = y - touchState.startY;
+            if ((dx * dx + dy * dy) > (tapMoveTolerancePx * tapMoveTolerancePx)) {
+                touchState.moved = true;
+            }
+        };
+
+        const onTouchEnd = (ev) => {
+            if (!touchState.tracking) return;
+            touchState.tracking = false;
+            if (touchState.moved) return;
+            if (Date.now() - touchState.startAt > tapMaxDurationMs) return;
+            if (!ev.changedTouches || ev.changedTouches.length < 1) return;
+            if (!mapRef.current) return;
+            if (Date.now() < suppressAddUntilRef.current) return;
+            if (mapMode !== 'add') return;
+
+            const t0 = ev.changedTouches[0];
+            const { x, y } = getPixel(t0);
+            const pixel = new BMap.Pixel(x, y);
+            const point = mapRef.current.pixelToPoint(pixel);
+            if (point) {
+                suppressAddUntilRef.current = Date.now() + suppressAfterAddMs;
+                handleAddPoint(point, { force: true });
+            }
+        };
+
+        const onTouchCancel = () => {
+            touchState.tracking = false;
+        };
+
+        if (el) {
+            el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+            el.addEventListener('touchmove', onTouchMove, { passive: true, capture: true });
+            el.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+            el.addEventListener('touchcancel', onTouchCancel, { passive: true, capture: true });
+        }
+
+        return () => { 
+            if (mapRef.current) {
+                mapRef.current.removeEventListener("click", handleMapClick);
+            }
+            if (el) {
+                el.removeEventListener('touchstart', onTouchStart, true);
+                el.removeEventListener('touchmove', onTouchMove, true);
+                el.removeEventListener('touchend', onTouchEnd, true);
+                el.removeEventListener('touchcancel', onTouchCancel, true);
+            }
+        };
     }, [mapMode, setWaypoints]);
 
     // --- 4. 绘制航点和虚线 ---
@@ -108,27 +257,44 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathPoints.push(pt);
             
             const marker = new BMap.Marker(pt, {
-                icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 }) 
+                icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, { scale: 0, fillOpacity: 0 })
             });
-            marker.enableDragging();
 
-            const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-12, -12) });
-            label.setStyle({
-                color: "#fff",
-                backgroundColor: "#ef4444",
-                border: "2px solid #fff",
-                borderRadius: "50%",
-                width: "24px",
-                height: "24px",
-                lineHeight: "20px",
-                textAlign: "center",
-                fontSize: "12px",
-                fontWeight: "bold",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                cursor: "pointer",
-                fontFamily: "Arial, sans-serif"
+            if (waypointStyle === 'cyber' && mapRef.current && mapRef.current.customIcons && typeof mapRef.current.customIcons.cyberWaypointSVG === 'function') {
+                const content = mapRef.current.customIcons.cyberWaypointSVG(index);
+                const label = new BMap.Label(content, { offset: new BMap.Size(-20, -20) });
+                label.setStyle({
+                    border: "none",
+                    backgroundColor: "transparent"
+                });
+                marker.setLabel(label);
+            } else {
+                const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-12, -12) });
+                label.setStyle({
+                    color: "#fff",
+                    backgroundColor: "#ef4444",
+                    border: "2px solid #fff",
+                    borderRadius: "50%",
+                    width: "24px",
+                    height: "24px",
+                    lineHeight: "20px",
+                    textAlign: "center",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                    cursor: "pointer",
+                    fontFamily: "Arial, sans-serif"
+                });
+                marker.setLabel(label);
+            }
+
+            marker.enableDragging();
+            marker.addEventListener("dragstart", function() {
+                suppressAddUntilRef.current = Date.now() + 800;
             });
-            marker.setLabel(label);
+            marker.addEventListener("click", function() {
+                suppressAddUntilRef.current = Date.now() + 500;
+            });
 
             marker.addEventListener("dragging", function(e) {
                 const currentPt = e.point; 
@@ -143,6 +309,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             });
 
             marker.addEventListener("dragend", function(e) {
+                suppressAddUntilRef.current = Date.now() + 800;
                 const newPt = e.point;
                 const [newWgsLng, newWgsLat] = bd09towgs84(newPt.lng, newPt.lat);
                 if (setWaypoints) {
@@ -181,27 +348,48 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathRef.current.setPath([]);
         }
 
-    }, [waypoints, cruiseMode, t]);
+    }, [waypoints, cruiseMode, t, waypointStyle]);
 
     // --- 5. 实时更新 ---
     useEffect(() => {
-        if (!mapRef.current || !lng || !lat) return;
-        const [bdLng, bdLat] = wgs84tobd09(lng, lat);
-        const pt = new BMap.Point(bdLng, bdLat);
-        markerRef.current.setPosition(pt);
-        const icon = markerRef.current.getIcon();
-        // icon.setRotation(heading || 0);
-        icon.setRotation(heading ? -heading : 0);
-        markerRef.current.setIcon(icon);
+        if (!mapRef.current || !markerRef.current) return;
 
-        if (pathRef.current.length === 0 && lng !== 0) mapRef.current.panTo(pt);
+        const hasGps = Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0);
 
-        const lastPt = pathRef.current[pathRef.current.length - 1];
-        if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
-            pathRef.current.push(pt);
-            boatTrackRef.current.setPath(pathRef.current);
+        let pt = null;
+        let bdLng = null;
+        let bdLat = null;
+        if (hasGps) {
+            [bdLng, bdLat] = wgs84tobd09(lng, lat);
+            pt = new BMap.Point(bdLng, bdLat);
+            markerRef.current.setPosition(pt);
         }
-    }, [lng, lat, heading]);
+
+        let icon;
+        if (boatStyle === 'cyber') {
+            const svgString = mapRef.current.customIcons.cyberBoatSVG;
+            const encodedSVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
+            icon = new BMap.Icon(encodedSVG, new BMap.Size(26, 52));
+            icon.setAnchor(new BMap.Size(13, 42));
+        } else {
+            icon = new BMap.Symbol(window.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW, { scale: 1.5, strokeWeight: 1, fillColor: "#06b6d4", fillOpacity: 0.9, strokeColor: "#fff" });
+        }
+
+        markerRef.current.setIcon(icon);
+        if (typeof markerRef.current.setRotation === 'function') {
+            markerRef.current.setRotation(heading ? -heading : 0);
+        }
+
+        if (hasGps && pt) {
+            if (pathRef.current.length === 0) mapRef.current.panTo(pt);
+
+            const lastPt = pathRef.current[pathRef.current.length - 1];
+            if (!lastPt || (Math.abs(lastPt.lng - bdLng) > 0.00001 || Math.abs(lastPt.lat - bdLat) > 0.00001)) {
+                pathRef.current.push(pt);
+                if (boatTrackRef.current) boatTrackRef.current.setPath(pathRef.current);
+            }
+        }
+    }, [lng, lat, heading, boatStyle]);
 
     const handleLocateBoat = () => {
         if(mapRef.current && lng && lat) {
@@ -209,6 +397,11 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             mapRef.current.panTo(new BMap.Point(bdLng, bdLat));
         }
     };
+
+    useEffect(() => {
+        if (!locateNonce) return;
+        handleLocateBoat();
+    }, [locateNonce]);
 
     const MapIcons = {
         Hand: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>,
@@ -223,11 +416,12 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
             
             {/* 上方工具栏 (移除了定位按钮) */}
+            {!hideToolbar && (
             <div 
                 className={`absolute top-4 z-20 flex bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg overflow-hidden shadow-lg transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}
             >
                 <button 
-                    onClick={() => setMapMode('pan')}
+                    onClick={() => setInternalMapMode('pan')}
                     className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'pan' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                     title={t ? t('map_browse') : "Browse"}
                 >
@@ -235,13 +429,14 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                 </button>
                 <div className="w-[1px] bg-slate-700"></div>
                 <button 
-                    onClick={() => setMapMode('add')}
+                    onClick={() => setInternalMapMode('add')}
                     className={`p-2 flex items-center gap-2 text-xs font-bold transition-colors ${mapMode === 'add' ? 'bg-yellow-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                     title={t ? t('map_add_mode') : "Add WP"}
                 >
                     <MapIcons.Pin /> {t ? t('map_add_mode') : "Add WP"}
                 </button>
             </div>
+            )}
 
             {/* 下方悬浮定位按钮 (新增) */}
             <div className={`absolute bottom-8 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
