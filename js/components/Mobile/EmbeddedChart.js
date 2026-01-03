@@ -262,17 +262,18 @@
         };
 
         return (
-            <div className="w-full h-full bg-[#F2F2F7] text-gray-900 overflow-y-auto">
+            <div className="w-full h-full bg-slate-950 text-slate-200 overflow-y-auto">
                 <style>{`
                     .embedded-canvas-container {
                         position: relative;
                         height: 280px;
                         width: 100%;
-                        background-color: #ffffff;
+                        background-color: rgba(15, 23, 42, 0.55);
                         border-radius: 16px;
                         overflow: hidden;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
                         transition: all 0.3s ease-in-out;
+                        border: 1px solid rgba(51, 65, 85, 0.7);
                     }
                     .embedded-canvas-container.fullscreen-active {
                         position: fixed;
@@ -282,7 +283,8 @@
                         border-radius: 0;
                         margin: 0;
                         box-shadow: none;
-                        background-color: #ffffff;
+                        border: 0;
+                        background-color: #020617;
                     }
                     @media (orientation: portrait) {
                         .embedded-canvas-container.fullscreen-active {
@@ -311,8 +313,8 @@
                         height: 28px;
                         width: 28px;
                         border-radius: 50%;
-                        background: #ffffff;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                        background: #f8fafc;
+                        box-shadow: 0 6px 18px rgba(0,0,0,0.45);
                         margin-top: -12px;
                         cursor: pointer;
                     }
@@ -320,7 +322,7 @@
                         width: 100%;
                         height: 4px;
                         cursor: pointer;
-                        background: #E5E5EA;
+                        background: #1e293b;
                         border-radius: 2px;
                     }
                 `}</style>
@@ -330,22 +332,22 @@
                         <div
                             className="absolute inset-0 pointer-events-none opacity-20"
                             style={{
-                                backgroundImage: 'linear-gradient(#007AFF 1px, transparent 1px), linear-gradient(90deg, #007AFF 1px, transparent 1px)',
+                                backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
                                 backgroundSize: '20px 20px'
                             }}
                         ></div>
 
                         <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
 
-                        <div className="absolute top-3 right-12 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-gray-100 z-10 pointer-events-none">
-                            <span className="text-xs text-gray-400 mr-1">Hdg:</span>
-                            <span className="font-mono text-blue-600 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
-                            <span className="text-xs text-gray-400">°</span>
+                        <div className="absolute top-3 right-12 bg-slate-900/80 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-slate-700 z-10 pointer-events-none">
+                            <span className="text-xs text-slate-400 mr-1">Hdg:</span>
+                            <span className="font-mono text-cyan-300 font-bold">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                            <span className="text-xs text-slate-400">°</span>
                         </div>
 
                         <button
                             onClick={() => setIsFullscreen(v => !v)}
-                            className="absolute top-2 right-2 p-2 bg-black/5 hover:bg-black/10 rounded-full text-gray-500 transition-colors z-20 backdrop-blur-sm"
+                            className="absolute top-2 right-2 p-2 bg-slate-950/50 hover:bg-slate-900/70 rounded-full text-slate-200 transition-colors z-20 backdrop-blur-sm border border-slate-700"
                             aria-label="Toggle fullscreen"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -359,40 +361,40 @@
                     </section>
 
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">左电池</div>
+                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">左电池</div>
                             <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-gray-800">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : '-'}</div>
-                                <span className="text-[10px] text-gray-400 mb-0.5">V</span>
+                                <div className="font-mono font-medium text-lg leading-none text-slate-100">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : '-'}</div>
+                                <span className="text-[10px] text-slate-400 mb-0.5">V</span>
                             </div>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">右电池</div>
+                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">右电池</div>
                             <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-gray-800">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : '-'}</div>
-                                <span className="text-[10px] text-gray-400 mb-0.5">V</span>
+                                <div className="font-mono font-medium text-lg leading-none text-slate-100">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : '-'}</div>
+                                <span className="text-[10px] text-slate-400 mb-0.5">V</span>
                             </div>
                         </div>
-                        <div className="bg-white p-3 rounded-2xl shadow-sm text-center">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">航向角</div>
+                        <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl shadow-sm text-center">
+                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">航向角</div>
                             <div className="flex items-end justify-center gap-0.5">
-                                <div className="font-mono font-medium text-lg leading-none text-blue-600">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : '-'}</div>
-                                <span className="text-[10px] text-gray-400 mb-0.5">°</span>
+                                <div className="font-mono font-medium text-lg leading-none text-cyan-300">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : '-'}</div>
+                                <span className="text-[10px] text-slate-400 mb-0.5">°</span>
                             </div>
                         </div>
                     </div>
 
-                    <section className="bg-white rounded-2xl shadow-sm overflow-hidden embedded-controls">
+                    <section className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden embedded-controls">
                         <div className="p-5 space-y-6">
                             <div>
                                 <div className="flex justify-between mb-2 items-center">
-                                    <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                                         </svg>
                                         {t ? t('chart_time_zoom') : '时间轴缩放'}
                                     </label>
-                                    <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-500">{(300 / zoomPoints).toFixed(1)}x</span>
+                                    <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300 border border-slate-700">{(300 / zoomPoints).toFixed(1)}x</span>
                                 </div>
                                 <input
                                     type="range"
@@ -409,7 +411,7 @@
                                     }}
                                     className="w-full"
                                 />
-                                <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+                                <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
                                     <span>缩小 (更多数据)</span>
                                     <span>放大 (细节)</span>
                                 </div>
@@ -418,13 +420,13 @@
                             <div className="grid grid-cols-2 gap-4 pt-2">
                                 <button
                                     onClick={() => setIsPaused(v => !v)}
-                                    className="w-full bg-gray-100 active:bg-gray-200 text-blue-600 font-semibold py-3 rounded-xl transition-colors"
+                                    className="w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-700 text-cyan-300 font-semibold py-3 rounded-xl transition-colors border border-slate-700"
                                 >
                                     {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
                                 </button>
                                 <button
                                     onClick={handleClear}
-                                    className="w-full bg-red-50 active:bg-red-100 text-red-500 font-semibold py-3 rounded-xl transition-colors"
+                                    className="w-full bg-red-900/20 hover:bg-red-900/30 active:bg-red-900/40 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
                                 >
                                     {t ? t('chart_clear') : '清空数据'}
                                 </button>
