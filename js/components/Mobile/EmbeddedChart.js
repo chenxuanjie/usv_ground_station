@@ -662,11 +662,8 @@
 
                 <header className="flex-none bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent border-b border-cyan-500/20 z-40" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
                     <div className="w-full max-w-md mx-auto px-4 h-16 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-                            <h1 className="text-sm font-mono font-bold text-cyan-100 tracking-wider">{t ? t('robot_monitor') : 'ROBOT MONITOR'}</h1>
-                        </div>
-                        <div className="flex items-center gap-2">
+                        <h1 className="text-sm font-mono font-bold text-cyan-100 tracking-wider">{t ? t('robot_monitor') : 'ROBOT MONITOR'}</h1>
+                        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${isConnected ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/20'}`}>
                             <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]' : 'bg-slate-500 shadow-none'}`}></span>
                             <span className={`text-[10px] font-mono font-bold uppercase tracking-wide ${isConnected ? 'text-emerald-400' : 'text-slate-500'}`}>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
                         </div>
