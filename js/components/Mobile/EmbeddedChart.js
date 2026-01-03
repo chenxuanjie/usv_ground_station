@@ -40,6 +40,9 @@
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
         const [activeKeys, setActiveKeys] = useState(new Set(CHART_CONFIG.map(c => c.key)));
         const lastHudUpdateRef = useRef(0);
+        const [axisTicks, setAxisTicks] = useState({ y: [], x: [] });
+        const axisTicksKeyRef = useRef('');
+        const zoomWindowRef = useRef({ start: 0, end: 100 });
 
         const isConnected = tcpStatus === 'ONLINE';
 
@@ -78,6 +81,7 @@
                 start,
                 end: 100
             });
+            zoomWindowRef.current = { start, end: 100 };
         }, []);
 
         const syncEchartsSize = useCallback(() => {
@@ -128,18 +132,21 @@
                 dataZoom: [
                     { type: 'inside', xAxisIndex: [0], start: 0, end: 100 }
                 ],
-                grid: { left: 44, right: 16, bottom: 26, top: 18, containLabel: true },
+                grid: { left: 0, right: 0, bottom: 0, top: 0, containLabel: false },
                 yAxis: [{
                     type: 'value',
                     position: 'left',
                     splitLine: { lineStyle: { color: '#1e293b' } },
-                    axisLabel: { color: '#64748b', fontSize: 9 }
+                    axisLabel: { show: false },
+                    axisTick: { show: false },
+                    axisLine: { lineStyle: { color: '#334155' } }
                 }],
                 xAxis: {
                     type: 'category',
                     boundaryGap: false,
                     axisLine: { lineStyle: { color: '#334155' } },
-                    axisLabel: { color: '#64748b', fontSize: 9 },
+                    axisLabel: { show: false },
+                    axisTick: { show: false },
                     data: []
                 },
                 series: []
@@ -163,6 +170,13 @@
             });
 
             echartsInstance.current.on('dataZoom', () => {
+                if (echartsInstance.current) {
+                    const opt = echartsInstance.current.getOption && echartsInstance.current.getOption();
+                    const dz = opt && opt.dataZoom && opt.dataZoom[0] ? opt.dataZoom[0] : null;
+                    const start = dz && Number.isFinite(Number(dz.start)) ? Number(dz.start) : 0;
+                    const end = dz && Number.isFinite(Number(dz.end)) ? Number(dz.end) : 100;
+                    zoomWindowRef.current = { start, end };
+                }
                 if (isZoomModeRef.current && !zoomLockRef.current) {
                     exitZoomMode();
                 }
@@ -286,6 +300,81 @@
                     lastHudUpdateRef.current = now;
                 }
 
+                const activeSeriesKeys = [];
+                for (let i = 0; i < CHART_CONFIG.length; i++) {
+                    const key = CHART_CONFIG[i].key;
+                    if (activeKeys.has(key)) activeSeriesKeys.push(key);
+                }
+
+                let yMin = Infinity;
+                let yMax = -Infinity;
+                for (let i = 0; i < fullData.length; i++) {
+                    const row = fullData[i];
+                    for (let k = 0; k < activeSeriesKeys.length; k++) {
+                        const v = Number(row[activeSeriesKeys[k]]);
+                        if (!Number.isFinite(v)) continue;
+                        if (v < yMin) yMin = v;
+                        if (v > yMax) yMax = v;
+                    }
+                }
+                if (yMin === Infinity || yMax === -Infinity) return;
+
+                const centerZero = yMin < 0 && yMax > 0;
+                const span = Math.max(1e-6, yMax - yMin);
+                const pad = span * 0.08;
+
+                let nextMin = yMin - pad;
+                let nextMax = yMax + pad;
+                if (centerZero) {
+                    const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
+                    const lim = absMax + Math.max(absMax * 0.08, 1e-6);
+                    nextMin = -lim;
+                    nextMax = lim;
+                }
+
+                const rangeForStep = nextMax - nextMin;
+                const step = rangeForStep <= 5 ? 0.1 : (rangeForStep <= 50 ? 1 : 5);
+                const niceMin = Math.floor(nextMin / step) * step;
+                const niceMax = Math.ceil(nextMax / step) * step;
+
+                const yTickCount = 5;
+                const ySpan = Math.max(1e-9, niceMax - niceMin);
+                const yDecimals = ySpan <= 5 ? 1 : 0;
+                const nextYTicks = [];
+                for (let i = 0; i < yTickCount; i++) {
+                    const v = niceMax - (ySpan * i) / (yTickCount - 1);
+                    nextYTicks.push(Number(v).toFixed(yDecimals));
+                }
+
+                const len = fullData.length;
+                const dz = zoomWindowRef.current || { start: 0, end: 100 };
+                const a = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.start) || 0) / 100) * (len - 1))));
+                const b = Math.max(0, Math.min(len - 1, Math.floor(((Number(dz.end) || 100) / 100) * (len - 1))));
+                const left = Math.min(a, b);
+                const right = Math.max(a, b);
+
+                const xTickCount = 4;
+                const nextXTicks = [];
+                for (let i = 0; i < xTickCount; i++) {
+                    const idx = Math.round(left + ((right - left) * i) / (xTickCount - 1));
+                    const tRaw = fullData[idx] && fullData[idx].time ? String(fullData[idx].time) : '';
+                    nextXTicks.push(tRaw ? tRaw.split(' ').pop() : '');
+                }
+
+                const nextAxisKey = nextYTicks.join('|') + '~~' + nextXTicks.join('|');
+                if (nextAxisKey !== axisTicksKeyRef.current) {
+                    axisTicksKeyRef.current = nextAxisKey;
+                    setAxisTicks({ y: nextYTicks, x: nextXTicks });
+                }
+
+                const zeroLine = centerZero ? {
+                    silent: true,
+                    symbol: 'none',
+                    label: { show: false },
+                    lineStyle: { color: '#475569', type: 'dashed', width: 1 },
+                    data: [{ yAxis: 0 }]
+                } : null;
+
                 const dynamicSeries = CHART_CONFIG.map(config => {
                     if (!activeKeys.has(config.key)) return null;
                     return {
@@ -302,19 +391,14 @@
                                 { offset: 0, color: config.color + '4D' }, 
                                 { offset: 1, color: config.color + '03' }
                             ])
-                        } : null
+                        } : null,
+                        markLine: zeroLine
                     };
                 }).filter(s => s !== null);
 
                 echartsInstance.current.setOption({
-                    xAxis: {
-                        data: fullData.map(item => item.time),
-                        axisLabel: { hideOverlap: true, formatter: (v) => v.split(' ').pop() }
-                    },
-                    yAxis: [{
-                        min: (v) => Math.floor(v.min), 
-                        max: (v) => Math.ceil(v.max)
-                    }],
+                    xAxis: { data: fullData.map(item => item.time) },
+                    yAxis: [{ min: niceMin, max: niceMax }],
                     series: dynamicSeries
                 }, { lazyUpdate: false, replaceMerge: ['series'] });
 
@@ -441,9 +525,21 @@
 
                     <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
 
+                    <div className="absolute left-0 top-0 bottom-6 w-12 pr-2 py-1 flex flex-col justify-between text-[10px] text-slate-500 font-mono pointer-events-none bg-gradient-to-r from-slate-950/80 to-transparent">
+                        {axisTicks.y.map((v, idx) => (
+                            <div key={idx} className="leading-none text-right">{v}</div>
+                        ))}
+                    </div>
+
+                    <div className="absolute left-12 right-0 bottom-0 h-6 pl-1 pr-2 pb-1 flex items-end justify-between text-[10px] text-slate-500 font-mono pointer-events-none bg-gradient-to-t from-slate-950/80 to-transparent">
+                        {axisTicks.x.map((v, idx) => (
+                            <div key={idx} className="leading-none">{v}</div>
+                        ))}
+                    </div>
+
                     <button
                         onClick={() => setIsFullscreen(v => !v)}
-                        className="absolute bottom-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
+                        className="absolute top-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
                         aria-label="Toggle fullscreen"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
