@@ -338,8 +338,13 @@
       const cy = rect.top + rect.height / 2;
       const dx = clientX - cx;
       const dy = clientY - cy;
-      const clamp = (v) => Math.max(-40, Math.min(40, v));
-      setJoystickPosition({ x: clamp(dx), y: clamp(dy) });
+      const knobRadiusPx = 28; // matches w-14/h-14
+      const maxRadius = Math.max(0, rect.width / 2 - knobRadiusPx);
+      const baseLimit = 40;
+      const limit = Math.max(0, Math.min(baseLimit, maxRadius));
+      const magnitude = Math.hypot(dx, dy);
+      const scale = magnitude > limit && magnitude > 0 ? (limit / magnitude) : 1;
+      setJoystickPosition({ x: dx * scale, y: dy * scale });
     }, []);
 
     const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@';
