@@ -216,10 +216,33 @@ void load_config() {
  }
  
  string get_mime_type(const string& path) {
-    if (path.find(".html") != string::npos) return "text/html; charset=utf-8";
-    if (path.find(".js") != string::npos) return "application/javascript; charset=utf-8";
-    if (path.find(".css") != string::npos) return "text/css; charset=utf-8";
-    return "text/plain";
+    string clean = path;
+    const size_t query_pos = clean.find_first_of("?#");
+    if (query_pos != string::npos) clean = clean.substr(0, query_pos);
+
+    auto has_suffix = [&](const string& suffix) {
+        if (clean.length() < suffix.length()) return false;
+        return clean.compare(clean.length() - suffix.length(), suffix.length(), suffix) == 0;
+    };
+
+    if (has_suffix(".html")) return "text/html; charset=utf-8";
+    if (has_suffix(".css")) return "text/css; charset=utf-8";
+    if (has_suffix(".js")) return "application/javascript; charset=utf-8";
+    if (has_suffix(".json")) return "application/json; charset=utf-8";
+
+    if (has_suffix(".woff2")) return "font/woff2";
+    if (has_suffix(".woff")) return "font/woff";
+    if (has_suffix(".ttf")) return "font/ttf";
+    if (has_suffix(".otf")) return "font/otf";
+
+    if (has_suffix(".svg")) return "image/svg+xml";
+    if (has_suffix(".png")) return "image/png";
+    if (has_suffix(".jpg") || has_suffix(".jpeg")) return "image/jpeg";
+    if (has_suffix(".gif")) return "image/gif";
+    if (has_suffix(".ico")) return "image/x-icon";
+    if (has_suffix(".cur")) return "image/x-icon";
+
+    return "application/octet-stream";
 }
 
 // === 修改：通用文件服务函数 ===
