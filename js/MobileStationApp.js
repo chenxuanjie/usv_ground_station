@@ -446,9 +446,9 @@
                 </div>
               </div>
 
-              <div className="absolute bottom-24 left-4 z-20 w-44 flex flex-col-reverse gap-2 pointer-events-none">
-                <HUDBox className="p-3 pointer-events-auto">
-                  <div className="space-y-3">
+              <div className="absolute bottom-24 left-4 z-20 w-36 flex flex-col-reverse gap-2 pointer-events-none">
+                <HUDBox className="p-2 pointer-events-auto">
+                  <div className="space-y-2">
                     <div className="space-y-1 font-mono">
                       <div className="flex justify-between text-[10px] text-cyan-600">
                         <span>{t('latitude')}</span>
@@ -460,14 +460,14 @@
                       </div>
                     </div>
                     <div className="h-px bg-cyan-900/50 w-full"></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1">
                       <div className="text-center">
                         <div className="text-[9px] text-slate-400 mb-1">{t('heading')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{heading.toFixed(0)}°</div>
+                        <div className="text-base font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{heading.toFixed(0)}°</div>
                       </div>
                       <div className="text-center">
                         <div className="text-[9px] text-slate-400 mb-1">{t('waypoint')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{Array.isArray(waypoints) ? waypoints.length : 0}</div>
+                        <div className="text-base font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -477,10 +477,6 @@
                       </div>
                       <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
                         <div className={`h-full shadow-[0_0_10px_currentColor] transition-all duration-500 ${batteryPct < 30 ? 'bg-red-500 text-red-500' : 'bg-cyan-500 text-cyan-500'}`} style={{ width: `${batteryPct}%` }}></div>
-                      </div>
-                      <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                        <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
-                        <span>{t('batR')}:{batR ? batR.toFixed(2) : '0.00'}</span>
                       </div>
                     </div>
                   </div>
