@@ -38,18 +38,19 @@
       </div>
 
       <div className="flex items-center gap-3 pointer-events-auto">
-        <button
-          onClick={onOpenSettings}
-          className="w-10 h-10 flex items-center justify-center border border-cyan-500/50 bg-slate-900/40 rounded hover:bg-cyan-500/10 active:scale-95 transition-all"
-        >
-          <Settings className="text-cyan-400 w-5 h-5" />
-        </button>
         <div className="flex flex-col items-end">
           <div className="flex items-center gap-1 text-xs font-mono font-bold text-cyan-400">
             <Wifi className="w-3 h-3" /> {linkText}: {signal.toFixed(0)}%
           </div>
           <span className="text-[10px] text-slate-400 font-mono">{rtkText}</span>
         </div>
+        <button
+          onClick={onOpenSettings}
+          className="w-11 h-11 flex items-center justify-center rounded-full border border-cyan-500/40 bg-slate-900/30 backdrop-blur hover:bg-cyan-500/10 hover:border-cyan-400/60 active:scale-95 transition-all shadow-[0_0_12px_rgba(6,182,212,0.15)]"
+          aria-label="Settings"
+        >
+          <Settings className="text-cyan-300 w-5 h-5" />
+        </button>
       </div>
     </div>
     );
