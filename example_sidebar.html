@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>USV Cyber Station</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#050b14',
+                            panel: 'rgba(11, 19, 36, 0.85)',
+                            border: 'rgba(6, 182, 212, 0.3)',
+                            primary: '#06b6d4', // Cyan 500
+                            primaryDim: 'rgba(6, 182, 212, 0.1)',
+                            text: '#e2e8f0',
+                            textDim: '#64748b',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', "Segoe UI", 'Roboto', 'sans-serif'],
+                        tech: ['Rajdhani', 'Eurostile', 'Orbitron', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'glow': '0 0 10px rgba(6, 182, 212, 0.5)',
+                        'glow-sm': '0 0 5px rgba(6, 182, 212, 0.3)',
+                        'glow-inset': 'inset 0 0 15px rgba(6, 182, 212, 0.1)',
+                    },
+                    animation: {
+                        'scanline': 'scanline 8s linear infinite',
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        scanline: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Base Setup */
+        body {
+            background-color: #050b14;
+            color: #e2e8f0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Tech Background Grid */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+        }
+
+        /* Custom Scrollbar */
+        .tech-scrollbar::-webkit-scrollbar { width: 2px; }
+        .tech-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .tech-scrollbar::-webkit-scrollbar-thumb { background: #06b6d4; }
+
+        /* Tech Borders - Corner Accents using pseudo-elements */
+        .tech-border {
+            position: relative;
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            background: rgba(6, 11, 20, 0.6);
+            backdrop-filter: blur(8px);
+        }
+        .tech-border::before, .tech-border::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: #06b6d4;
+            border-style: solid;
+            transition: all 0.3s ease;
+        }
+        .tech-border::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+        .tech-border::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 8px; /* Rectangular thumb */
+            background: #06b6d4;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 8px #06b6d4;
+            border: 1px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        /* Drawer Transitions */
+        .drawer-enter { transform: translateX(-100%); opacity: 0; }
+        .drawer-enter-active { transform: translateX(0); opacity: 1; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .drawer-exit { transform: translateX(0); opacity: 1; }
+        .drawer-exit-active { transform: translateX(-100%); opacity: 0; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Stable SVG Icons ---
+        const Icons = {
+            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Wifi: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>,
+            Anchor: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><line x1="12" x2="12" y1="22" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>,
+            Video: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>,
+            CloudDownload: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>,
+            Radar: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="M12 2v2"/><path d="M12 22v-2"/><path d="m17 20.66-1-1.73"/><path d="M11 10.27a2 2 0 0 0-2-2"/><path d="m11 20.66 1-1.73"/></svg>,
+            Zap: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            Gauge: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>,
+            Save: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>,
+            Menu: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>,
+            Play: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+            Square: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg>,
+            Repeat: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>,
+        };
+
+        // --- Tech Components ---
+
+        const TechHeader = ({ icon: IconComp, title, sub }) => (
+            <div className="flex items-end justify-between border-b border-cyber-primary/30 pb-1 mb-4 mt-6">
+                <div className="flex items-center gap-2 text-cyber-primary">
+                    <IconComp size={16} />
+                    <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-100">{title}</h3>
+                </div>
+                {sub && <span className="text-[10px] font-mono text-cyan-500/60">{sub}</span>}
+            </div>
+        );
+
+        const TechInput = ({ label, value, onChange, placeholder, suffix }) => (
+            <div className="relative mb-3 group">
+                <div className="flex items-center bg-cyber-bg/50 border border-cyber-border rounded px-3 py-2 focus-within:border-cyber-primary focus-within:shadow-glow-sm transition-all duration-300">
+                    <span className="text-[10px] font-bold text-cyber-textDim uppercase mr-3 min-w-[60px]">{label}</span>
+                    <input 
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className="flex-1 bg-transparent border-none text-sm text-cyber-primary font-mono focus:outline-none placeholder:text-cyber-textDim/30"
+                        placeholder={placeholder}
+                    />
+                    {suffix && <span className="text-[10px] text-cyber-textDim font-mono border-l border-cyber-border pl-2 ml-2">{suffix}</span>}
+                </div>
+                {/* Decoration Corner */}
+                <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyber-primary opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+            </div>
+        );
+
+        const TechToggle = ({ label, icon: IconComp, checked, onChange, activeColor = "text-cyan-400" }) => (
+            <div 
+                onClick={() => onChange(!checked)}
+                className={`
+                    flex items-center justify-between p-3 mb-2 rounded border cursor-pointer transition-all duration-300
+                    ${checked 
+                        ? 'bg-cyan-900/20 border-cyan-500/50 shadow-glow-inset' 
+                        : 'bg-transparent border-white/5 hover:border-white/10 hover:bg-white/5'}
+                `}
+            >
+                <div className="flex items-center gap-3">
+                    <IconComp size={16} className={checked ? activeColor : 'text-slate-500'} />
+                    <span className={`text-xs font-bold uppercase tracking-wider ${checked ? 'text-white' : 'text-slate-400'}`}>{label}</span>
+                </div>
+                
+                {/* Tech Switch Visual */}
+                <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-mono ${checked ? 'text-cyan-400' : 'text-slate-600'}`}>
+                        {checked ? 'ON' : 'OFF'}
+                    </span>
+                    <div className={`w-8 h-1 rounded-sm ${checked ? 'bg-cyan-400 shadow-glow' : 'bg-slate-700'}`}></div>
+                </div>
+            </div>
+        );
+
+        const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan" }) => (
+            <button
+                onClick={onClick}
+                className={`
+                    relative flex flex-col items-center justify-center py-3 border transition-all duration-200 clip-path-slant
+                    ${active 
+                        ? `bg-${colorClass}-500/10 border-${colorClass}-400 text-${colorClass}-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]` 
+                        : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'}
+                `}
+            >
+                {active && <div className={`absolute inset-0 bg-${colorClass}-400/5 animate-pulse`}></div>}
+                <span className="text-sm font-bold z-10">{label}</span>
+                <span className="text-[9px] font-mono opacity-70 z-10">{sub}</span>
+                {/* Corner Accents */}
+                {active && (
+                    <>
+                        <div className={`absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-${colorClass}-400`}></div>
+                        <div className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-${colorClass}-400`}></div>
+                    </>
+                )}
+            </button>
+        );
+
+        // --- Main Drawer ---
+
+        const SideDrawer = ({ isOpen, onClose }) => {
+            const [connectionType, setConnectionType] = useState('UDP');
+            const [controlMode, setControlMode] = useState('manual');
+            const [maxSpeed, setMaxSpeed] = useState(2.5);
+            
+            // Toggles
+            const [toggles, setToggles] = useState({
+                video: false,
+                telemetry: true,
+                loopMode: true // Renamed from rtl, default on for cyclic patrol
+            });
+
+            const toggleHandler = (key) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+            // Animation classes
+            const drawerClass = isOpen ? 'drawer-enter-active' : 'drawer-exit-active';
+            const backdropClass = isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none';
+
+            return (
+                <>
+                    {/* Backdrop with Grid Pattern */}
+                    <div 
+                        className={`fixed inset-0 bg-black/80 backdrop-blur-sm z-40 transition-opacity duration-300 ${backdropClass}`}
+                        onClick={onClose}
+                    >
+                         <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
+                    </div>
+
+                    {/* Tech Panel (Drawer) */}
+                    <div className={`fixed inset-y-0 left-0 w-[90%] max-w-[380px] z-50 flex flex-col ${drawerClass}`}>
+                        
+                        {/* Decorative Side Bar */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 via-purple-500 to-blue-500"></div>
+
+                        {/* Main Glass Container */}
+                        <div className="flex-1 bg-cyber-panel backdrop-blur-xl border-r border-cyber-border flex flex-col ml-1 relative overflow-hidden">
+                            
+                            {/* Scanning Line Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-400/5 to-transparent h-[20%] animate-scanline pointer-events-none z-0"></div>
+
+                            {/* Header */}
+                            <div className="px-6 py-6 border-b border-cyber-border/50 relative z-10 bg-cyber-bg/40">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-white tracking-widest font-tech uppercase">System Config</h2>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse-fast"></div>
+                                            <span className="text-[10px] font-mono text-cyan-500">USV-MK3 ONLINE</span>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={onClose}
+                                        className="p-2 border border-cyber-border/30 hover:bg-cyan-500/20 text-cyan-400 transition-colors"
+                                    >
+                                        <Icons.X size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Scroll Content */}
+                            <div className="flex-1 overflow-y-auto px-5 py-2 tech-scrollbar relative z-10 pb-4">
+                                
+                                {/* Link Section */}
+                                <TechHeader icon={Icons.Wifi} title="Link Status" sub="NET_01" />
+                                <div className="tech-border p-4 mb-2">
+                                    <div className="flex mb-4 gap-1">
+                                        {['UDP', 'TCP', 'Serial'].map(type => (
+                                            <button 
+                                                key={type}
+                                                onClick={() => setConnectionType(type)}
+                                                className={`flex-1 py-1 text-[10px] font-bold tracking-wider transition-colors ${
+                                                    connectionType === type 
+                                                    ? 'bg-cyan-500 text-black' 
+                                                    : 'bg-black/40 text-cyan-600 hover:text-cyan-400 border border-cyan-900'
+                                                }`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <TechInput label="PORT" value="14550" onChange={()=>{}} />
+                                    <TechInput label="IP" value="192.168.1.100" onChange={()=>{}} />
+                                </div>
+
+                                {/* Deployment Section */}
+                                <TechHeader icon={Icons.Anchor} title="Deployment" sub="OP_MODE" />
+                                
+                                <div className="space-y-4">
+                                    {/* Mode Grid */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <ModeButton 
+                                            label="手动" sub="MANUAL" 
+                                            active={controlMode === 'manual'} 
+                                            onClick={() => setControlMode('manual')}
+                                            colorClass="cyan"
+                                        />
+                                        <ModeButton 
+                                            label="键盘" sub="KEYBOARD" 
+                                            active={controlMode === 'keyboard'} 
+                                            onClick={() => setControlMode('keyboard')}
+                                            colorClass="purple"
+                                        />
+                                        <ModeButton 
+                                            label="自动" sub="AUTO" 
+                                            active={controlMode === 'auto'} 
+                                            onClick={() => setControlMode('auto')}
+                                            colorClass="emerald"
+                                        />
+                                    </div>
+
+                                    {/* Switches - Updated Logic */}
+                                    <div className="tech-border p-2">
+                                        <TechToggle label="Video Feed (图传)" icon={Icons.Video} checked={toggles.video} onChange={() => toggleHandler('video')} activeColor="text-blue-400" />
+                                        <TechToggle label="Telemetry (数据)" icon={Icons.CloudDownload} checked={toggles.telemetry} onChange={() => toggleHandler('telemetry')} activeColor="text-purple-400" />
+                                        
+                                        {/* REPLACED: Auto Return -> Loop Mode */}
+                                        <TechToggle label="循环模式 (Loop Mode)" icon={Icons.Repeat} checked={toggles.loopMode} onChange={() => toggleHandler('loopMode')} activeColor="text-yellow-400" />
+                                        
+                                        {/* REMOVED: Obstacle Avoid */}
+                                    </div>
+
+                                    {/* Speed Slider */}
+                                    <div className="tech-border p-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div className="flex items-center gap-2 text-cyan-500">
+                                                <Icons.Gauge size={16} />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider">Speed Limit</span>
+                                            </div>
+                                            <div className="font-mono text-cyan-300 text-lg">
+                                                {maxSpeed} <span className="text-xs text-slate-500">m/s</span>
+                                            </div>
+                                        </div>
+                                        <input 
+                                            type="range" min="0" max="10" step="0.1" 
+                                            value={maxSpeed} onChange={(e) => setMaxSpeed(e.target.value)}
+                                            className="w-full"
+                                        />
+                                        <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-600">
+                                            <span>0</span><span>5</span><span>10</span>
+                                        </div>
+                                    </div>
+
+                                     {/* Moved Apply Button Here inside Deployment section for hierarchy */}
+                                    <div className="pt-4 pb-2">
+                                        <button className="w-full py-3 bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 clip-path-slant transition-colors shadow-glow">
+                                            <Icons.Save size={16} />
+                                            Apply System Config
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </>
+            );
+        };
+
+        // --- App Wrapper ---
+        const App = () => {
+            const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+            return (
+                <div className="relative w-full h-screen overflow-hidden bg-black font-sans select-none">
+                    {/* Map Placeholder */}
+                    <div className="absolute inset-0 bg-[#050b14] flex items-center justify-center">
+                         {/* Grid */}
+                         <div className="absolute inset-0 bg-grid opacity-30"></div>
+                         
+                         {/* Radar Circle Animation */}
+                         <div className="w-[600px] h-[600px] border border-cyan-900/30 rounded-full flex items-center justify-center relative">
+                            <div className="absolute inset-0 border-t border-cyan-500/20 rounded-full animate-spin duration-[10s]"></div>
+                            <div className="w-[400px] h-[400px] border border-cyan-900/40 rounded-full border-dashed"></div>
+                            <div className="w-4 h-4 bg-cyan-500 rounded-full shadow-glow animate-pulse"></div>
+                         </div>
+                    </div>
+
+                    {/* HUD Overlay Top */}
+                    <div className="absolute top-0 left-0 right-0 p-4 flex justify-between pointer-events-none">
+                        <div className="tech-border px-4 py-1.5 flex items-center gap-3 pointer-events-auto">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span className="text-xs font-mono font-bold text-cyan-400">SYS: NORMAL</span>
+                        </div>
+                        <div className="tech-border px-4 py-1.5 flex items-center gap-4 pointer-events-auto font-mono text-xs text-cyan-300">
+                             <span>BAT: 98%</span>
+                             <span className="text-slate-600">|</span>
+                             <span>GPS: 14</span>
+                        </div>
+                    </div>
+
+                    {/* Menu Button */}
+                    <button 
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="absolute bottom-8 left-6 w-14 h-14 bg-black/50 border border-cyan-500/50 text-cyan-400 flex items-center justify-center backdrop-blur-md hover:bg-cyan-500/20 hover:border-cyan-400 transition-all z-20 shadow-glow-sm active:scale-95 group"
+                    >
+                        <Icons.Menu size={24} className="group-hover:rotate-180 transition-transform duration-500" />
+                    </button>
+
+                    <SideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

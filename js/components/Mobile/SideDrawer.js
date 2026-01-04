@@ -3,7 +3,7 @@
   const { Icon } = window.MobileUtils;
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
-  const Network = Icon('Network');
+  const Wifi = Icon('Wifi');
   const Unplug = Icon('Unplug');
   const Link = Icon('Link');
   const Anchor = Icon('Anchor');
@@ -66,10 +66,10 @@
     };
 
     const TechHeader = ({ icon: IconComp, title, sub }) => (
-      <div className="flex items-end justify-between border-b border-cyber-primary/30 pb-1 mb-4 mt-6">
-        <div className="flex items-center gap-2 text-cyber-primary">
-          <IconComp className="w-4 h-4" />
-          <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-100">{title}</h3>
+      <div className="flex items-end justify-between border-b border-cyan-500/20 pb-1 mb-4 mt-6">
+        <div className="flex items-center gap-2">
+          <IconComp className="w-4 h-4 text-cyan-400" />
+          <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-cyan-100/80">{title}</h3>
         </div>
         {sub && <span className="text-[10px] font-mono text-cyan-500/60">{sub}</span>}
       </div>
@@ -156,27 +156,46 @@
             <div className="h-px bg-cyan-900/30 w-full"></div>
 
             <div>
-              <TechHeader icon={Network} title={t.connection} />
+              <TechHeader icon={Wifi} title={t.connection} />
               <div className={`bg-slate-900/50 p-3 rounded border ${isConnected ? 'border-green-500/30' : 'border-slate-800'} space-y-3`}>
-                <div className="space-y-1">
-                  <label className="text-[9px] text-cyan-600 font-mono block">{t.ip}</label>
-                  <input
-                    type="text"
-                    value={serverIp}
-                    onChange={(e) => setServerIp(e.target.value)}
-                    disabled={isLocked}
-                    className={`w-full bg-slate-950 border text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500 transition-colors ${isLocked ? 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed' : 'border-slate-700'}`}
-                  />
+                <div className="relative group">
+                  <div
+                    className={`
+                      flex items-center rounded px-3 py-2 border transition-all duration-300
+                      ${isLocked ? 'bg-slate-950/40 border-green-500/30 opacity-85' : 'bg-slate-950/40 border-cyan-500/20'}
+                      ${!isLocked ? 'focus-within:border-cyan-400 focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)]' : ''}
+                    `}
+                  >
+                    <span className="text-[10px] font-bold text-slate-500 uppercase mr-3 min-w-[62px]">{t.ip}</span>
+                    <input
+                      type="text"
+                      value={serverIp}
+                      onChange={(e) => setServerIp(e.target.value)}
+                      disabled={isLocked}
+                      className={`flex-1 bg-transparent border-none font-mono text-sm focus:outline-none ${isLocked ? 'text-green-100 cursor-not-allowed' : 'text-cyan-400'}`}
+                    />
+                  </div>
+                  <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-400/70 opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] text-cyan-600 font-mono block">{t.port}</label>
-                  <input
-                    type="text"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                    disabled={isLocked}
-                    className={`w-full bg-slate-950 border text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500 transition-colors ${isLocked ? 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed' : 'border-slate-700'}`}
-                  />
+
+                <div className="relative group">
+                  <div
+                    className={`
+                      flex items-center rounded px-3 py-2 border transition-all duration-300
+                      ${isLocked ? 'bg-slate-950/40 border-green-500/30 opacity-85' : 'bg-slate-950/40 border-cyan-500/20'}
+                      ${!isLocked ? 'focus-within:border-cyan-400 focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)]' : ''}
+                    `}
+                  >
+                    <span className="text-[10px] font-bold text-slate-500 uppercase mr-3 min-w-[62px]">{t.port}</span>
+                    <input
+                      type="text"
+                      value={serverPort}
+                      onChange={(e) => setServerPort(e.target.value)}
+                      disabled={isLocked}
+                      className={`flex-1 bg-transparent border-none font-mono text-sm focus:outline-none ${isLocked ? 'text-green-100 cursor-not-allowed' : 'text-cyan-400'}`}
+                    />
+                  </div>
+                  <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-400/70 opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
                 </div>
                 <button
                   onClick={toggleConnection}
