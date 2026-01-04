@@ -9,8 +9,9 @@
 
     const ActionIcons = {
         Save: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
-        Zoom: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M8 11h6"/><path d="M11 8v6"/></svg>,
-        Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
+        Pause: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>,
+        Play: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 5v14l11-7-11-7z"/></svg>
     };
 
     const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus, persistedChannelExpanded, persistedChannelEnabled, onPersistConfig }) => {
@@ -412,6 +413,14 @@
                 const key = CHART_CONFIG[i].key;
                 if (activeKeys.has(key)) activeSeriesKeys.push(key);
             }
+            if (activeSeriesKeys.length === 0) {
+                echartsInstance.current.setOption({ series: [] }, { lazyUpdate: false, replaceMerge: ['series'] });
+                if (axisTicksKeyRef.current !== '') {
+                    axisTicksKeyRef.current = '';
+                    setAxisTicks({ y: [], x: [] });
+                }
+                return;
+            }
 
             let yMin = Infinity;
             let yMax = -Infinity;
@@ -565,6 +574,13 @@
             });
         }, [isChannelExpanded, persistConfig]);
 
+        const soloChannel = useCallback((key) => {
+            didApplyPersistedRef.current = true;
+            const next = new Set([key]);
+            setActiveKeys(next);
+            persistConfig(isChannelExpandedRef.current, next);
+        }, [persistConfig]);
+
         const toggleExpanded = useCallback(() => {
             didApplyPersistedRef.current = true;
             setIsChannelExpanded((prev) => {
@@ -573,6 +589,30 @@
                 return next;
             });
         }, [persistConfig]);
+
+        const handleSaveImage = useCallback(() => {
+            if (!echartsInstance.current) return;
+            const url = echartsInstance.current.getDataURL({
+                type: 'png',
+                backgroundColor: '#0f172a',
+                pixelRatio: 2
+            });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `USV_Chart_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
+            a.click();
+        }, []);
+
+        const handleResetView = useCallback(() => {
+            if (!echartsInstance.current) return;
+            echartsInstance.current.dispatchAction({
+                type: 'dataZoom',
+                start: 0,
+                end: 100
+            });
+            zoomWindowRef.current = { start: 0, end: 100 };
+            if (isZoomMode && !zoomLockRef.current) exitZoomMode();
+        }, [exitZoomMode, isZoomMode]);
 
         const handleClear = () => {
             if(dataRef) dataRef.current = [];
@@ -620,40 +660,110 @@
 
         const chartCard = (
             <section ref={chartCardRef} className={`embedded-canvas-container group ${isFullscreen ? 'embedded-fullscreen-card' : ''}`}>
-                <div
-                    ref={hudStripRef}
-                    className={`flex-none flex items-center px-3 py-2 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 z-10 gap-2 overflow-x-auto embedded-no-scrollbar select-none ${isHudDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onPointerDown={onHudPointerDown}
-                    onPointerMove={onHudPointerMove}
-                    onPointerUp={endHudDrag}
-                    onPointerCancel={endHudDrag}
-                    onPointerLeave={endHudDrag}
-                >
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-purple-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-purple-500/10 ${activeKeys.has('heading') ? '' : 'opacity-40'}`}>
+                <div className="flex-none flex items-center px-3 py-2 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 z-10 gap-2 select-none">
+                  <div
+                      ref={hudStripRef}
+                      className={`flex-1 flex items-center gap-2 overflow-x-auto embedded-no-scrollbar ${isHudDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                      onPointerDown={onHudPointerDown}
+                      onPointerMove={onHudPointerMove}
+                      onPointerUp={endHudDrag}
+                      onPointerCancel={endHudDrag}
+                      onPointerLeave={endHudDrag}
+                  >
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('heading')}
+                        onDoubleClick={() => soloChannel('heading')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center bg-purple-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-purple-500/10 ${activeKeys.has('heading') ? '' : 'opacity-40'} active:scale-[0.98]`}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('heading')}
+                    >
                         <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('heading') : 'HEADING'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-purple-200">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
                             <span className="text-[10px] text-purple-300 ml-0.5">°</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-cyan-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-cyan-500/10 ${activeKeys.has('batL') ? '' : 'opacity-40'}`}>
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('batL')}
+                        onDoubleClick={() => soloChannel('batL')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center bg-cyan-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-cyan-500/10 ${activeKeys.has('batL') ? '' : 'opacity-40'} active:scale-[0.98]`}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('batL')}
+                    >
                         <span className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batL') : 'L. BAT'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-cyan-200">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
                             <span className="text-[10px] text-cyan-300 ml-0.5">V</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-emerald-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-emerald-500/10 ${activeKeys.has('batR') ? '' : 'opacity-40'}`}>
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('batR')}
+                        onDoubleClick={() => soloChannel('batR')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center bg-emerald-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-emerald-500/10 ${activeKeys.has('batR') ? '' : 'opacity-40'} active:scale-[0.98]`}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('batR')}
+                    >
                         <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batR') : 'R. BAT'}</span>
                         <div className="flex items-baseline">
                             <span className="font-mono text-sm font-bold text-emerald-200">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
                             <span className="text-[10px] text-emerald-300 ml-0.5">V</span>
                         </div>
-                    </div>
+                    </button>
 
                     <div className="flex-none w-1"></div>
+                  </div>
+
+                  {isFullscreen && (
+                    <div className="flex-none flex items-center gap-2 pointer-events-auto">
+                      <button
+                        type="button"
+                        onClick={handleResetView}
+                        className="w-10 h-10 rounded-full border border-slate-700 bg-slate-900/40 text-slate-200 flex items-center justify-center backdrop-blur transition-all active:scale-95"
+                        title={t ? t('chart_tip_reset') : 'Reset View'}
+                        aria-label="Reset"
+                      >
+                        <ActionIcons.Reset className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveImage}
+                        className="w-10 h-10 rounded-full border border-slate-700 bg-slate-900/40 text-slate-200 flex items-center justify-center backdrop-blur transition-all active:scale-95"
+                        title={t ? t('chart_tip_save') : 'Save Image'}
+                        aria-label="Save image"
+                      >
+                        <ActionIcons.Save className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsPaused(v => !v)}
+                        className={`w-10 h-10 rounded-full border flex items-center justify-center backdrop-blur transition-all active:scale-95 ${isPaused ? 'bg-yellow-500/15 border-yellow-400/60 text-yellow-200' : 'bg-slate-900/40 border-slate-700 text-slate-200'}`}
+                        title={t ? (isPaused ? t('chart_resume_show') : t('chart_pause_show')) : (isPaused ? 'RESUME' : 'PAUSE')}
+                        aria-label="Pause"
+                      >
+                        {isPaused ? <ActionIcons.Play className="w-5 h-5" /> : <ActionIcons.Pause className="w-5 h-5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsFullscreen(false)}
+                        className="w-10 h-10 rounded-full border border-slate-700 bg-slate-900/40 text-slate-200 flex items-center justify-center backdrop-blur transition-all active:scale-95"
+                        title={t ? t('toggle_fullscreen') : 'Exit fullscreen'}
+                        aria-label="Exit fullscreen"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div ref={chartViewportRef} className="relative flex-1 w-full min-h-0 bg-slate-950">
@@ -679,19 +789,18 @@
                         ))}
                     </div>
 
-                    <button
-                        onClick={() => setIsFullscreen(v => !v)}
-                        className="absolute top-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
-                        aria-label={t ? t('toggle_fullscreen') : 'Toggle fullscreen'}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                        </svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? '' : 'hidden'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    {!isFullscreen && (
+                        <button
+                            type="button"
+                            onClick={() => setIsFullscreen(true)}
+                            className="absolute top-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm pointer-events-auto"
+                            aria-label={t ? t('toggle_fullscreen') : 'Toggle fullscreen'}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </section>
         );
