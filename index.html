@@ -32,7 +32,7 @@
 
         body { font-family: 'Inter', sans-serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        :root { --app-height: 100vh; }
+        :root { --app-height: 100vh; --app-width: 100vw; }
         .app-height { height: var(--app-height); }
 
         ::-webkit-scrollbar { width: 4px; }
@@ -138,17 +138,20 @@
     </style>
     <script>
         (function () {
-            function updateAppHeight() {
-                var h = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+            function updateAppViewportVars() {
+                var vv = window.visualViewport;
+                var h = (vv && vv.height) ? vv.height : window.innerHeight;
+                var w = (vv && vv.width) ? vv.width : window.innerWidth;
                 document.documentElement.style.setProperty('--app-height', Math.round(h) + 'px');
+                document.documentElement.style.setProperty('--app-width', Math.round(w) + 'px');
             }
 
-            updateAppHeight();
-            window.addEventListener('resize', updateAppHeight);
-            window.addEventListener('orientationchange', updateAppHeight);
+            updateAppViewportVars();
+            window.addEventListener('resize', updateAppViewportVars);
+            window.addEventListener('orientationchange', updateAppViewportVars);
             if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', updateAppHeight);
-                window.visualViewport.addEventListener('scroll', updateAppHeight);
+                window.visualViewport.addEventListener('resize', updateAppViewportVars);
+                window.visualViewport.addEventListener('scroll', updateAppViewportVars);
             }
         })();
     </script>

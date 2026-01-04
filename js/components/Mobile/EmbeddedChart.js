@@ -722,8 +722,8 @@
                         position: absolute;
                         top: 50%;
                         left: 50%;
-                        width: 100vw;
-                        height: 100vh;
+                        width: var(--app-width, 100vw);
+                        height: var(--app-height, 100vh);
                         border-radius: 0;
                         margin: 0;
                         box-shadow: none;
@@ -734,8 +734,8 @@
                     }
                     @media (orientation: portrait) {
                         .embedded-fullscreen-card {
-                            width: 100vh;
-                            height: 100vw;
+                            width: var(--app-height, 100vh);
+                            height: var(--app-width, 100vw);
                             transform: translate(-50%, -50%) rotate(90deg);
                         }
                     }
