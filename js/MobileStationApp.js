@@ -144,6 +144,7 @@
 
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
+    const deployReminderShownRef = useRef(false);
 
     const clearToastTimer = useCallback(() => {
       if (toastTimerRef.current) {
@@ -253,6 +254,16 @@
         }
     }, [dismissToast, resolveToast, showToast, updateToast]);
 
+    useEffect(() => {
+      if (tcpStatus === 'ONLINE') {
+        if (deployReminderShownRef.current) return;
+        deployReminderShownRef.current = true;
+        showToast(t('deploy_reminder'), { type: 'info', durationMs: 4500 });
+        return;
+      }
+      deployReminderShownRef.current = false;
+    }, [showToast, t, tcpStatus]);
+
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
       if (!boatStatus || !boatStatus.lastUpdate) return 60;
@@ -264,6 +275,7 @@
     const lat = Number(boatStatus && boatStatus.latitude) || 0;
     const lng = Number(boatStatus && boatStatus.longitude) || 0;
     const heading = Number(boatStatus && boatStatus.heading) || 0;
+    const posReady = lat !== 0 || lng !== 0;
     const batL = Number(boatStatus && boatStatus.batteryL) || 0;
     const batR = Number(boatStatus && boatStatus.batteryR) || 0;
     const batteryV = (batL + batR) / 2;
@@ -362,7 +374,7 @@
         <div className="flex-1 relative overflow-hidden">
           {activeTab === 'map' && (
             <div className="relative w-full h-full bg-[#0f172a] overflow-hidden">
-              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} />
+              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} posReady={posReady} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} />
 
               <div className="absolute inset-0 z-0">
                 <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>

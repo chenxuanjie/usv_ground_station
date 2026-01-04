@@ -1,9 +1,10 @@
 (function() {
-  const { useEffect, useState } = React;
+  const { useEffect, useState, useRef } = React;
   const { Icon } = window.MobileUtils;
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
   const Wifi = Icon('Wifi');
+  const Help = Icon('Help');
   const Unplug = Icon('Unplug');
   const Link = Icon('Link');
   const Anchor = Icon('Anchor');
@@ -46,14 +47,27 @@
     })();
 
     const [keyboardSelected, setKeyboardSelected] = useState(false);
+    const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
+    const prevTcpStatusRef = useRef(tcpStatus);
 
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
     }, [controlMode]);
 
+    useEffect(() => {
+      const prev = prevTcpStatusRef.current;
+      prevTcpStatusRef.current = tcpStatus;
+      if (tcpStatus !== 'ONLINE') {
+        setHasDeployedThisSession(false);
+        return;
+      }
+      if (prev !== 'ONLINE') setHasDeployedThisSession(false);
+    }, [tcpStatus]);
+
     const handleDeployClick = () => {
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
+        setHasDeployedThisSession(true);
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
           window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
         }
@@ -213,6 +227,18 @@
                 </button>
               </div>
             </div>
+
+            {isConnected && !hasDeployedThisSession && (
+              <div className="px-3 py-2 rounded border border-amber-500/30 bg-amber-500/10 text-[10px] font-mono text-amber-100/80">
+                <div className="flex items-start gap-2">
+                  <Help className="w-4 h-4 text-amber-400 flex-none mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="font-bold tracking-wider text-amber-200/90">{t.deploy_reminder_title}</div>
+                    <div className="mt-0.5 text-amber-200/60">{t.deploy_reminder_desc}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="h-px bg-cyan-900/30 w-full"></div>
 
