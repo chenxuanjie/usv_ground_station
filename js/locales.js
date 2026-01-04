@@ -247,3 +247,7 @@ const AppTranslations = {
         toggle_off: "OFF",
     }
 };
+
+if (typeof window !== 'undefined') {
+    window.AppTranslations = AppTranslations;
+}
