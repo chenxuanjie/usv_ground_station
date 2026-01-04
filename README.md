@@ -64,7 +64,6 @@
 ├── js/
 │   ├── app.js              # 核心逻辑组装
 │   ├── locales.js          # 国际化语言包 (ZH/EN)
-│   ├── hooks.js            # 自定义 React Hooks (连接/键盘逻辑)
 │   ├── components/         # UI 组件库
 │   │   ├── ChartModal.js   # [核心] 数据分析图表组件
 │   │   ├── MapComponent.js # 百度地图与航点逻辑

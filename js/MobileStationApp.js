@@ -1,22 +1,15 @@
 (function () {
-  const { useCallback, useEffect, useMemo, useRef, useState, memo } = React;
+  const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
   const { HUDBox, StatusBar, BottomNav, SideDrawer, JoystickComponent, EmbeddedChart } = window.MobileComponents;
 
   // Icons
-  const MapIcon = Icon('Map');
-  const Video = Icon('Video');
   const Plus = Icon('Plus');
-  const Target = Icon('Target');
   const Home = Icon('Home');
   const Check = Icon('Check');
-  const LineChart = Icon('LineChart');
-  const UploadCloud = Icon('UploadCloud');
-  const Settings = Icon('Settings');
   const Zap = Icon('Zap');
-  const RefreshCw = Icon('RefreshCw');
   const Activity = Icon('Activity');
   const List = Icon('List');
   const X = Icon('X');
@@ -101,7 +94,6 @@
       sendSCommand,
       sendWaypointsCommand,
       sendKCommand,
-      setShowChart,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
