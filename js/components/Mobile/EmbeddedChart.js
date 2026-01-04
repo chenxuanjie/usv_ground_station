@@ -938,9 +938,7 @@
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (window.confirm(t ? t('chart_clear_confirm') : 'Are you sure to clear data?')) {
-                                                handleClear();
-                                            }
+                                            handleClear();
                                         }}
                                         className="w-full bg-red-900/10 active:bg-red-900/20 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
                                     >
