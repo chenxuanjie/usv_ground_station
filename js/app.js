@@ -841,7 +841,7 @@ function BoatGroundStation() {
     const shouldUseMobile = !!isMobile && typeof MobileStationApp === 'function';
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
+        <div className="flex flex-col app-height bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
 
             {!shouldUseMobile && <NotificationCenter items={notifications} onDismiss={dismissToast} />}
