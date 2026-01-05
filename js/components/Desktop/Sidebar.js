@@ -214,6 +214,26 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     </button>
                 </div>
             </div>
+
+            <div className="mt-auto pt-3">
+                <div className="h-px bg-cyan-900/30 w-full mb-3"></div>
+                <a
+                    href="https://github.com/chenxuanjie/usv_ground_station"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex w-full items-center gap-2 text-[10px] text-slate-600 hover:text-cyan-300 transition-colors font-mono min-w-0"
+                    title="https://github.com/chenxuanjie/usv_ground_station"
+                    aria-label="Open usv_ground_station on GitHub"
+                >
+                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                            fill="currentColor"
+                            d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.1-.75.08-.74.08-.74 1.21.09 1.85 1.25 1.85 1.25 1.08 1.84 2.83 1.31 3.52 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.4 11.4 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.62-5.47 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.82.58A12 12 0 0 0 12 .5z"
+                        />
+                    </svg>
+                    <span className="tracking-wider truncate">GitHub · usv_ground_station</span>
+                </a>
+            </div>
         </div>
     );
 }
