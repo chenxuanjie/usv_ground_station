@@ -21,13 +21,16 @@
         className={`w-32 h-32 rounded-full flex items-center justify-center relative touch-none cursor-move pointer-events-auto ${base}`}
         onPointerDown={(e) => {
           if (joystickDisabled) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
+          e.preventDefault();
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
           setJoystickActive(true);
           const rect = e.currentTarget.getBoundingClientRect();
           handleJoyMove(e.clientX, e.clientY, rect);
         }}
         onPointerMove={(e) => {
-          if (!joystickActive) return;
+          if (joystickDisabled) return;
+          if (!joystickActive && !(e.buttons === 1 || e.pressure > 0)) return;
+          e.preventDefault();
           const rect = e.currentTarget.getBoundingClientRect();
           handleJoyMove(e.clientX, e.clientY, rect);
         }}

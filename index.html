@@ -24,14 +24,15 @@
     <script src="js/lib/react-dom.js"></script>
     <script src="js/lib/echarts.js"></script>
     <script src="js/lib/babel.js"></script>
-    <script type="text/javascript" src="http://api.map.baidu.com/getscript?v=3.0&ak=zaL1UjUlAdknPEVP5HBNRleQGj5le1La"></script>
-    <script type="text/javascript" src="https://api.map.baidu.com/library/DistanceTool/1.2/src/DistanceTool_min.js"></script>
+    <script src="js/lib/baidu/baidu_map_api_v3.0.js"></script>
+    <script src="js/lib/baidu/DistanceTool_min.js"></script>
     
+    <link rel="stylesheet" href="assets/fonts/fonts.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
-
         body { font-family: 'Inter', sans-serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
+        :root { --app-height: 100vh; --app-width: 100vw; }
+        .app-height { height: var(--app-height); }
 
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #020617; }
@@ -134,6 +135,25 @@
             clip-path: polygon(0% 0%, 94% 0%, 100% 28%, 100% 100%, 6% 100%, 0% 72%);
         }
     </style>
+    <script>
+        (function () {
+            function updateAppViewportVars() {
+                var vv = window.visualViewport;
+                var h = (vv && vv.height) ? vv.height : window.innerHeight;
+                var w = (vv && vv.width) ? vv.width : window.innerWidth;
+                document.documentElement.style.setProperty('--app-height', Math.round(h) + 'px');
+                document.documentElement.style.setProperty('--app-width', Math.round(w) + 'px');
+            }
+
+            updateAppViewportVars();
+            window.addEventListener('resize', updateAppViewportVars);
+            window.addEventListener('orientationchange', updateAppViewportVars);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', updateAppViewportVars);
+                window.visualViewport.addEventListener('scroll', updateAppViewportVars);
+            }
+        })();
+    </script>
 </head>
 <body class="bg-slate-950 text-slate-200 overflow-hidden font-sans selection:bg-cyan-500/30">
     <div id="root"></div>
@@ -141,12 +161,12 @@
     <script type="text/babel" src="js/locales.js"></script>
     <script type="text/babel" src="js/icons.js"></script>
 
-    <script type="text/babel" src="js/components/Header.js"></script>
-    <script type="text/babel" src="js/components/Sidebar.js"></script>
-    <script type="text/babel" src="js/components/LogDrawer.js"></script>
-    <script type="text/babel" src="js/components/MapComponent.js"></script>
-    <script type="text/babel" src="js/components/ChartModal.js"></script>
-    <script type="text/babel" src="js/components/SettingsModal.js"></script>
+    <script type="text/babel" src="js/components/Desktop/Header.js"></script>
+    <script type="text/babel" src="js/components/Desktop/Sidebar.js"></script>
+    <script type="text/babel" src="js/components/Shared/LogDrawer.js"></script>
+    <script type="text/babel" src="js/components/Shared/MapComponent.js"></script>
+    <script type="text/babel" src="js/components/Desktop/ChartModal.js"></script>
+    <script type="text/babel" src="js/components/Shared/SettingsModal.js"></script>
 
     <script type="text/babel" src="js/components/Mobile/utils.js"></script>
     <script type="text/babel" src="js/components/Mobile/locales.js"></script>

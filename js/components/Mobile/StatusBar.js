@@ -5,14 +5,14 @@
   const Settings = Icon('Settings');
   const Wifi = Icon('Wifi');
 
-  const StatusBar = memo(({ title, signal, tcpStatus, setSideDrawerOpen, onOpenSettings, t, uiStyle }) => {
+  const StatusBar = memo(({ title, signal, tcpStatus, posReady, setSideDrawerOpen, onOpenSettings, t, uiStyle }) => {
     const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
       ? window.MobileUtils.getMobileTheme(uiStyle)
       : null;
     const tcpText = `TCP ${tcpStatus === 'ONLINE' ? 'ONLINE' : (tcpStatus === 'CONNECTING' ? 'CONNECTING' : 'OFFLINE')}`;
     const wsText = 'WS';
     const linkText = 'LINK';
-    const rtkText = 'RTK FLOAT';
+    const rtkText = posReady === false ? 'GPS WAIT' : 'RTK FLOAT';
 
     return (
       <div className={`absolute top-0 w-full h-16 z-30 px-4 flex justify-between items-center pointer-events-none ${ui?.statusBar?.wrapper || 'bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent'}`}>
@@ -41,18 +41,19 @@
       </div>
 
       <div className="flex items-center gap-3 pointer-events-auto">
-        <button
-          onClick={onOpenSettings}
-          className={ui?.statusBar?.iconBtn || "w-10 h-10 flex items-center justify-center border border-cyan-500/50 bg-slate-900/40 rounded hover:bg-cyan-500/10 active:scale-95 transition-all"}
-        >
-          <Settings className={`${ui?.statusBar?.icon || 'text-cyan-400'} w-5 h-5`} />
-        </button>
         <div className="flex flex-col items-end">
           <div className={`flex items-center gap-1 text-xs font-mono font-bold ${ui?.accentText || 'text-cyan-400'}`}>
             <Wifi className="w-3 h-3" /> {linkText}: {signal.toFixed(0)}%
           </div>
           <span className={`text-[10px] font-mono ${ui?.statusBar?.metaMuted || 'text-slate-400'}`}>{rtkText}</span>
         </div>
+        <button
+          onClick={onOpenSettings}
+          className={ui?.statusBar?.iconBtn || "w-10 h-10 flex items-center justify-center border border-cyan-500/50 bg-slate-900/40 rounded hover:bg-cyan-500/10 active:scale-95 transition-all"}
+          aria-label="Settings"
+        >
+          <Settings className={`${ui?.statusBar?.icon || 'text-cyan-400'} w-5 h-5`} />
+        </button>
       </div>
     </div>
     );

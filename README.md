@@ -58,22 +58,31 @@
 /
 ├── index.html              # 前端入口 (React 挂载点)
 ├── config.ini              # 系统配置文件 (IP/端口)
+├── assets/
+│   ├── fonts/              # 本地字体资源 (离线可用)
+│   └── icons/              # 本地图片/光标等资源
 ├── CMakeLists.txt          # C++ 项目构建配置
 ├── build_cmake.sh          # 自动化编译脚本
 ├── usv_server.cpp          # C++ 后端源码 (HTTP + WebSocket + TCP Client)
 ├── js/
 │   ├── app.js              # 核心逻辑组装
 │   ├── locales.js          # 国际化语言包 (ZH/EN)
-│   ├── hooks.js            # 自定义 React Hooks (连接/键盘逻辑)
+│   ├── lib/                # 第三方库 (本地加载)
+│   │   └── baidu/           # 百度地图 API/工具库 (本地化)
 │   ├── components/         # UI 组件库
-│   │   ├── ChartModal.js   # [核心] 数据分析图表组件
-│   │   ├── MapComponent.js # 百度地图与航点逻辑
-│   │   ├── Sidebar.js      # 侧边栏与仪表盘
-│   │   └── ...
+│   │   ├── Desktop/        # PC 端组件
+│   │   ├── Shared/         # PC/Mobile 共享组件
+│   │   └── Mobile/         # 移动端组件
 │   └── ...
 └── ...
 
 ```
+
+## 🔌 离线部署 (Offline)
+
+前端入口 `index.html` 已改为本地加载第三方资源（字体/百度地图工具库等），在无法访问外网时也能正常加载页面静态资源。
+
+注意：百度地图底图瓦片仍会请求 `bdimg.com` 等在线域名；如果需要“完全离线地图”，需要自建瓦片服务或替换地图方案（例如 Leaflet + 本地瓦片/MBTiles）。
 
 ## 🚀 快速开始 (Quick Start)
 

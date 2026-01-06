@@ -849,7 +849,11 @@ function BoatGroundStation() {
     const isMobileIos = shouldUseMobile && uiStyle === 'ios';
 
     return (
-        <div className={`flex flex-col h-screen overflow-hidden relative ${isMobileIos ? 'bg-[#F2F2F7] text-slate-900 font-sans' : 'bg-slate-950 text-slate-200 font-mono bg-grid'}`}>
+        <div
+            className={`flex flex-col app-height overflow-hidden relative ${
+                isMobileIos ? 'bg-[#F2F2F7] text-slate-900 font-sans' : 'bg-slate-950 text-slate-200 font-mono bg-grid'
+            }`}
+        >
             {!isMobileIos && <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>}
 
             {!shouldUseMobile && <NotificationCenter items={notifications} onDismiss={dismissToast} />}

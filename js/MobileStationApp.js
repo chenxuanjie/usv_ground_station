@@ -1,22 +1,15 @@
 (function () {
-  const { useCallback, useEffect, useMemo, useRef, useState, memo } = React;
+  const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
   const { HUDBox, StatusBar, BottomNav, SideDrawer, JoystickComponent, EmbeddedChart } = window.MobileComponents;
 
   // Icons
-  const MapIcon = Icon('Map');
-  const Video = Icon('Video');
   const Plus = Icon('Plus');
-  const Target = Icon('Target');
   const Home = Icon('Home');
   const Check = Icon('Check');
-  const LineChart = Icon('LineChart');
-  const UploadCloud = Icon('UploadCloud');
-  const Settings = Icon('Settings');
   const Zap = Icon('Zap');
-  const RefreshCw = Icon('RefreshCw');
   const Activity = Icon('Activity');
   const List = Icon('List');
   const X = Icon('X');
@@ -120,7 +113,6 @@
       sendSCommand,
       sendWaypointsCommand,
       sendKCommand,
-      setShowChart,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -169,6 +161,7 @@
 
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
+    const deployReminderShownRef = useRef(false);
 
     const clearToastTimer = useCallback(() => {
       if (toastTimerRef.current) {
@@ -278,6 +271,16 @@
         }
     }, [dismissToast, resolveToast, showToast, updateToast]);
 
+    useEffect(() => {
+      if (tcpStatus === 'ONLINE') {
+        if (deployReminderShownRef.current) return;
+        deployReminderShownRef.current = true;
+        showToast(t('deploy_reminder'), { type: 'info', durationMs: 4500 });
+        return;
+      }
+      deployReminderShownRef.current = false;
+    }, [showToast, t, tcpStatus]);
+
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
       if (!boatStatus || !boatStatus.lastUpdate) return 60;
@@ -289,6 +292,7 @@
     const lat = Number(boatStatus && boatStatus.latitude) || 0;
     const lng = Number(boatStatus && boatStatus.longitude) || 0;
     const heading = Number(boatStatus && boatStatus.heading) || 0;
+    const posReady = lat !== 0 || lng !== 0;
     const batL = Number(boatStatus && boatStatus.batteryL) || 0;
     const batR = Number(boatStatus && boatStatus.batteryR) || 0;
     const batteryV = (batL + batR) / 2;
@@ -351,8 +355,13 @@
       const cy = rect.top + rect.height / 2;
       const dx = clientX - cx;
       const dy = clientY - cy;
-      const clamp = (v) => Math.max(-40, Math.min(40, v));
-      setJoystickPosition({ x: clamp(dx), y: clamp(dy) });
+      const knobRadiusPx = 28; // matches w-14/h-14
+      const maxRadius = Math.max(0, rect.width / 2 - knobRadiusPx);
+      const baseLimit = 40;
+      const limit = Math.max(0, Math.min(baseLimit, maxRadius));
+      const magnitude = Math.hypot(dx, dy);
+      const scale = magnitude > limit && magnitude > 0 ? (limit / magnitude) : 1;
+      setJoystickPosition({ x: dx * scale, y: dy * scale });
     }, []);
 
     const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@';
@@ -388,7 +397,7 @@
         <div className="flex-1 relative overflow-hidden">
           {activeTab === 'map' && (
             <div className={`relative w-full h-full overflow-hidden ${isIos ? 'bg-[#F2F2F7]' : 'bg-[#0f172a]'}`}>
-              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} uiStyle={uiStyle} />
+              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} posReady={posReady} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} uiStyle={uiStyle} />
 
               <div className="absolute inset-0 z-0">
                 {!isIos && (

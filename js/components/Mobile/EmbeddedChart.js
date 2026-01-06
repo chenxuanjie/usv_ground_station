@@ -584,6 +584,13 @@
             });
         }, [isChannelExpanded, persistConfig]);
 
+        const soloChannel = useCallback((key) => {
+            didApplyPersistedRef.current = true;
+            const next = new Set([key]);
+            setActiveKeys(next);
+            persistConfig(isChannelExpandedRef.current, next);
+        }, [persistConfig]);
+
         const toggleExpanded = useCallback(() => {
             didApplyPersistedRef.current = true;
             setIsChannelExpanded((prev) => {
@@ -592,6 +599,30 @@
                 return next;
             });
         }, [persistConfig]);
+
+        const handleSaveImage = useCallback(() => {
+            if (!echartsInstance.current) return;
+            const url = echartsInstance.current.getDataURL({
+                type: 'png',
+                backgroundColor: isIos ? '#F2F2F7' : '#0f172a',
+                pixelRatio: 2
+            });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `USV_Chart_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
+            a.click();
+        }, [isIos]);
+
+        const handleResetView = useCallback(() => {
+            if (!echartsInstance.current) return;
+            echartsInstance.current.dispatchAction({
+                type: 'dataZoom',
+                start: 0,
+                end: 100
+            });
+            zoomWindowRef.current = { start: 0, end: 100 };
+            if (isZoomMode && !zoomLockRef.current) exitZoomMode();
+        }, [exitZoomMode, isZoomMode]);
 
         const handleClear = () => {
             if(dataRef) dataRef.current = [];
@@ -652,7 +683,14 @@
                     onPointerCancel={endHudDrag}
                     onPointerLeave={endHudDrag}
                 >
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('heading') ? '' : 'opacity-40'} ${
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('heading')}
+                        onDoubleClick={() => soloChannel('heading')}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('heading')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('heading') ? '' : 'opacity-40'} active:scale-[0.98] ${
                         isIos
                             ? 'rounded-[18px] bg-[#5856D6]/10 border-[#5856D6]/15'
                             : 'bg-purple-900/10 rounded-lg border-purple-500/10'
@@ -662,9 +700,16 @@
                             <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-purple-200'}`}>{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
                             <span className={`${isIos ? 'text-[11px] text-[#5856D6]' : 'text-[10px] text-purple-300'} ml-0.5`}>°</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batL') ? '' : 'opacity-40'} ${
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('batL')}
+                        onDoubleClick={() => soloChannel('batL')}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('batL')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batL') ? '' : 'opacity-40'} active:scale-[0.98] ${
                         isIos
                             ? 'rounded-[18px] bg-[#007AFF]/10 border-[#007AFF]/15'
                             : 'bg-cyan-900/10 rounded-lg border-cyan-500/10'
@@ -674,9 +719,16 @@
                             <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-cyan-200'}`}>{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
                             <span className={`${isIos ? 'text-[11px] text-[#007AFF]' : 'text-[10px] text-cyan-300'} ml-0.5`}>V</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batR') ? '' : 'opacity-40'} ${
+                    <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => toggleChannel('batR')}
+                        onDoubleClick={() => soloChannel('batR')}
+                        title={t ? t('chart_tip_toggle') : 'Click: Toggle / Dbl: Solo'}
+                        aria-pressed={activeKeys.has('batR')}
+                        className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batR') ? '' : 'opacity-40'} active:scale-[0.98] ${
                         isIos
                             ? 'rounded-[18px] bg-[#34C759]/12 border-[#34C759]/18'
                             : 'bg-emerald-900/10 rounded-lg border-emerald-500/10'
@@ -686,7 +738,7 @@
                             <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-emerald-200'}`}>{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
                             <span className={`${isIos ? 'text-[11px] text-[#34C759]' : 'text-[10px] text-emerald-300'} ml-0.5`}>V</span>
                         </div>
-                    </div>
+                    </button>
 
                     <div className="flex-none w-1"></div>
                 </div>
@@ -1045,6 +1097,21 @@
                                         className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-[#FF3B30]/10 active:bg-[#FF3B30]/15 text-[#FF3B30] border-[#FF3B30]/30' : 'bg-red-900/10 active:bg-red-900/20 text-red-300 border-red-500/20'}`}
                                     >
                                         {t ? t('clear_btn') : '清空数据'}
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={handleResetView}
+                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-slate-100/70 active:bg-slate-100/90 text-slate-700 border-white/60' : 'bg-slate-950/30 active:bg-slate-950/50 text-slate-200 border-slate-800'}`}
+                                    >
+                                        {t ? t('chart_tip_reset') : '复位视图'}
+                                    </button>
+                                    <button
+                                        onClick={handleSaveImage}
+                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-white/70 active:bg-white/90 text-[#007AFF] border-white/60 shadow-[0_4px_16px_-10px_rgba(0,0,0,0.15)]' : 'bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 border-slate-800'}`}
+                                    >
+                                        {t ? t('chart_tip_save') : '保存图片'}
                                     </button>
                                 </div>
                             </div>

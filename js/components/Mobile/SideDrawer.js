@@ -1,9 +1,10 @@
 (function() {
-  const { useEffect, useState } = React;
+  const { useEffect, useState, useRef } = React;
   const { Icon } = window.MobileUtils;
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
-  const Network = Icon('Network');
+  const Wifi = Icon('Wifi');
+  const Help = Icon('Help');
   const Unplug = Icon('Unplug');
   const Link = Icon('Link');
   const Anchor = Icon('Anchor');
@@ -52,14 +53,27 @@
     })();
 
     const [keyboardSelected, setKeyboardSelected] = useState(false);
+    const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
+    const prevTcpStatusRef = useRef(tcpStatus);
 
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
     }, [controlMode]);
 
+    useEffect(() => {
+      const prev = prevTcpStatusRef.current;
+      prevTcpStatusRef.current = tcpStatus;
+      if (tcpStatus !== 'ONLINE') {
+        setHasDeployedThisSession(false);
+        return;
+      }
+      if (prev !== 'ONLINE') setHasDeployedThisSession(false);
+    }, [tcpStatus]);
+
     const handleDeployClick = () => {
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
+        setHasDeployedThisSession(true);
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
           window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
         }
@@ -207,7 +221,7 @@
             <div className={`h-px w-full ${ui?.divider || 'bg-cyan-900/30'}`}></div>
 
             <div>
-              <TechHeader icon={Network} title={t.connection} />
+              <TechHeader icon={Wifi} title={t.connection} />
               <div className={`${cardBase} ${cardRadiusClass} p-3 space-y-3 ${isConnected ? 'border-green-500/30' : ''}`}>
                 <div className="space-y-1">
                   <label className={`${isIos ? 'text-[11px] text-slate-400 font-semibold tracking-wider uppercase' : 'text-[9px] text-cyan-600 font-mono'} block`}>{t.ip}</label>
@@ -245,6 +259,18 @@
                 </button>
               </div>
             </div>
+
+            {isConnected && !hasDeployedThisSession && (
+              <div className={`px-3 py-2 rounded border text-[10px] ${isIos ? 'font-sans' : 'font-mono'} border-amber-500/30 bg-amber-500/10 text-amber-100/80`}>
+                <div className="flex items-start gap-2">
+                  <Help className="w-4 h-4 text-amber-400 flex-none mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="font-bold tracking-wider text-amber-200/90">{t.deploy_reminder_title}</div>
+                    <div className="mt-0.5 text-amber-200/60">{t.deploy_reminder_desc}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className={`h-px w-full ${ui?.divider || 'bg-cyan-900/30'}`}></div>
 
@@ -337,11 +363,32 @@
               </div>
             </div>
 
-            <div className={`h-px w-full ${ui?.divider || 'bg-cyan-900/30'}`}></div>
-          </div>
+            <div className="h-px bg-cyan-900/30 w-full"></div>
 
-          <div className={`p-4 border-t text-[10px] font-mono text-center ${isIos ? 'border-slate-200/60 bg-white/60 text-slate-500' : 'border-cyan-900/30 bg-slate-900/50 text-slate-600'}`}>
-            {t.mobile_footer}
+            <div className="pt-6 pb-2">
+              <div className="pt-4 flex flex-col items-center gap-2">
+                <a
+                  href="https://github.com/chenxuanjie/usv_ground_station"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={isIos
+                    ? "group inline-flex items-center gap-2 px-3 py-2 rounded-[14px] border border-white/60 bg-white/70 backdrop-blur-xl text-[13px] font-sans text-slate-700 hover:text-[#007AFF] hover:bg-white/85 transition-colors shadow-[0_8px_30px_-18px_rgba(0,0,0,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]/30"
+                    : "group inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400 hover:text-cyan-100 hover:border-cyan-400/60 hover:bg-cyan-500/10 hover:shadow-[0_0_18px_rgba(6,182,212,0.28)] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50"
+                  }
+                  title="https://github.com/chenxuanjie/usv_ground_station"
+                  aria-label="Open usv_ground_station on GitHub"
+                >
+                  <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M12 .5a12 12 0 0 0-3.79 23.4c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.1-.75.08-.74.08-.74 1.21.09 1.85 1.25 1.85 1.25 1.08 1.84 2.83 1.31 3.52 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.4 11.4 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.8 5.62-5.47 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.82.58A12 12 0 0 0 12 .5z"
+                    />
+                  </svg>
+                  <span className="tracking-wider">GitHub · usv_ground_station</span>
+                </a>
+                <div className={`${isIos ? 'text-[11px] text-slate-500 font-sans' : 'text-[10px] text-slate-600 font-mono'} text-center`}>{t.mobile_footer}</div>
+              </div>
+            </div>
           </div>
         </div>
       </>
