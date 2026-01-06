@@ -846,15 +846,17 @@ function BoatGroundStation() {
 
     const MobileStationApp = window.MobileStationApp;
     const shouldUseMobile = !!isMobile && typeof MobileStationApp === 'function';
+    const isMobileIos = shouldUseMobile && uiStyle === 'ios';
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
+        <div className={`flex flex-col h-screen overflow-hidden relative ${isMobileIos ? 'bg-[#F2F2F7] text-slate-900 font-sans' : 'bg-slate-950 text-slate-200 font-mono bg-grid'}`}>
+            {!isMobileIos && <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>}
 
             {!shouldUseMobile && <NotificationCenter items={notifications} onDismiss={dismissToast} />}
 
             {shouldUseMobile ? (
                 <MobileStationApp
+                    uiStyle={uiStyle}
                     boatStyle={boatStyle}
                     setBoatStyle={setBoatStyle}
                     waypointStyle={waypointStyle}
@@ -963,13 +965,14 @@ function BoatGroundStation() {
                             )}
                         </div>
 
-                        <LogDrawer 
-                            show={showLogs} setShow={setShowLogs}
-                            logs={logs} setLogs={setLogs}
-                            devMode={devMode} setDevMode={setDevModeSafe}
-                            sendData={sendData}
-                            t={t}
-                        />
+	                        <LogDrawer
+	                            show={showLogs} setShow={setShowLogs}
+	                            logs={logs} setLogs={setLogs}
+	                            devMode={devMode} setDevMode={setDevModeSafe}
+	                            sendData={sendData}
+	                            t={t}
+	                            uiStyle={uiStyle}
+	                        />
                     </div>
                 </>
             )}
@@ -996,6 +999,7 @@ function BoatGroundStation() {
                     currentUiStyle={uiStyle}
                     onSave={handleSaveConfig}
                     t={t}
+                    isMobile={shouldUseMobile}
                 />
             )}
         </div>

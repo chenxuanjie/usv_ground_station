@@ -1,10 +1,16 @@
 (function() {
     const { useEffect, useRef, useState, useCallback, memo } = React;
 
-    const CHART_CONFIG = [
+    const CHART_CONFIG_CYBER = [
         { key: 'batL', labelKey: 'chart_bat_l', color: '#06b6d4', unit: 'V', yAxisIndex: 0 },
         { key: 'batR', labelKey: 'chart_bat_r', color: '#10b981', unit: 'V', yAxisIndex: 0 },
         { key: 'heading', labelKey: 'chart_heading', color: '#a855f7', unit: '°', yAxisIndex: 0 }
+    ];
+
+    const CHART_CONFIG_IOS = [
+        { key: 'batL', labelKey: 'chart_bat_l', color: '#007AFF', unit: 'V', yAxisIndex: 0 },
+        { key: 'batR', labelKey: 'chart_bat_r', color: '#34C759', unit: 'V', yAxisIndex: 0 },
+        { key: 'heading', labelKey: 'chart_heading', color: '#5856D6', unit: '°', yAxisIndex: 0 }
     ];
 
     const ActionIcons = {
@@ -13,10 +19,17 @@
         Reset: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     };
 
-    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus, persistedChannelExpanded, persistedChannelEnabled, onPersistConfig }) => {
+    const EmbeddedChart = memo(({ dataRef, fps, t, tcpStatus, persistedChannelExpanded, persistedChannelEnabled, onPersistConfig, uiStyle }) => {
+        const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
+            ? window.MobileUtils.getMobileTheme(uiStyle)
+            : null;
+        const isIos = ui?.key === 'ios';
+        const chartConfig = isIos ? CHART_CONFIG_IOS : CHART_CONFIG_CYBER;
+
         const chartRef = useRef(null);
         const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
+        const echartsThemeKeyRef = useRef(null);
         
         const [isPaused, setIsPaused] = useState(false);
         const [isZoomMode, setIsZoomMode] = useState(false);
@@ -200,14 +213,18 @@
                 ? echartsInstance.current.getDom()
                 : null;
 
-            if (echartsInstance.current && existingDom === currentDom) return;
+            const desiredThemeKey = isIos ? 'light' : 'dark';
+            const shouldReinit = !!echartsInstance.current && (existingDom !== currentDom || echartsThemeKeyRef.current !== desiredThemeKey);
+            if (!shouldReinit && echartsInstance.current && existingDom === currentDom) return;
 
             if (echartsInstance.current) {
                 echartsInstance.current.dispose();
                 echartsInstance.current = null;
             }
 
-            echartsInstance.current = window.echarts.init(currentDom, 'dark', { renderer: 'canvas', devicePixelRatio: window.devicePixelRatio || 1 });
+            const themeArg = isIos ? null : 'dark';
+            echartsInstance.current = window.echarts.init(currentDom, themeArg, { renderer: 'canvas', devicePixelRatio: window.devicePixelRatio || 1 });
+            echartsThemeKeyRef.current = desiredThemeKey;
 
             const baseOption = {
                 backgroundColor: 'transparent',
@@ -225,8 +242,10 @@
                     transitionDuration: 0,
                     axisPointer: { type: 'cross', animation: false, snap: false },
                     confine: true,
-                    backgroundColor: 'rgba(50, 50, 50, 0.9)',
-                    textStyle: { color: '#fff', fontSize: 10 }
+                    backgroundColor: isIos ? 'rgba(255, 255, 255, 0.9)' : 'rgba(50, 50, 50, 0.9)',
+                    borderColor: isIos ? 'rgba(148, 163, 184, 0.35)' : undefined,
+                    borderWidth: isIos ? 1 : 0,
+                    textStyle: { color: isIos ? '#0f172a' : '#fff', fontSize: 10 }
                 },
                 legend: { show: false },
                 dataZoom: [
@@ -236,15 +255,15 @@
                 yAxis: [{
                     type: 'value',
                     position: 'left',
-                    splitLine: { lineStyle: { color: '#1e293b' } },
+                    splitLine: { lineStyle: { color: isIos ? 'rgba(148, 163, 184, 0.25)' : '#1e293b' } },
                     axisLabel: { show: false },
                     axisTick: { show: false },
-                    axisLine: { lineStyle: { color: '#334155' } }
+                    axisLine: { lineStyle: { color: isIos ? 'rgba(148, 163, 184, 0.35)' : '#334155' } }
                 }],
                 xAxis: {
                     type: 'category',
                     boundaryGap: false,
-                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLine: { lineStyle: { color: isIos ? 'rgba(148, 163, 184, 0.35)' : '#334155' } },
                     axisLabel: { show: false },
                     axisTick: { show: false },
                     data: []
@@ -295,7 +314,7 @@
             };
             window.setTimeout(tryRender, 0);
             window.requestAnimationFrame(tryRender);
-        }, [exitZoomMode, applyTimeZoom, syncEchartsSize]);
+        }, [exitZoomMode, applyTimeZoom, isIos, syncEchartsSize]);
 
         useEffect(() => {
             if (!echartsInstance.current) return;
@@ -408,8 +427,8 @@
             }
 
             const activeSeriesKeys = [];
-            for (let i = 0; i < CHART_CONFIG.length; i++) {
-                const key = CHART_CONFIG[i].key;
+            for (let i = 0; i < chartConfig.length; i++) {
+                const key = chartConfig[i].key;
                 if (activeKeys.has(key)) activeSeriesKeys.push(key);
             }
 
@@ -478,11 +497,11 @@
                 silent: true,
                 symbol: 'none',
                 label: { show: false },
-                lineStyle: { color: '#475569', type: 'dashed', width: 1 },
+                lineStyle: { color: isIos ? 'rgba(148, 163, 184, 0.75)' : '#475569', type: 'dashed', width: 1 },
                 data: [{ yAxis: 0 }]
             } : null;
 
-            const dynamicSeries = CHART_CONFIG.map(config => {
+            const dynamicSeries = chartConfig.map(config => {
                 if (!activeKeys.has(config.key)) return null;
                 return {
                     name: t ? t(config.labelKey) : config.key,
@@ -515,7 +534,7 @@
                 applyTimeZoom(zoomPoints, nextLen);
                 lastAppliedZoomRef.current = { points: zoomPoints, len: nextLen };
             }
-        }, [activeKeys, t, dataRef, zoomPoints, applyTimeZoom]);
+        }, [activeKeys, chartConfig, isIos, t, dataRef, zoomPoints, applyTimeZoom]);
 
         const renderChartFrameRef = useRef(renderChartFrame);
         useEffect(() => {
@@ -622,58 +641,80 @@
             <section ref={chartCardRef} className={`embedded-canvas-container group ${isFullscreen ? 'embedded-fullscreen-card' : ''}`}>
                 <div
                     ref={hudStripRef}
-                    className={`flex-none flex items-center px-3 py-2 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 z-10 gap-2 overflow-x-auto embedded-no-scrollbar select-none ${isHudDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    className={`flex-none flex items-center px-3 py-2 z-10 gap-2 overflow-x-auto embedded-no-scrollbar select-none ${
+                        isIos
+                            ? 'bg-white/70 backdrop-blur-xl border-b border-slate-200/60'
+                            : 'bg-slate-900/50 backdrop-blur-md border-b border-slate-800'
+                    } ${isHudDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                     onPointerDown={onHudPointerDown}
                     onPointerMove={onHudPointerMove}
                     onPointerUp={endHudDrag}
                     onPointerCancel={endHudDrag}
                     onPointerLeave={endHudDrag}
                 >
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-purple-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-purple-500/10 ${activeKeys.has('heading') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('heading') : 'HEADING'}</span>
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('heading') ? '' : 'opacity-40'} ${
+                        isIos
+                            ? 'rounded-[18px] bg-[#5856D6]/10 border-[#5856D6]/15'
+                            : 'bg-purple-900/10 rounded-lg border-purple-500/10'
+                    }`}>
+                        <span className={`${isIos ? 'text-[11px] font-semibold tracking-tight text-[#5856D6]' : 'text-[10px] text-purple-300 font-bold uppercase tracking-wider'} mb-0.5`}>{t ? t('heading') : 'HEADING'}</span>
                         <div className="flex items-baseline">
-                            <span className="font-mono text-sm font-bold text-purple-200">{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
-                            <span className="text-[10px] text-purple-300 ml-0.5">°</span>
+                            <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-purple-200'}`}>{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                            <span className={`${isIos ? 'text-[11px] text-[#5856D6]' : 'text-[10px] text-purple-300'} ml-0.5`}>°</span>
                         </div>
                     </div>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-cyan-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-cyan-500/10 ${activeKeys.has('batL') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batL') : 'L. BAT'}</span>
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batL') ? '' : 'opacity-40'} ${
+                        isIos
+                            ? 'rounded-[18px] bg-[#007AFF]/10 border-[#007AFF]/15'
+                            : 'bg-cyan-900/10 rounded-lg border-cyan-500/10'
+                    }`}>
+                        <span className={`${isIos ? 'text-[11px] font-semibold tracking-tight text-[#007AFF]' : 'text-[10px] text-cyan-300 font-bold uppercase tracking-wider'} mb-0.5`}>{t ? t('batL') : 'L. BAT'}</span>
                         <div className="flex items-baseline">
-                            <span className="font-mono text-sm font-bold text-cyan-200">{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
-                            <span className="text-[10px] text-cyan-300 ml-0.5">V</span>
+                            <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-cyan-200'}`}>{Number.isFinite(Number(hudData.batL)) ? Number(hudData.batL).toFixed(1) : 0}</span>
+                            <span className={`${isIos ? 'text-[11px] text-[#007AFF]' : 'text-[10px] text-cyan-300'} ml-0.5`}>V</span>
                         </div>
                     </div>
 
-                    <div className={`flex-none w-28 flex flex-col items-center justify-center bg-emerald-900/10 rounded-lg px-2 py-1.5 transition-all duration-300 border border-emerald-500/10 ${activeKeys.has('batR') ? '' : 'opacity-40'}`}>
-                        <span className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mb-0.5">{t ? t('batR') : 'R. BAT'}</span>
+                    <div className={`flex-none w-28 flex flex-col items-center justify-center px-2 py-1.5 transition-all duration-300 border ${activeKeys.has('batR') ? '' : 'opacity-40'} ${
+                        isIos
+                            ? 'rounded-[18px] bg-[#34C759]/12 border-[#34C759]/18'
+                            : 'bg-emerald-900/10 rounded-lg border-emerald-500/10'
+                    }`}>
+                        <span className={`${isIos ? 'text-[11px] font-semibold tracking-tight text-[#34C759]' : 'text-[10px] text-emerald-300 font-bold uppercase tracking-wider'} mb-0.5`}>{t ? t('batR') : 'R. BAT'}</span>
                         <div className="flex items-baseline">
-                            <span className="font-mono text-sm font-bold text-emerald-200">{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
-                            <span className="text-[10px] text-emerald-300 ml-0.5">V</span>
+                            <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-emerald-200'}`}>{Number.isFinite(Number(hudData.batR)) ? Number(hudData.batR).toFixed(1) : 0}</span>
+                            <span className={`${isIos ? 'text-[11px] text-[#34C759]' : 'text-[10px] text-emerald-300'} ml-0.5`}>V</span>
                         </div>
                     </div>
 
                     <div className="flex-none w-1"></div>
                 </div>
 
-                <div ref={chartViewportRef} className="relative flex-1 w-full min-h-0 bg-slate-950">
-                    <div
-                        className="absolute inset-0 pointer-events-none opacity-20"
-                        style={{
-                            backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
-                            backgroundSize: '20px 20px'
-                        }}
-                    ></div>
+                <div ref={chartViewportRef} className={`relative flex-1 w-full min-h-0 ${isIos ? 'bg-transparent' : 'bg-slate-950'}`}>
+                    {!isIos && (
+                        <div
+                            className="absolute inset-0 pointer-events-none opacity-20"
+                            style={{
+                                backgroundImage: 'linear-gradient(rgba(34,211,238,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.8) 1px, transparent 1px)',
+                                backgroundSize: '20px 20px'
+                            }}
+                        ></div>
+                    )}
 
                     <div ref={chartRef} className="absolute inset-0 w-full h-full"></div>
 
-                    <div className="absolute left-0 top-0 bottom-6 w-12 pr-2 py-1 flex flex-col justify-between text-[10px] text-slate-500 font-mono pointer-events-none bg-gradient-to-r from-slate-950/80 to-transparent">
+                    <div className={`absolute left-0 top-0 bottom-6 w-12 pr-2 py-1 flex flex-col justify-between text-[10px] font-mono pointer-events-none ${
+                        isIos ? 'text-slate-500 bg-gradient-to-r from-[#F2F2F7]/95 to-transparent' : 'text-slate-500 bg-gradient-to-r from-slate-950/80 to-transparent'
+                    }`}>
                         {axisTicks.y.map((v, idx) => (
                             <div key={idx} className="leading-none text-right">{v}</div>
                         ))}
                     </div>
 
-                    <div className="absolute left-12 right-0 bottom-0 h-6 pl-1 pr-2 pb-1 flex items-end justify-between text-[10px] text-slate-500 font-mono pointer-events-none bg-gradient-to-t from-slate-950/80 to-transparent">
+                    <div className={`absolute left-12 right-0 bottom-0 h-6 pl-1 pr-2 pb-1 flex items-end justify-between text-[10px] font-mono pointer-events-none ${
+                        isIos ? 'text-slate-500 bg-gradient-to-t from-[#F2F2F7]/95 to-transparent' : 'text-slate-500 bg-gradient-to-t from-slate-950/80 to-transparent'
+                    }`}>
                         {axisTicks.x.map((v, idx) => (
                             <div key={idx} className="leading-none">{v}</div>
                         ))}
@@ -681,7 +722,11 @@
 
                     <button
                         onClick={() => setIsFullscreen(v => !v)}
-                        className="absolute top-2 right-2 p-1.5 bg-slate-950/60 hover:bg-slate-950/80 rounded-lg text-slate-200 transition-colors z-20 shadow-sm border border-slate-700 backdrop-blur-sm"
+                        className={`absolute top-2 right-2 p-1.5 rounded-lg transition-colors z-20 shadow-sm border backdrop-blur-sm ${
+                            isIos
+                                ? 'bg-white/70 hover:bg-white/85 text-slate-700 border-white/60'
+                                : 'bg-slate-950/60 hover:bg-slate-950/80 text-slate-200 border-slate-700'
+                        }`}
                         aria-label={t ? t('toggle_fullscreen') : 'Toggle fullscreen'}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isFullscreen ? 'hidden' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -697,7 +742,7 @@
         );
 
         return (
-            <div className="w-full h-full bg-slate-950 text-slate-200 overflow-hidden flex flex-col">
+            <div className={`w-full h-full overflow-hidden flex flex-col ${isIos ? 'bg-[#F2F2F7] text-slate-900 font-sans' : 'bg-slate-950 text-slate-200'}`}>
                 <style>{`
                     .embedded-canvas-container {
                         display: flex;
@@ -705,18 +750,20 @@
                         position: relative;
                         height: clamp(260px, 52vh, 620px);
                         width: 100%;
-                        background-color: rgba(15, 23, 42, 0.55);
-                        border-radius: 16px;
+                        background-color: ${isIos ? 'rgba(255, 255, 255, 0.78)' : 'rgba(15, 23, 42, 0.55)'};
+                        border-radius: ${isIos ? '22px' : '16px'};
                         overflow: hidden;
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+                        box-shadow: ${isIos ? '0 8px 30px rgba(0,0,0,0.10)' : '0 8px 24px rgba(0,0,0,0.35)'};
+                        backdrop-filter: ${isIos ? 'blur(24px)' : 'none'};
+                        -webkit-backdrop-filter: ${isIos ? 'blur(24px)' : 'none'};
                         transition: all 0.3s ease-in-out;
-                        border: 1px solid rgba(51, 65, 85, 0.7);
+                        border: 1px solid ${isIos ? 'rgba(255, 255, 255, 0.6)' : 'rgba(51, 65, 85, 0.7)'};
                     }
                     .embedded-fullscreen-layer {
                         position: fixed;
                         inset: 0;
                         z-index: 99999;
-                        background-color: #020617;
+                        background-color: ${isIos ? '#F2F2F7' : '#020617'};
                     }
                     .embedded-fullscreen-card {
                         position: absolute;
@@ -728,7 +775,7 @@
                         margin: 0;
                         box-shadow: none;
                         border: 0;
-                        background-color: #020617;
+                        background-color: ${isIos ? '#F2F2F7' : '#020617'};
                         transform-origin: center;
                         transform: translate(-50%, -50%);
                     }
@@ -779,8 +826,8 @@
                         height: 28px;
                         width: 28px;
                         border-radius: 50%;
-                        background: #f8fafc;
-                        box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+                        background: ${isIos ? '#ffffff' : '#f8fafc'};
+                        box-shadow: ${isIos ? '0 6px 18px rgba(0,0,0,0.18)' : '0 6px 18px rgba(0,0,0,0.45)'};
                         margin-top: -12px;
                         cursor: pointer;
                     }
@@ -788,7 +835,7 @@
                         width: 100%;
                         height: 4px;
                         cursor: pointer;
-                        background: #1e293b;
+                        background: ${isIos ? 'rgba(148, 163, 184, 0.55)' : '#1e293b'};
                         border-radius: 2px;
                     }
                 `}</style>
@@ -802,12 +849,16 @@
                     )
                     : null}
 
-                <header className="flex-none bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent border-b border-cyan-500/20 z-40" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+                <header className={`flex-none z-40 ${isIos ? 'bg-white/70 backdrop-blur-xl border-b border-slate-200/50' : 'bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent border-b border-cyan-500/20'}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
                     <div className="w-full max-w-md mx-auto px-4 h-16 flex items-center justify-between">
-                        <h1 className="text-sm font-mono font-bold text-cyan-100 tracking-wider">{t ? t('robot_monitor') : 'ROBOT MONITOR'}</h1>
-                        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${isConnected ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/20'}`}>
-                            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]' : 'bg-slate-500 shadow-none'}`}></span>
-                            <span className={`text-[10px] font-mono font-bold uppercase tracking-wide ${isConnected ? 'text-emerald-400' : 'text-slate-500'}`}>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+                        <h1 className={`${isIos ? 'font-sans font-bold text-[17px] tracking-tight text-slate-900' : 'text-sm font-mono font-bold text-cyan-100 tracking-wider'}`}>{t ? t('robot_monitor') : 'ROBOT MONITOR'}</h1>
+                        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${
+                            isIos
+                                ? (isConnected ? 'border-[#34C759]/25 bg-[#34C759]/10' : 'border-slate-200/60 bg-white/60')
+                                : (isConnected ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/20')
+                        }`}>
+                            <span className={`w-2 h-2 rounded-full ${isConnected ? (isIos ? 'bg-[#34C759]' : 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]') : 'bg-slate-500 shadow-none'}`}></span>
+                            <span className={`${isIos ? 'text-[11px] font-semibold tracking-wide' : 'text-[10px] font-mono font-bold uppercase tracking-wide'} ${isConnected ? (isIos ? 'text-[#34C759]' : 'text-emerald-400') : 'text-slate-500'}`}>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
                         </div>
                     </div>
                 </header>
@@ -821,92 +872,141 @@
                         </div>
 
                         <section className="space-y-3 mt-4">
-                            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-shadow">
+                            <div className={`${isIos ? 'bg-white/80 backdrop-blur-xl border border-white/60 rounded-[26px] shadow-[0_4px_20px_-8px_rgba(0,0,0,0.06)]' : 'bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm'} overflow-hidden transition-shadow`}>
                                 <button
                                     onClick={toggleExpanded}
-                                    className="w-full flex justify-between items-center p-4 bg-slate-900/40 active:bg-slate-900/60 transition-colors z-10 relative"
+                                    className={`w-full flex justify-between items-center p-4 transition-colors z-10 relative ${isIos ? 'bg-transparent active:bg-slate-100/60' : 'bg-slate-900/40 active:bg-slate-900/60'}`}
                                     aria-label={t ? t('toggle_channel_config') : 'Toggle channel config'}
                                 >
                                     <div className="flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                                         </svg>
-                                        <span className="font-semibold text-slate-200">{t ? t('show_channels') : '显示通道配置'}</span>
+                                        <span className={`${isIos ? 'font-semibold text-slate-900' : 'font-semibold text-slate-200'}`}>{t ? t('show_channels') : '显示通道配置'}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <span className="text-xs font-medium bg-slate-800/70 px-2 py-0.5 rounded-full border border-slate-700">{activeKeys.size} {t ? t('channels_on') : '开启'}</span>
+                                    <div className={`flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-400'}`}>
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${isIos ? 'bg-slate-100/80 border-slate-200/70 text-slate-600' : 'bg-slate-800/70 border-slate-700'}`}>{activeKeys.size} {t ? t('channels_on') : '开启'}</span>
                                         <svg className={`w-5 h-5 transition-transform ${isChannelExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                         </svg>
                                     </div>
                                 </button>
 
-                                <div className={`embedded-dropdown-content bg-slate-950/40 border-t border-slate-800 ${isChannelExpanded ? 'expanded' : ''} embedded-no-scrollbar`}>
+                                <div className={`embedded-dropdown-content ${isIos ? 'bg-[#F2F2F7]/70 border-t border-slate-200/60' : 'bg-slate-950/40 border-t border-slate-800'} ${isChannelExpanded ? 'expanded' : ''} embedded-no-scrollbar`}>
                                     <div className="p-4 space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-3 h-3 rounded-full bg-purple-400 shadow-sm"></div>
-                                        <span className="text-sm font-medium text-slate-200">{t ? t('heading') : '航向角'}</span>
-                                            </div>
-                                            <div className="relative inline-block w-10 align-middle select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={activeKeys.has('heading')}
-                                                    onChange={() => toggleChannel('heading')}
-                                                    id="embedded-toggle-hdg"
-                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
-                                                />
-                                                <label htmlFor="embedded-toggle-hdg" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
-                                            </div>
-                                        </div>
+                                        {isIos ? (
+                                            <>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-[#5856D6] shadow-sm"></div>
+                                                        <span className="text-[15px] font-medium text-slate-900">{t ? t('heading') : '航向角'}</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => toggleChannel('heading')}
+                                                        className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${activeKeys.has('heading') ? 'bg-[#34C759]' : 'bg-slate-300'}`}
+                                                        role="switch"
+                                                        aria-checked={activeKeys.has('heading')}
+                                                    >
+                                                        <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${activeKeys.has('heading') ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-[#007AFF] shadow-sm"></div>
+                                                        <span className="text-[15px] font-medium text-slate-900">{t ? t('batL') : '左电池'}</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => toggleChannel('batL')}
+                                                        className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${activeKeys.has('batL') ? 'bg-[#34C759]' : 'bg-slate-300'}`}
+                                                        role="switch"
+                                                        aria-checked={activeKeys.has('batL')}
+                                                    >
+                                                        <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${activeKeys.has('batL') ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-[#34C759] shadow-sm"></div>
+                                                        <span className="text-[15px] font-medium text-slate-900">{t ? t('batR') : '右电池'}</span>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => toggleChannel('batR')}
+                                                        className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors cursor-pointer ${activeKeys.has('batR') ? 'bg-[#34C759]' : 'bg-slate-300'}`}
+                                                        role="switch"
+                                                        aria-checked={activeKeys.has('batR')}
+                                                    >
+                                                        <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${activeKeys.has('batR') ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-purple-400 shadow-sm"></div>
+                                                        <span className="text-sm font-medium text-slate-200">{t ? t('heading') : '航向角'}</span>
+                                                    </div>
+                                                    <div className="relative inline-block w-10 align-middle select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={activeKeys.has('heading')}
+                                                            onChange={() => toggleChannel('heading')}
+                                                            id="embedded-toggle-hdg"
+                                                            className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                        />
+                                                        <label htmlFor="embedded-toggle-hdg" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-sm"></div>
-                                                <span className="text-sm font-medium text-slate-200">{t ? t('batL') : '左电池'}</span>
-                                            </div>
-                                            <div className="relative inline-block w-10 align-middle select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={activeKeys.has('batL')}
-                                                    onChange={() => toggleChannel('batL')}
-                                                    id="embedded-toggle-left"
-                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
-                                                />
-                                                <label htmlFor="embedded-toggle-left" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
-                                            </div>
-                                        </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-cyan-400 shadow-sm"></div>
+                                                        <span className="text-sm font-medium text-slate-200">{t ? t('batL') : '左电池'}</span>
+                                                    </div>
+                                                    <div className="relative inline-block w-10 align-middle select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={activeKeys.has('batL')}
+                                                            onChange={() => toggleChannel('batL')}
+                                                            id="embedded-toggle-left"
+                                                            className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                        />
+                                                        <label htmlFor="embedded-toggle-left" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm"></div>
-                                                <span className="text-sm font-medium text-slate-200">{t ? t('batR') : '右电池'}</span>
-                                            </div>
-                                            <div className="relative inline-block w-10 align-middle select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={activeKeys.has('batR')}
-                                                    onChange={() => toggleChannel('batR')}
-                                                    id="embedded-toggle-right"
-                                                    className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
-                                                />
-                                                <label htmlFor="embedded-toggle-right" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
-                                            </div>
-                                        </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm"></div>
+                                                        <span className="text-sm font-medium text-slate-200">{t ? t('batR') : '右电池'}</span>
+                                                    </div>
+                                                    <div className="relative inline-block w-10 align-middle select-none">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={activeKeys.has('batR')}
+                                                            onChange={() => toggleChannel('batR')}
+                                                            id="embedded-toggle-right"
+                                                            className="embedded-toggle-checkbox absolute block w-5 h-5 rounded-full bg-slate-950 border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"
+                                                        />
+                                                        <label htmlFor="embedded-toggle-right" className="embedded-toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300"></label>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm p-4 space-y-5 embedded-controls">
+                            <div className={`${isIos ? 'bg-white/80 backdrop-blur-xl border border-white/60 rounded-[26px] shadow-[0_4px_20px_-8px_rgba(0,0,0,0.06)]' : 'bg-slate-900/40 border border-slate-800 rounded-2xl shadow-sm'} p-4 space-y-5 embedded-controls`}>
                                 <div>
                                     <div className="flex justify-between mb-3 items-center">
-                                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span className={`${isIos ? 'text-[13px] font-semibold text-slate-600 tracking-tight' : 'text-xs font-semibold text-slate-400 uppercase tracking-wider'} flex items-center gap-1`}>
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                             </svg>
                                             {t ? t('chart_time_zoom') : '时间轴缩放'}
                                         </span>
-                                        <span className="text-xs bg-slate-800/70 px-2 py-0.5 rounded text-slate-300 font-mono border border-slate-700">{(300 / zoomPoints).toFixed(1)}x</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded font-mono border ${isIos ? 'bg-slate-100/80 text-slate-600 border-slate-200/70' : 'bg-slate-800/70 text-slate-300 border-slate-700'}`}>{(300 / zoomPoints).toFixed(1)}x</span>
                                     </div>
                                     <input
                                         type="range"
@@ -923,7 +1023,7 @@
                                         }}
                                         className="w-full"
                                     />
-                                    <div className="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+                                    <div className={`flex justify-between text-[10px] mt-1 px-1 ${isIos ? 'text-slate-400' : 'text-slate-400'}`}>
                                         <span>全览</span>
                                         <span>细节</span>
                                     </div>
@@ -932,7 +1032,7 @@
                                 <div className="grid grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setIsPaused(v => !v)}
-                                        className="w-full bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 font-semibold py-3 rounded-xl transition-colors border border-slate-800"
+                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-white/70 active:bg-white/90 text-[#007AFF] border-white/60 shadow-[0_4px_16px_-10px_rgba(0,0,0,0.15)]' : 'bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 border-slate-800'}`}
                                     >
                                         {isPaused ? (t ? t('chart_resume_show') : '继续显示') : (t ? t('chart_pause_show') : '暂停显示')}
                                     </button>
@@ -942,7 +1042,7 @@
                                                 handleClear();
                                             }
                                         }}
-                                        className="w-full bg-red-900/10 active:bg-red-900/20 text-red-300 font-semibold py-3 rounded-xl transition-colors border border-red-500/20"
+                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-[#FF3B30]/10 active:bg-[#FF3B30]/15 text-[#FF3B30] border-[#FF3B30]/30' : 'bg-red-900/10 active:bg-red-900/20 text-red-300 border-red-500/20'}`}
                                     >
                                         {t ? t('clear_btn') : '清空数据'}
                                     </button>

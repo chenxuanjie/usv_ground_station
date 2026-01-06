@@ -25,45 +25,63 @@
   const Send = Icon('Send');
   const Trash2 = Icon('Trash2');
 
-  const FeaturePending = ({ title, t }) => (
-    <div className="w-full h-full bg-slate-950 relative flex items-center justify-center">
-      <div className="absolute top-0 w-full h-16 z-30 px-4 flex items-center bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent pointer-events-none">
-        <div className="text-cyan-400 font-mono font-bold text-lg flex items-center gap-2">{t ? t(title.toLowerCase()) : title}</div>
-      </div>
-      <HUDBox className="p-6 w-[90%] max-w-sm">
+  const FeaturePending = ({ title, t, uiStyle }) => {
+    const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
+      ? window.MobileUtils.getMobileTheme(uiStyle)
+      : null;
+    const pendingIcon = ui?.key === 'ios' ? 'text-[#007AFF]/70' : 'text-cyan-500/60';
+
+    return (
+      <div className={`w-full h-full relative flex items-center justify-center ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
+        <div className={`absolute top-0 w-full h-16 z-30 px-4 flex items-center pointer-events-none ${ui?.statusBar?.wrapper || 'bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent'}`}>
+          <div className={`${ui?.accentText || 'text-cyan-400'} ${ui?.key === 'ios' ? 'font-sans' : 'font-mono'} font-bold text-lg flex items-center gap-2`}>{t ? t(title.toLowerCase()) : title}</div>
+        </div>
+        <HUDBox className="p-6 w-[90%] max-w-sm" uiStyle={uiStyle}>
         <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
-          <Activity className="w-8 h-8 text-cyan-500/60 animate-pulse" />
+          <Activity className={`w-8 h-8 ${pendingIcon} animate-pulse`} />
           <div className="text-center space-y-1">
             <span className="font-mono text-xs block text-slate-400">FEATURE_PENDING</span>
             <span className="text-xs text-amber-500/80">待开发...</span>
           </div>
         </div>
-      </HUDBox>
-    </div>
-  );
+        </HUDBox>
+      </div>
+    );
+  };
 
   // --- Global Toast Component (Adapted from 1.js) ---
-  const ToastOverlay = ({ toast, onDismiss }) => {
+  const ToastOverlay = ({ toast, onDismiss, uiStyle }) => {
     if (!toast) return null;
+    const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
+      ? window.MobileUtils.getMobileTheme(uiStyle)
+      : null;
     // toast can be a string or an object { message, loading, type, durationMs }
     const msg = typeof toast === 'object' ? toast.message : toast;
     const isLoading = typeof toast === 'object' && toast.loading;
     const isError = typeof toast === 'object' && toast.type === 'error';
     const isSuccess = typeof toast === 'object' && toast.type === 'success';
+    const spinnerBorder = ui?.key === 'ios' ? 'border-[#007AFF]' : 'border-cyan-500';
+    const accentIcon = ui?.accentText || 'text-cyan-400';
 
     return (
         <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in zoom-in duration-200 pointer-events-none w-full max-w-xs flex justify-center">
-            <div className={`relative pointer-events-auto bg-cyan-950/90 border ${isError ? 'border-red-500 text-red-100' : 'border-cyan-500 text-cyan-100'} px-6 py-3 rounded shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-3 font-mono text-sm`}>
+            <div
+              className={`relative pointer-events-auto px-6 py-3 rounded flex items-center gap-3 ${ui?.key === 'ios' ? 'font-sans text-[13px]' : 'font-mono text-sm'} ${
+                ui?.toast?.wrapper || 'bg-cyan-950/90 border border-cyan-500 text-cyan-100 shadow-[0_0_20px_rgba(6,182,212,0.4)]'
+              } ${isError ? 'border-red-500/60 text-red-100' : ''} ${isSuccess ? 'border-green-500/50' : ''}`}
+            >
                 {isLoading ? (
-                     <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                     <div className={`w-4 h-4 border-2 ${spinnerBorder} border-t-transparent rounded-full animate-spin`}></div>
                 ) : (
-                     <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : 'text-cyan-400 animate-pulse'}`} />
+                     <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : `${accentIcon} animate-pulse`}`} />
                 )}
                 <div className="flex-1 min-w-0 pr-6">{msg}</div>
                 <button
                   type="button"
                   onClick={onDismiss}
-                  className="absolute right-1.5 top-1.5 w-6 h-6 flex items-center justify-center rounded text-cyan-100/60 hover:text-cyan-50 hover:bg-white/5 active:scale-95 transition-all"
+                  className={`absolute right-1.5 top-1.5 w-6 h-6 flex items-center justify-center rounded active:scale-95 transition-all ${
+                    ui?.toast?.close || 'text-cyan-100/60 hover:text-cyan-50 hover:bg-white/5'
+                  }`}
                   aria-label="Close"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -77,6 +95,7 @@
     const {
       lang,
       setLang,
+      uiStyle,
       boatStyle,
       setBoatStyle,
       waypointStyle,
@@ -131,6 +150,12 @@
       }
       return key;
     }, [lang]);
+
+    const ui = useMemo(() => {
+      if (window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function') return window.MobileUtils.getMobileTheme(uiStyle);
+      return null;
+    }, [uiStyle]);
+    const isIos = ui?.key === 'ios';
 
     const [activeTab, setActiveTab] = useState('map');
     const [quickMenuOpen, setQuickMenuOpen] = useState(false);
@@ -333,13 +358,14 @@
     const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@';
 
     return (
-      <div className="relative w-full h-full bg-slate-950 flex flex-col overflow-hidden font-sans select-none">
-        <ToastOverlay toast={toast} onDismiss={() => dismissToast(toast && toast.id)} />
+      <div className={`relative w-full h-full flex flex-col overflow-hidden font-sans select-none ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
+        <ToastOverlay toast={toast} onDismiss={() => dismissToast(toast && toast.id)} uiStyle={uiStyle} />
         <SideDrawer
           open={sideDrawerOpen}
           onClose={() => setSideDrawerOpen(false)}
           lang={lang}
           setLang={setLang}
+          uiStyle={uiStyle}
           serverIp={serverIp}
           setServerIp={setServerIp}
           serverPort={serverPort}
@@ -361,11 +387,13 @@
 
         <div className="flex-1 relative overflow-hidden">
           {activeTab === 'map' && (
-            <div className="relative w-full h-full bg-[#0f172a] overflow-hidden">
-              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} />
+            <div className={`relative w-full h-full overflow-hidden ${isIos ? 'bg-[#F2F2F7]' : 'bg-[#0f172a]'}`}>
+              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} uiStyle={uiStyle} />
 
               <div className="absolute inset-0 z-0">
-                <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+                {!isIos && (
+                  <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+                )}
                 <div className="absolute inset-0 z-10">
                   <MapComponent
                     lng={lng}
@@ -381,6 +409,7 @@
                     locateNonce={locateNonce}
                     boatStyle={boatStyle}
                     waypointStyle={waypointStyle}
+                    uiStyle={uiStyle}
                   />
                 </div>
               </div>
@@ -389,7 +418,11 @@
                 <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
                   <button 
                     onClick={() => setMapMode('pan')}
-                    className="pointer-events-auto bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-full shadow-lg border-2 border-green-400 animate-in fade-in zoom-in duration-300 flex items-center gap-2"
+                    className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
+                      isIos
+                        ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
+                        : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
+                    }`}
                   >
                     <Check className="w-5 h-5" />
                     {t('finish_add')}
@@ -401,28 +434,68 @@
                 <div className="pointer-events-auto flex flex-col items-end gap-3">
                   <button
                     onClick={() => setQuickMenuOpen(!quickMenuOpen)}
-                    className={`w-12 h-12 flex items-center justify-center border border-cyan-500/50 bg-slate-900/80 backdrop-blur shadow-[0_0_10px_rgba(6,182,212,0.2)] transition-all active:scale-90 ${quickMenuOpen ? 'text-cyan-400 rotate-45 border-cyan-400' : 'text-slate-400'}`}
-                    style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                    className={`w-12 h-12 flex items-center justify-center transition-all ${
+                      isIos
+                        ? `rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)] active:scale-95 ${
+                            quickMenuOpen ? 'text-[#007AFF] rotate-45' : 'text-slate-600 hover:text-[#007AFF]'
+                          }`
+                        : `border border-cyan-500/50 bg-slate-900/80 backdrop-blur shadow-[0_0_10px_rgba(6,182,212,0.2)] active:scale-90 ${
+                            quickMenuOpen ? 'text-cyan-400 rotate-45 border-cyan-400' : 'text-slate-400'
+                          }`
+                    }`}
+                    style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
                   >
                     <Plus className="w-6 h-6" />
                   </button>
-                  {quickMenuOpen && (
+                      {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
                       <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('add_wp_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapPin className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-yellow-200 bg-black/60'}`}>{t('add_wp_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#FF9500] hover:bg-[#FF9500]/10 hover:border-[#FF9500]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <MapPin className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { sendWaypointsCommand && sendWaypointsCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('upload_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Send className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-green-200 bg-black/60'}`}>{t('upload_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#007AFF] hover:bg-[#007AFF]/10 hover:border-[#007AFF]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Send className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { setWaypoints([]); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-red-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('clear_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-red-500/50 hover:bg-red-900/20 text-red-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Trash2 className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-red-200 bg-black/60'}`}>{t('clear_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#FF3B30] hover:bg-[#FF3B30]/10 hover:border-[#FF3B30]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-red-500/50 hover:bg-red-900/20 text-red-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Trash2 className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { setLocateNonce(v => v + 1); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('map_locate')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Home className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-cyan-200 bg-black/60'}`}>{t('map_locate')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#007AFF] hover:bg-[#007AFF]/10 hover:border-[#007AFF]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Home className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                     </div>
                   )}
@@ -430,36 +503,40 @@
               </div>
 
               <div className="absolute bottom-24 left-4 z-20 w-44 flex flex-col-reverse gap-2 pointer-events-none">
-                <HUDBox className="p-3 pointer-events-auto">
+                <HUDBox className="p-3 pointer-events-auto" uiStyle={uiStyle}>
                   <div className="space-y-3">
                     <div className="space-y-1 font-mono">
-                      <div className="flex justify-between text-[10px] text-cyan-600">
+                      <div className={`flex justify-between text-[10px] ${isIos ? 'text-slate-500' : 'text-cyan-600'}`}>
                         <span>{t('latitude')}</span>
-                        <span className="text-cyan-100">{lat ? lat.toFixed(6) : '0.000000'}</span>
+                        <span className={isIos ? 'text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
                       </div>
-                      <div className="flex justify-between text-[10px] text-cyan-600">
+                      <div className={`flex justify-between text-[10px] ${isIos ? 'text-slate-500' : 'text-cyan-600'}`}>
                         <span>{t('longitude')}</span>
-                        <span className="text-cyan-100">{lng ? lng.toFixed(6) : '0.000000'}</span>
+                        <span className={isIos ? 'text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
                       </div>
                     </div>
-                    <div className="h-px bg-cyan-900/50 w-full"></div>
+                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
                         <div className="text-[9px] text-slate-400 mb-1">{t('heading')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{heading.toFixed(0)}°</div>
+                        <div className={`text-lg font-mono font-bold ${isIos ? 'text-slate-900' : 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(0)}°</div>
                       </div>
                       <div className="text-center">
                         <div className="text-[9px] text-slate-400 mb-1">{t('waypoint')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{Array.isArray(waypoints) ? waypoints.length : 0}</div>
+                        <div className={`text-lg font-mono font-bold ${isIos ? 'text-slate-900' : 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px]">
                         <span className="text-slate-400 flex items-center gap-1"><Zap className="w-3 h-3" /> {t('battery')}</span>
-                        <span className={`${batteryPct < 30 ? 'text-red-400' : 'text-cyan-400'}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
+                        <span className={batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
                       </div>
-                      <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                        <div className={`h-full shadow-[0_0_10px_currentColor] transition-all duration-500 ${batteryPct < 30 ? 'bg-red-500 text-red-500' : 'bg-cyan-500 text-cyan-500'}`} style={{ width: `${batteryPct}%` }}></div>
+                      <div className={`w-full h-1 rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
+                        <div className={`h-full transition-all duration-500 ${
+                          batteryPct < 30
+                            ? (isIos ? 'bg-[#FF3B30]' : 'bg-red-500 text-red-500 shadow-[0_0_10px_currentColor]')
+                            : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
+                        }`} style={{ width: `${batteryPct}%` }}></div>
                       </div>
                       <div className="flex justify-between text-[9px] font-mono text-slate-500">
                         <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
@@ -470,21 +547,21 @@
                 </HUDBox>
 
                 {mapMode === 'add' && showWaypointList && (
-                  <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in">
+                  <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in" uiStyle={uiStyle}>
                     <style>{`
                       .custom-scrollbar::-webkit-scrollbar { width: 3px; }
                       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                      .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(6, 182, 212, 0.4); border-radius: 2px; }
+                      .custom-scrollbar::-webkit-scrollbar-thumb { background: ${isIos ? 'rgba(0, 122, 255, 0.35)' : 'rgba(6, 182, 212, 0.4)'}; border-radius: 2px; }
                     `}</style>
 
-                    <div className="p-2 border-b border-cyan-500/20 flex justify-between items-center bg-cyan-950/50 backdrop-blur">
-                      <div className="flex items-center gap-2 text-cyan-400">
+                    <div className={`p-2 flex justify-between items-center ${isIos ? 'bg-white/70 backdrop-blur-xl border-b border-slate-200/60' : 'border-b border-cyan-500/20 bg-cyan-950/50 backdrop-blur'}`}>
+                      <div className={`flex items-center gap-2 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`}>
                         <List className="w-3 h-3" />
-                        <span className="text-[10px] font-mono font-bold tracking-wider">{t('mission_wps')} ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
+                        <span className={`${isIos ? 'text-[12px] font-semibold tracking-tight text-slate-800' : 'text-[10px] font-mono font-bold tracking-wider'}`}>{t('mission_wps')} ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
                       </div>
                       <button
                         onClick={() => setShowWaypointList(false)}
-                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        className={`${isIos ? 'text-slate-400 hover:text-[#FF3B30] hover:bg-slate-200/40 rounded-full w-7 h-7 flex items-center justify-center transition-colors' : 'text-slate-500 hover:text-red-400 transition-colors'}`}
                         aria-label="Close waypoint list"
                       >
                         <X className="w-3 h-3" />
@@ -493,14 +570,14 @@
 
                     <div className="flex-1 overflow-y-auto p-1 space-y-0.5 custom-scrollbar">
                       {(Array.isArray(waypoints) ? waypoints : []).map((wp, idx) => (
-                        <div key={`${idx}-${wp.lng}-${wp.lat}`} className="flex items-center justify-between px-2 py-1.5 rounded-sm bg-slate-900/30 border-l-2 border-transparent transition-all">
+                        <div key={`${idx}-${wp.lng}-${wp.lat}`} className={`flex items-center justify-between px-2 py-1.5 transition-all ${isIos ? 'rounded-[12px] bg-white/60 border border-white/50' : 'rounded-sm bg-slate-900/30 border-l-2 border-transparent'}`}>
                           <div className="flex items-center gap-3">
                             <span className="text-[9px] font-mono text-slate-500 w-3 text-right">{String(idx + 1).padStart(2, '0')}</span>
-                            <span className="text-[10px] font-mono text-cyan-100/80 tracking-wide">{t('waypoint')}_{idx + 1}</span>
+                            <span className={`${isIos ? 'text-[12px] font-sans font-medium text-slate-800 tracking-tight' : 'text-[10px] font-mono text-cyan-100/80 tracking-wide'}`}>{t('waypoint')}_{idx + 1}</span>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setWaypoints && setWaypoints(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx)); }}
-                            className="text-slate-600 hover:text-red-400 transition-all transform hover:scale-110"
+                            className={`${isIos ? 'text-slate-400 hover:text-[#FF3B30] transition-colors' : 'text-slate-600 hover:text-red-400 transition-all transform hover:scale-110'}`}
                             aria-label="Delete waypoint"
                           >
                             <Trash className="w-3 h-3" />
@@ -508,7 +585,7 @@
                         </div>
                       ))}
                       {(!Array.isArray(waypoints) || waypoints.length === 0) && (
-                        <div className="p-3 text-center text-[9px] text-slate-600 font-mono italic">
+                        <div className={`p-3 text-center text-[11px] ${isIos ? 'text-slate-400 font-sans' : 'text-slate-600 font-mono italic'}`}>
                           {t('no_waypoints')}
                         </div>
                       )}
@@ -524,13 +601,14 @@
                 setJoystickPosition={setJoystickPosition} 
                 handleJoyMove={handleJoyMove} 
                 joystickDisabled={joystickDisabled} 
+                uiStyle={uiStyle}
               />
             </div>
           )}
 
           {activeTab === 'video' && (
-            <div className="relative w-full h-full bg-black overflow-hidden">
-              <FeaturePending title="OPTICAL_FEED" t={t} />
+            <div className={`relative w-full h-full overflow-hidden ${isIos ? 'bg-[#F2F2F7]' : 'bg-black'}`}>
+              <FeaturePending title="OPTICAL_FEED" t={t} uiStyle={uiStyle} />
               <JoystickComponent 
                 joystickActive={joystickActive} 
                 setJoystickActive={setJoystickActive} 
@@ -538,12 +616,13 @@
                 setJoystickPosition={setJoystickPosition} 
                 handleJoyMove={handleJoyMove} 
                 joystickDisabled={joystickDisabled} 
+                uiStyle={uiStyle}
               />
             </div>
           )}
 
           {activeTab === 'charts' && (
-            <div className="w-full h-full bg-slate-950 relative">
+            <div className={`w-full h-full relative ${ui?.key === 'ios' ? 'bg-[#F2F2F7]' : 'bg-slate-950'}`}>
                <EmbeddedChart 
                   dataRef={chartDataRef}
                   fps={chartFps}
@@ -552,12 +631,13 @@
                   persistedChannelExpanded={embeddedChannelExpanded}
                   persistedChannelEnabled={embeddedChannelEnabled}
                   onPersistConfig={onPersistEmbeddedChartConfig}
+                  uiStyle={uiStyle}
                />
             </div>
           )}
         </div>
 
-        <BottomNav activeTab={activeTab} setActiveTab={setTab} lang={lang} />
+        <BottomNav activeTab={activeTab} setActiveTab={setTab} lang={lang} uiStyle={uiStyle} />
 
         <LogDrawer
           show={!!showLogs}
@@ -568,6 +648,7 @@
           setDevMode={setDevMode}
           sendData={sendData}
           t={t}
+          uiStyle={uiStyle}
           topOffsetPx={0}
           fullWidth={true}
         />
