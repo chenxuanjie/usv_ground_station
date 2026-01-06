@@ -502,43 +502,45 @@
                 </div>
               </div>
 
-              <div className="absolute bottom-24 left-4 z-20 w-44 flex flex-col-reverse gap-2 pointer-events-none">
-                <HUDBox className="p-3 pointer-events-auto" uiStyle={uiStyle}>
+              <div className={`absolute bottom-24 left-4 z-20 flex flex-col-reverse gap-2 pointer-events-none ${isIos ? 'w-52' : 'w-44'}`}>
+                <HUDBox className={`p-3 pointer-events-auto ${isIos ? 'rounded-[22px] overflow-hidden' : ''}`} uiStyle={uiStyle}>
                   <div className="space-y-3">
-                    <div className="space-y-1 font-mono">
-                      <div className={`flex justify-between text-[10px] ${isIos ? 'text-slate-500' : 'text-cyan-600'}`}>
-                        <span>{t('latitude')}</span>
-                        <span className={isIos ? 'text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
+                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
+                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
+                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
                       </div>
-                      <div className={`flex justify-between text-[10px] ${isIos ? 'text-slate-500' : 'text-cyan-600'}`}>
-                        <span>{t('longitude')}</span>
-                        <span className={isIos ? 'text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
+                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
+                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
                       </div>
                     </div>
                     <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">{t('heading')}</div>
-                        <div className={`text-lg font-mono font-bold ${isIos ? 'text-slate-900' : 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(0)}°</div>
+                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('heading')}</div>
+                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(0)}°</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">{t('waypoint')}</div>
-                        <div className={`text-lg font-mono font-bold ${isIos ? 'text-slate-900' : 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
+                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('waypoint')}</div>
+                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-slate-400 flex items-center gap-1"><Zap className="w-3 h-3" /> {t('battery')}</span>
-                        <span className={batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
+                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
+                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
+                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
+                        </span>
+                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
                       </div>
-                      <div className={`w-full h-1 rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
+                      <div className={`w-full ${isIos ? 'h-1.5' : 'h-1'} rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
                         <div className={`h-full transition-all duration-500 ${
                           batteryPct < 30
                             ? (isIos ? 'bg-[#FF3B30]' : 'bg-red-500 text-red-500 shadow-[0_0_10px_currentColor]')
                             : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
                         }`} style={{ width: `${batteryPct}%` }}></div>
                       </div>
-                      <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                      <div className={`flex justify-between font-mono tabular-nums ${isIos ? 'text-[10px] text-slate-500' : 'text-[9px] text-slate-500'}`}>
                         <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
                         <span>{t('batR')}:{batR ? batR.toFixed(2) : '0.00'}</span>
                       </div>
