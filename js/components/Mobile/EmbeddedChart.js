@@ -431,6 +431,14 @@
                 const key = chartConfig[i].key;
                 if (activeKeys.has(key)) activeSeriesKeys.push(key);
             }
+            if (activeSeriesKeys.length === 0) {
+                echartsInstance.current.setOption({ series: [] }, { lazyUpdate: false, replaceMerge: ['series'] });
+                if (axisTicksKeyRef.current !== '') {
+                    axisTicksKeyRef.current = '';
+                    setAxisTicks({ y: [], x: [] });
+                }
+                return;
+            }
 
             let yMin = Infinity;
             let yMax = -Infinity;
@@ -1090,9 +1098,7 @@
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (window.confirm(t ? t('chart_clear_confirm') : 'Are you sure to clear data?')) {
-                                                handleClear();
-                                            }
+                                            handleClear();
                                         }}
                                         className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-[#FF3B30]/10 active:bg-[#FF3B30]/15 text-[#FF3B30] border-[#FF3B30]/30' : 'bg-red-900/10 active:bg-red-900/20 text-red-300 border-red-500/20'}`}
                                     >

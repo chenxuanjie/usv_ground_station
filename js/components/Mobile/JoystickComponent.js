@@ -40,8 +40,8 @@
         <div className={`absolute inset-2 rounded-full border border-dashed ${ring} animate-[spin_10s_linear_infinite]`}></div>
         <div className="absolute inset-8 rounded-full border border-cyan-500/10"></div>
         <div
-          className={`w-14 h-14 rounded-full border-2 ${thumbShadow} flex items-center justify-center transition-transform duration-75 relative z-10 ${
-            joystickActive ? `${thumbActive} scale-95` : thumbInactive
+          className={`w-14 h-14 rounded-full border-2 ${thumbShadow} flex items-center justify-center relative z-10 ${
+            joystickActive ? `${thumbActive} scale-95` : `${thumbInactive} transition-transform duration-150`
           }`}
           style={{ transform: `translate(${joystickPosition.x}px, ${joystickPosition.y}px)` }}
         >
