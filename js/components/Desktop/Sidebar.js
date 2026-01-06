@@ -215,13 +215,12 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                 </div>
             </div>
 
-            <div className="mt-auto pt-3">
-                <div className="h-px bg-cyan-900/30 w-full mb-3"></div>
+            <div className="sticky bottom-0 -mx-3 sm:-mx-4 px-3 sm:px-4 pt-4 pb-3 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent border-t border-slate-900/60 backdrop-blur-sm">
                 <a
                     href="https://github.com/chenxuanjie/usv_ground_station"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex w-full items-center gap-2 text-[10px] text-slate-600 hover:text-cyan-300 transition-colors font-mono min-w-0"
+                    className="group mx-auto flex w-full max-w-[260px] items-center justify-center gap-2 px-3 py-2 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400 hover:text-cyan-100 hover:border-cyan-400/60 hover:bg-cyan-500/10 hover:shadow-[0_0_18px_rgba(6,182,212,0.28)] transition-all duration-200 font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50"
                     title="https://github.com/chenxuanjie/usv_ground_station"
                     aria-label="Open usv_ground_station on GitHub"
                 >
@@ -234,6 +233,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <span className="tracking-wider truncate">GitHub · usv_ground_station</span>
                 </a>
             </div>
+
         </div>
     );
 }
