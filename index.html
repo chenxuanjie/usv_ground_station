@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <meta name="theme-color" content="#020617" id="meta-theme-color">
     <title>无人艇控制终端</title>
     <script src="js/lib/tailwind.js"></script>
     <script>
@@ -33,6 +36,8 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         :root { --app-height: 100vh; --app-width: 100vw; }
         .app-height { height: var(--app-height); }
+        html { color-scheme: dark; }
+        html[data-ui-style="ios"] { color-scheme: light; }
 
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #020617; }

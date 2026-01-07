@@ -817,6 +817,16 @@ function BoatGroundStation() {
         }
     };
 
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const normalized = uiStyle === 'ios' ? 'ios' : 'cyber';
+        document.documentElement.dataset.uiStyle = normalized;
+        document.documentElement.style.colorScheme = normalized === 'ios' ? 'light' : 'dark';
+
+        const meta = document.getElementById('meta-theme-color');
+        if (meta) meta.setAttribute('content', normalized === 'ios' ? '#F2F2F7' : '#020617');
+    }, [uiStyle]);
+
     const handlePersistEmbeddedChartConfig = useCallback((patch = {}) => {
         const nextExpanded = Object.prototype.hasOwnProperty.call(patch, 'embeddedChannelExpanded')
             ? !!patch.embeddedChannelExpanded
