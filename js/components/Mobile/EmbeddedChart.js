@@ -1192,20 +1192,22 @@
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button
-                                        onClick={handleResetView}
-                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-slate-100/70 active:bg-slate-100/90 text-slate-700 border-white/60' : 'bg-slate-950/30 active:bg-slate-950/50 text-slate-200 border-slate-800'}`}
-                                    >
-                                        {t ? t('chart_tip_reset') : '复位视图'}
-                                    </button>
-                                    <button
-                                        onClick={handleSaveImage}
-                                        className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-white/70 active:bg-white/90 text-[#007AFF] border-white/60 shadow-[0_4px_16px_-10px_rgba(0,0,0,0.15)]' : 'bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 border-slate-800'}`}
-                                    >
-                                        {t ? t('chart_tip_save') : '保存图片'}
-                                    </button>
-                                </div>
+                                {isFullscreen && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button
+                                            onClick={handleResetView}
+                                            className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-slate-100/70 active:bg-slate-100/90 text-slate-700 border-white/60' : 'bg-slate-950/30 active:bg-slate-950/50 text-slate-200 border-slate-800'}`}
+                                        >
+                                            {t ? t('chart_tip_reset') : '复位视图'}
+                                        </button>
+                                        <button
+                                            onClick={handleSaveImage}
+                                            className={`w-full font-semibold py-3 rounded-xl transition-colors border ${isIos ? 'bg-white/70 active:bg-white/90 text-[#007AFF] border-white/60 shadow-[0_4px_16px_-10px_rgba(0,0,0,0.15)]' : 'bg-slate-950/30 active:bg-slate-950/50 text-cyan-300 border-slate-800'}`}
+                                        >
+                                            {t ? t('chart_tip_save') : '保存图片'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </section>
                     </div>
