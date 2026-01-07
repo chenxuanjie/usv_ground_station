@@ -549,10 +549,6 @@
                             : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
                         }`} style={{ width: `${batteryPct}%` }}></div>
                       </div>
-                      <div className={`flex justify-between font-mono tabular-nums ${isIos ? 'text-[10px] text-slate-500' : 'text-[9px] text-slate-500'}`}>
-                        <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
-                        <span>{t('batR')}:{batR ? batR.toFixed(2) : '0.00'}</span>
-                      </div>
                     </div>
                   </div>
                 </HUDBox>

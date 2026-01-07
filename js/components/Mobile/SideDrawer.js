@@ -86,10 +86,10 @@
     };
 
     const TechHeader = ({ icon: IconComp, title, sub }) => (
-      <div className={`flex items-end justify-between pb-1 mb-4 ${isIos ? 'mt-5 border-b border-slate-200/60' : 'mt-6 border-b border-cyan-900/30'}`}>
+      <div className={`flex items-end justify-between pb-1 mb-4 ${isIos ? 'mt-5 border-b border-slate-200/60' : 'mt-6 border-b border-cyan-500/20'}`}>
         <div className={`flex items-center gap-2 ${ui?.accentText || 'text-cyan-400'}`}>
           <IconComp className="w-4 h-4" />
-          <h3 className={`text-xs font-bold uppercase tracking-[0.15em] ${ui?.drawer?.sectionTitle || 'text-cyan-100'}`}>{title}</h3>
+          <h3 className={`text-xs font-bold uppercase tracking-[0.15em] ${ui?.drawer?.sectionTitle || (isIos ? 'text-slate-600' : 'text-cyan-100/80')}`}>{title}</h3>
         </div>
         {sub && <span className={`text-[10px] ${isIos ? 'font-sans' : 'font-mono'} ${ui?.drawer?.sectionSub || 'text-cyan-500/60'}`}>{sub}</span>}
       </div>
@@ -223,26 +223,72 @@
             <div>
               <TechHeader icon={Wifi} title={t.connection} />
               <div className={`${cardBase} ${cardRadiusClass} p-3 space-y-3 ${isConnected ? 'border-green-500/30' : ''}`}>
-                <div className="space-y-1">
-                  <label className={`${isIos ? 'text-[11px] text-slate-400 font-semibold tracking-wider uppercase' : 'text-[9px] text-cyan-600 font-mono'} block`}>{t.ip}</label>
-                  <input
-                    type="text"
-                    value={serverIp}
-                    onChange={(e) => setServerIp(e.target.value)}
-                    disabled={isLocked}
-                    className={`w-full border transition-colors ${ui?.drawer?.input || 'bg-slate-950 border-slate-700 text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500'} ${isLocked ? (ui?.drawer?.inputLocked || 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed') : ''}`}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className={`${isIos ? 'text-[11px] text-slate-400 font-semibold tracking-wider uppercase' : 'text-[9px] text-cyan-600 font-mono'} block`}>{t.port}</label>
-                  <input
-                    type="text"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                    disabled={isLocked}
-                    className={`w-full border transition-colors ${ui?.drawer?.input || 'bg-slate-950 border-slate-700 text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500'} ${isLocked ? (ui?.drawer?.inputLocked || 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed') : ''}`}
-                  />
-                </div>
+                {isIos ? (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-400 font-semibold tracking-wider uppercase block">{t.ip}</label>
+                      <input
+                        type="text"
+                        value={serverIp}
+                        onChange={(e) => setServerIp(e.target.value)}
+                        disabled={isLocked}
+                        className={`w-full border transition-colors ${ui?.drawer?.input || 'bg-slate-950 border-slate-700 text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500'} ${isLocked ? (ui?.drawer?.inputLocked || 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed') : ''}`}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-400 font-semibold tracking-wider uppercase block">{t.port}</label>
+                      <input
+                        type="text"
+                        value={serverPort}
+                        onChange={(e) => setServerPort(e.target.value)}
+                        disabled={isLocked}
+                        className={`w-full border transition-colors ${ui?.drawer?.input || 'bg-slate-950 border-slate-700 text-cyan-100 font-mono text-xs px-2 py-1.5 rounded focus:outline-none focus:border-cyan-500'} ${isLocked ? (ui?.drawer?.inputLocked || 'border-green-500/30 text-green-100 opacity-80 cursor-not-allowed') : ''}`}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="relative group">
+                      <div
+                        className={`
+                          flex items-center rounded px-3 py-2 border transition-all duration-300
+                          ${isLocked ? 'bg-slate-950/40 border-green-500/30 opacity-85' : 'bg-slate-950/40 border-cyan-500/20'}
+                          ${!isLocked ? 'focus-within:border-cyan-400 focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)]' : ''}
+                        `}
+                      >
+                        <span className="text-[10px] font-bold text-slate-500 uppercase mr-3 min-w-[62px]">{t.ip}</span>
+                        <input
+                          type="text"
+                          value={serverIp}
+                          onChange={(e) => setServerIp(e.target.value)}
+                          disabled={isLocked}
+                          className={`flex-1 bg-transparent border-none font-mono text-sm focus:outline-none ${isLocked ? 'text-green-100 cursor-not-allowed' : 'text-cyan-400'}`}
+                        />
+                      </div>
+                      <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-400/70 opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                    </div>
+
+                    <div className="relative group">
+                      <div
+                        className={`
+                          flex items-center rounded px-3 py-2 border transition-all duration-300
+                          ${isLocked ? 'bg-slate-950/40 border-green-500/30 opacity-85' : 'bg-slate-950/40 border-cyan-500/20'}
+                          ${!isLocked ? 'focus-within:border-cyan-400 focus-within:shadow-[0_0_8px_rgba(6,182,212,0.25)]' : ''}
+                        `}
+                      >
+                        <span className="text-[10px] font-bold text-slate-500 uppercase mr-3 min-w-[62px]">{t.port}</span>
+                        <input
+                          type="text"
+                          value={serverPort}
+                          onChange={(e) => setServerPort(e.target.value)}
+                          disabled={isLocked}
+                          className={`flex-1 bg-transparent border-none font-mono text-sm focus:outline-none ${isLocked ? 'text-green-100 cursor-not-allowed' : 'text-cyan-400'}`}
+                        />
+                      </div>
+                      <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-400/70 opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                    </div>
+                  </>
+                )}
                 <button
                   onClick={toggleConnection}
                   className={`w-full py-2 mt-2 font-mono text-xs font-bold border rounded flex items-center justify-center gap-2 transition-all duration-300 ${isIos ? 'rounded-[14px]' : ''} ${
