@@ -809,9 +809,6 @@ function BoatGroundStation() {
             uiStyle: newUiStyle || uiStyle || 'cyber'
         })) {
             addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
-            if (window.SystemToast && window.SystemToast.show) {
-                window.SystemToast.show(t('msg_save_success'), { type: 'success' });
-            }
         } else {
             addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
         }
@@ -979,14 +976,14 @@ function BoatGroundStation() {
                             )}
                         </div>
 
-	                        <LogDrawer
-	                            show={showLogs} setShow={setShowLogs}
-	                            logs={logs} setLogs={setLogs}
-	                            devMode={devMode} setDevMode={setDevModeSafe}
-	                            sendData={sendData}
-	                            t={t}
-	                            uiStyle={uiStyle}
-	                        />
+                        <LogDrawer
+                            show={showLogs} setShow={setShowLogs}
+                            logs={logs} setLogs={setLogs}
+                            devMode={devMode} setDevMode={setDevModeSafe}
+                            sendData={sendData}
+                            t={t}
+                            uiStyle={uiStyle}
+                        />
                     </div>
                 </>
             )}

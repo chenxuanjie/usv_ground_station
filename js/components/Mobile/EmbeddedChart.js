@@ -32,7 +32,7 @@
         const chartCardRef = useRef(null);
         const echartsInstance = useRef(null);
         const echartsThemeKeyRef = useRef(null);
-        
+
         const [isPaused, setIsPaused] = useState(false);
         const [isZoomMode, setIsZoomMode] = useState(false);
         const [isZoomLock, setIsZoomLock] = useState(false);
@@ -51,8 +51,8 @@
         });
         const [isHudDragging, setIsHudDragging] = useState(false);
         const isPausedRef = useRef(isPaused);
-        
-        const isZoomModeRef = useRef(false); 
+
+        const isZoomModeRef = useRef(false);
         const zoomLockRef = useRef(false);
         const isInteractingRef = useRef(false);
         const lastMousePosRef = useRef(null);
@@ -62,7 +62,7 @@
         const chartViewportRef = useRef(null);
         const hudStripRef = useRef(null);
         const hudDragRef = useRef({ active: false, pointerId: null, startX: 0, startScrollLeft: 0 });
-        
+
         const [hudData, setHudData] = useState({ batL: 0, batR: 0, heading: 0 });
         const [activeKeys, setActiveKeys] = useState(() => {
             const enabled = persistedChannelEnabled && typeof persistedChannelEnabled === 'object' ? persistedChannelEnabled : null;
@@ -179,7 +179,7 @@
                 echartsInstance.current.dispatchAction({
                     type: 'takeGlobalCursor',
                     key: 'dataZoomSelect',
-                    dataZoomSelectActive: false 
+                    dataZoomSelectActive: false
                 });
                 echartsInstance.current.getZr().setCursorStyle('default');
             }
@@ -466,6 +466,8 @@
                 const lim = absMax + Math.max(absMax * 0.08, 1e-6);
                 nextMin = -lim;
                 nextMax = lim;
+            } else if (yMin >= 0) {
+                nextMin = Math.max(0, nextMin);
             }
 
             const rangeForStep = nextMax - nextMin;
@@ -475,11 +477,22 @@
 
             const yTickCount = 5;
             const ySpan = Math.max(1e-9, niceMax - niceMin);
-            const yDecimals = ySpan <= 5 ? 1 : 0;
+            const yStep = ySpan / (yTickCount - 1);
+            const decimalsForStep = (value) => {
+                const v = Math.abs(Number(value));
+                if (!Number.isFinite(v) || v === 0) return 0;
+                for (let d = 0; d <= 3; d++) {
+                    const m = Math.pow(10, d);
+                    if (Math.abs(v * m - Math.round(v * m)) < 1e-6) return d;
+                }
+                return 2;
+            };
+            const yDecimals = decimalsForStep(yStep);
             const nextYTicks = [];
             for (let i = 0; i < yTickCount; i++) {
                 const v = niceMax - (ySpan * i) / (yTickCount - 1);
-                nextYTicks.push(Number(v).toFixed(yDecimals));
+                const vv = Math.abs(v) < 1e-12 ? 0 : v;
+                nextYTicks.push(Number(vv).toFixed(yDecimals));
             }
 
             const len = fullData.length;
@@ -532,9 +545,15 @@
                 };
             }).filter(s => s !== null);
 
+            const yAxisConfig = { min: niceMin, max: niceMax };
+            if (Number.isFinite(yStep) && yStep > 0) {
+                yAxisConfig.interval = yStep;
+                yAxisConfig.splitNumber = yTickCount - 1;
+            }
+
             echartsInstance.current.setOption({
                 xAxis: { data: fullData.map(item => item.time) },
-                yAxis: [{ min: niceMin, max: niceMax }],
+                yAxis: [yAxisConfig],
                 series: dynamicSeries
             }, { lazyUpdate: false, replaceMerge: ['series'] });
 

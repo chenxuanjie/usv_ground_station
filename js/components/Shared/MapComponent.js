@@ -13,6 +13,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const contextMenuRef = useRef(null);
     const suppressAddUntilRef = useRef(0);
     const tRef = useRef(t);
+    const waypointDragRafRef = useRef(0);
+    const waypointDragPendingRef = useRef(null);
     
     const [internalMapMode, setInternalMapMode] = useState('pan');
     const mapMode = controlledMapMode || internalMapMode;
@@ -251,6 +253,28 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         const missionPathPoints = [];
 
+        const scheduleMissionPathPreview = (index, currentPt) => {
+            waypointDragPendingRef.current = { index, currentPt };
+            if (waypointDragRafRef.current) return;
+            waypointDragRafRef.current = window.requestAnimationFrame(() => {
+                waypointDragRafRef.current = 0;
+                const pending = waypointDragPendingRef.current;
+                if (!pending || !missionPathRef.current) return;
+
+                const { index: pendingIndex, currentPt: pendingPoint } = pending;
+                waypointDragPendingRef.current = null;
+
+                const currentPath = missionPathRef.current.getPath();
+                if (currentPath.length > pendingIndex) {
+                    currentPath[pendingIndex] = pendingPoint;
+                    if (cruiseMode === '1' && currentPath.length > 2 && pendingIndex === 0) {
+                        currentPath[currentPath.length - 1] = pendingPoint;
+                    }
+                    missionPathRef.current.setPath(currentPath);
+                }
+            });
+        };
+
         waypoints.forEach((wp, index) => {
             const [bdLng, bdLat] = wgs84tobd09(wp.lng, wp.lat);
             const pt = new BMap.Point(bdLng, bdLat);
@@ -297,15 +321,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             });
 
             marker.addEventListener("dragging", function(e) {
-                const currentPt = e.point; 
-                const currentPath = missionPathRef.current.getPath();
-                if (currentPath.length > index) {
-                    currentPath[index] = currentPt;
-                    if (cruiseMode === '1' && currentPath.length > 2 && index === 0) {
-                        currentPath[currentPath.length - 1] = currentPt;
-                    }
-                    missionPathRef.current.setPath(currentPath);
-                }
+                scheduleMissionPathPreview(index, e.point);
             });
 
             marker.addEventListener("dragend", function(e) {
@@ -348,6 +364,13 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathRef.current.setPath([]);
         }
 
+        return () => {
+            if (waypointDragRafRef.current) {
+                window.cancelAnimationFrame(waypointDragRafRef.current);
+                waypointDragRafRef.current = 0;
+            }
+            waypointDragPendingRef.current = null;
+        };
     }, [waypoints, cruiseMode, t, waypointStyle]);
 
     // --- 5. 实时更新 ---

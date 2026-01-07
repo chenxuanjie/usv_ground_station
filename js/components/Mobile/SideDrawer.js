@@ -12,6 +12,7 @@
   const CloudDownload = Icon('CloudDownload');
   const Repeat = Icon('Repeat');
   const Save = Icon('Save');
+  const Check = Icon('Check');
 
   const SideDrawer = ({
     open,
@@ -54,7 +55,15 @@
 
     const [keyboardSelected, setKeyboardSelected] = useState(false);
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
+    const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
+    const deployCloseTimerRef = useRef(null);
+
+    useEffect(() => {
+      return () => {
+        if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
+      };
+    }, []);
 
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
@@ -65,17 +74,40 @@
       prevTcpStatusRef.current = tcpStatus;
       if (tcpStatus !== 'ONLINE') {
         setHasDeployedThisSession(false);
+        setDeployStatus('idle');
         return;
       }
       if (prev !== 'ONLINE') setHasDeployedThisSession(false);
     }, [tcpStatus]);
 
+    useEffect(() => {
+      setHasDeployedThisSession(false);
+    }, [streamOn, recvOn, controlMode, cruiseMode]);
+
+    useEffect(() => {
+      if (!open) {
+        setDeployStatus('idle');
+        if (deployCloseTimerRef.current) {
+          window.clearTimeout(deployCloseTimerRef.current);
+          deployCloseTimerRef.current = null;
+        }
+      }
+    }, [open]);
+
     const handleDeployClick = () => {
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
+        setDeployStatus('dispatched');
         setHasDeployedThisSession(true);
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
           window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
+        }
+        if (typeof onClose === 'function') {
+          if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
+          deployCloseTimerRef.current = window.setTimeout(() => {
+            deployCloseTimerRef.current = null;
+            onClose();
+          }, 160);
         }
         return;
       }
@@ -398,12 +430,18 @@
                     onClick={handleDeployClick}
                     className={`w-full py-3 text-white font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
                       isIos
-                        ? 'bg-[#007AFF] hover:bg-[#1b86ff] rounded-[14px] shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)] active:scale-[0.99]'
-                        : 'bg-cyan-600/90 hover:bg-cyan-500 clip-path-slant transition-colors shadow-glow'
+                        ? (deployStatus === 'dispatched'
+                          ? 'bg-[#34C759] hover:bg-[#2fd157] rounded-[14px] shadow-[0_10px_36px_-14px_rgba(52,199,89,0.45)] active:scale-[0.99]'
+                          : 'bg-[#007AFF] hover:bg-[#1b86ff] rounded-[14px] shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)] active:scale-[0.99]'
+                        )
+                        : (deployStatus === 'dispatched'
+                          ? 'bg-green-600/90 hover:bg-green-500 clip-path-slant transition-colors shadow-[0_0_18px_rgba(34,197,94,0.35)]'
+                          : 'bg-cyan-600/90 hover:bg-cyan-500 clip-path-slant transition-colors shadow-glow'
+                        )
                     }`}
                   >
-                    <Save className="w-4 h-4" />
-                    {t.deploy_config}
+                    {deployStatus === 'dispatched' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                    {deployStatus === 'dispatched' ? (t.deploy_dispatched || t.saved) : t.deploy_config}
                   </button>
                 </div>
               </div>
