@@ -4,7 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "clean:web": "rm -rf dist",
-    "build:web": "rm -rf dist && mkdir -p dist/js && babel js --out-dir dist/js --extensions \".js\" --ignore \"js/lib/**\" --source-maps"
+    "build:web": "rm -rf dist && mkdir -p dist/js && node ./node_modules/@babel/cli/bin/babel.js js --out-dir dist/js --extensions \".js\" --ignore \"js/lib/**\" --source-maps"
   },
   "devDependencies": {
     "@babel/cli": "^7.26.4",
@@ -13,4 +13,3 @@
     "@babel/preset-react": "^7.26.3"
   }
 }
-

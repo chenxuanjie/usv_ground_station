@@ -6,4 +6,6 @@ usv_server
 !config_default.ini
 !config.ini
 node_modules
+dist
+.tools
 .DS_Store

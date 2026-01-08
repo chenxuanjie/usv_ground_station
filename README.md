@@ -47,7 +47,7 @@
 
 
 * **🚀 轻量级架构**：
-* 前端：纯 HTML/JS (React UMD)，无需 Node.js 构建工具。
+* 前端：纯 HTML/JS (React UMD)。为加速首屏，已引入可选的 Node/Babel 预编译（输出 `dist/`），运行时无需 Node。
 * 后端：C++ 高性能服务器，集成了 HTTP 静态服务与 WebSocket 转发网桥。
 
 
@@ -57,12 +57,16 @@
 ```text
 /
 ├── index.html              # 前端入口 (React 挂载点)
+├── index.dev.html          # 开发入口（运行时 Babel，加载更慢）
 ├── config.ini              # 系统配置文件 (IP/端口)
 ├── assets/
 │   ├── fonts/              # 本地字体资源 (离线可用)
 │   └── icons/              # 本地图片/光标等资源
 ├── CMakeLists.txt          # C++ 项目构建配置
-├── build_cmake.sh          # 自动化编译脚本
+├── build.sh                # 自动化编译脚本（前端预编译 + 后端 CMake）
+├── build_cmake.sh          # 兼容入口（转发到 build.sh）
+├── package.json            # 前端预编译依赖清单（Babel）
+├── babel.config.json       # Babel 配置
 ├── usv_server.cpp          # C++ 后端源码 (HTTP + WebSocket + TCP Client)
 ├── js/
 │   ├── app.js              # 核心逻辑组装
@@ -86,22 +90,27 @@
 
 ## 🚀 快速开始 (Quick Start)
 
-本项目后端采用 C++ 编写，前端由后端直接托管，无需安装 Nginx 或 Node.js。
+本项目后端采用 C++ 编写，前端由后端直接托管，无需安装 Nginx。
+如需“前端预编译”（推荐，用于加快首次加载），需要 Node.js（建议 >= 18），或使用项目内的便携 Node（`.tools/node-*/bin`）。
 
-### 1. 编译后端
+### 1. 编译（前端 + 后端）
 
 确保您的系统已安装 `g++` 和 `cmake`。
 
 ```bash
 # 赋予脚本执行权限
-chmod +x build_cmake.sh
+chmod +x build.sh
 
-# 运行编译脚本
-./build_cmake.sh
+# 运行编译脚本（默认同时预编译前端 dist/ 并编译后端）
+./build.sh
 
 ```
 
 编译成功后，根目录下会生成 `usv_server` 可执行文件。
+
+可选：
+* 仅编译后端：`SKIP_WEB_BUILD=1 ./build.sh`
+* 若不构建前端，也可启动后访问 `index.dev.html`（运行时 Babel，加载更慢）
 
 ### 2. 配置连接
 
@@ -142,8 +151,10 @@ local_web_port=8080   # 本地 Web 服务端口
 
 ## 🛠️ 开发指南
 
-* **前端修改**：直接编辑 `js/` 下的文件，刷新浏览器即可生效（无需编译）。
-* **后端修改**：修改 `.cpp` 文件后，需重新运行 `./build_cmake.sh`。
+* **前端修改**：
+  - 使用 `index.html`：修改 `js/` 后需重新执行 `npm run build:web`（或 `./build.sh`）更新 `dist/`。
+  - 使用 `index.dev.html`：直接编辑 `js/` 并刷新即可（运行时 Babel，加载更慢）。
+* **后端修改**：修改 `.cpp` 文件后，需重新运行 `./build.sh`。
 
 ## 📜 许可证
 

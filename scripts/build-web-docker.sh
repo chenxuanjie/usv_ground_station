@@ -10,11 +10,12 @@ docker run --rm \
   -w /work \
   "${NODE_IMAGE}" \
   bash -lc '
+    export NODE_ENV=development
+    export npm_config_production=false
     if [ -f package-lock.json ]; then
-      npm ci
+      npm ci --include=dev
     else
-      npm install
+      npm install --include=dev
     fi
     npm run build:web
   '
-
