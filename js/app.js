@@ -1,5 +1,5 @@
 // js/app.js
-const { useState, useEffect, useRef, useCallback } = React;
+var { useState, useEffect, useRef, useCallback } = React;
 
 const CheckCircle2 = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

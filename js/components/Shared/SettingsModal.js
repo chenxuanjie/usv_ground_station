@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+var { useState, useEffect, useRef } = React;
 
 // HUDBox 组件 (从 1.js 移植)
 const HUDBox = ({ children, className = "", noGlow = false, variant = "cyber" }) => {

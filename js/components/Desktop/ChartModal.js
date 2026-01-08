@@ -1,5 +1,5 @@
 // js/components/ChartModal.js
-const { useEffect, useRef, useState, useCallback } = React;
+var { useEffect, useRef, useState, useCallback } = React;
 
 // 1. 核心配置 (修改 label -> labelKey)
 const CHART_CONFIG = [

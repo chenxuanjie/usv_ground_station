@@ -1,6 +1,6 @@
 // js/components/Sidebar.js
 // 注意：这里引入了 useEffect, useState, useRef
-const { useEffect, useState, useRef } = React;
+var { useEffect, useState, useRef } = React;
 
 function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
