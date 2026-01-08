@@ -528,7 +528,7 @@
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
                         <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('heading')}</div>
-                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(0)}°</div>
+                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(1)}°</div>
                       </div>
                       <div className="text-center">
                         <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('waypoint')}</div>

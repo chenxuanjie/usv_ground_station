@@ -731,7 +731,7 @@
                     }`}>
                         <span className={`${isIos ? 'text-[11px] font-semibold tracking-tight text-[#5856D6]' : 'text-[10px] text-purple-300 font-bold uppercase tracking-wider'} mb-0.5`}>{t ? t('heading') : 'HEADING'}</span>
                         <div className="flex items-baseline">
-                            <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-purple-200'}`}>{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(0) : 0}</span>
+                            <span className={`font-mono text-sm font-bold ${isIos ? 'text-slate-900' : 'text-purple-200'}`}>{Number.isFinite(Number(hudData.heading)) ? Number(hudData.heading).toFixed(1) : '0.0'}</span>
                             <span className={`${isIos ? 'text-[11px] text-[#5856D6]' : 'text-[10px] text-purple-300'} ml-0.5`}>°</span>
                         </div>
                     </button>

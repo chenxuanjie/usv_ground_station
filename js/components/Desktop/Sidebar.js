@@ -83,7 +83,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     </div>
                     <div className="text-right">
                         <div className="text-3xl sm:text-4xl font-black text-white tracking-tighter drop-shadow-md">
-                            {boatStatus.heading.toFixed(1)}<span className="text-base sm:text-lg text-cyan-600 ml-1">°</span>
+                            {boatStatus.heading.toFixed(2)}<span className="text-base sm:text-lg text-cyan-600 ml-1">°</span>
                         </div>
                         <div className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-widest mt-1">{t('current_heading')}</div>
                     </div>
