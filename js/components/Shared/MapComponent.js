@@ -1,5 +1,5 @@
 // js/components/MapComponent.js
-const { useEffect, useRef, useState } = React;
+var { useEffect, useRef, useState } = React;
 
 function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber' }) {
     const mapRef = useRef(null);

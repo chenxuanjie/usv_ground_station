@@ -101,7 +101,11 @@
     if (themeRegistry[normalized]) return Promise.resolve(themeRegistry[normalized]);
     if (themeLoadPromises[normalized]) return themeLoadPromises[normalized];
 
-    const src = THEME_SCRIPTS[normalized];
+    const assetPrefixRaw = (typeof window !== 'undefined' && typeof window.__APP_ASSET_PREFIX__ === 'string')
+      ? window.__APP_ASSET_PREFIX__
+      : '';
+    const assetPrefix = assetPrefixRaw && !assetPrefixRaw.endsWith('/') ? `${assetPrefixRaw}/` : assetPrefixRaw;
+    const src = assetPrefix + THEME_SCRIPTS[normalized];
     if (!src) return Promise.reject(new Error(`Unknown theme: ${normalized}`));
     if (typeof document === 'undefined') return Promise.reject(new Error('Theme loading requires a browser document.'));
 

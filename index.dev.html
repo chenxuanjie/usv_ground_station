@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="supported-color-schemes" content="light dark">
     <meta name="theme-color" content="#020617" id="meta-theme-color">
-    <title>无人艇控制终端</title>
+    <title>无人艇控制终端 (DEV)</title>
     <script src="js/lib/tailwind.js"></script>
     <script>
         tailwind.config = {
@@ -23,11 +23,12 @@
             }
         }
     </script>
-	    <script src="js/lib/react.js"></script>
-	    <script src="js/lib/react-dom.js"></script>
-	    <script src="js/lib/echarts.js"></script>
-	    <script src="js/lib/baidu/baidu_map_api_v3.0.js"></script>
-	    <script src="js/lib/baidu/DistanceTool_min.js"></script>
+    <script src="js/lib/react.js"></script>
+    <script src="js/lib/react-dom.js"></script>
+    <script src="js/lib/echarts.js"></script>
+    <script src="js/lib/babel.js"></script>
+    <script src="js/lib/baidu/baidu_map_api_v3.0.js"></script>
+    <script src="js/lib/baidu/DistanceTool_min.js"></script>
     
     <link rel="stylesheet" href="assets/fonts/fonts.css">
     <style>
@@ -160,49 +161,48 @@
     </script>
 </head>
 <body class="bg-slate-950 text-slate-200 overflow-hidden font-sans selection:bg-cyan-500/30">
-	    <div id="root"></div>
+    <div id="root"></div>
 
-		    <script>
-		        (function () {
-		            window.__APP_ASSET_PREFIX__ = 'dist/';
-		            var isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
-		            var scripts = [
-		                'dist/js/locales.js',
-		                'dist/js/icons.js',
-		                'dist/js/components/Shared/LogDrawer.js',
-		                'dist/js/components/Shared/MapComponent.js',
-		                'dist/js/components/Shared/SettingsModal.js'
-		            ];
+    <script>
+        (function () {
+            var isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+            var scripts = [
+                'js/locales.js',
+                'js/icons.js',
+                'js/components/Shared/LogDrawer.js',
+                'js/components/Shared/MapComponent.js',
+                'js/components/Shared/SettingsModal.js'
+            ];
 
-		            if (isMobile) {
-		                scripts.push(
-		                    'dist/js/components/Mobile/utils.js',
-		                    'dist/js/components/Mobile/locales.js',
-		                    'dist/js/components/Mobile/HUDBox.js',
-		                    'dist/js/components/Mobile/EmbeddedChart.js',
-		                    'dist/js/components/Mobile/JoystickComponent.js',
-		                    'dist/js/components/Mobile/BottomNav.js',
-		                    'dist/js/components/Mobile/StatusBar.js',
-		                    'dist/js/components/Mobile/SideDrawer.js',
-		                    'dist/js/MobileStationApp.js'
-		                );
-		            } else {
-		                scripts.push(
-		                    'dist/js/components/Desktop/Header.js',
-		                    'dist/js/components/Desktop/Sidebar.js',
-		                    'dist/js/components/Desktop/ChartModal.js'
-		                );
-		            }
+            if (isMobile) {
+                scripts.push(
+                    'js/components/Mobile/utils.js',
+                    'js/components/Mobile/locales.js',
+                    'js/components/Mobile/HUDBox.js',
+                    'js/components/Mobile/EmbeddedChart.js',
+                    'js/components/Mobile/JoystickComponent.js',
+                    'js/components/Mobile/BottomNav.js',
+                    'js/components/Mobile/StatusBar.js',
+                    'js/components/Mobile/SideDrawer.js',
+                    'js/MobileStationApp.js'
+                );
+            } else {
+                scripts.push(
+                    'js/components/Desktop/Header.js',
+                    'js/components/Desktop/Sidebar.js',
+                    'js/components/Desktop/ChartModal.js'
+                );
+            }
 
-		            scripts.push('dist/js/app.js');
+            scripts.push('js/app.js');
 
-		            var tags = '';
-			            for (var i = 0; i < scripts.length; i++) {
-			                var extra = i === 0 ? ' onerror="window.location.replace(\'index.dev.html\')"' : '';
-			                tags += '<script src="' + scripts[i] + '"' + extra + '><\/script>\n';
-			            }
-		            document.write(tags);
-		        })();
-		    </script>
+            var tags = '';
+            for (var i = 0; i < scripts.length; i++) {
+                tags += '<script type="text/babel" src="' + scripts[i] + '"><\/script>\n';
+            }
+            document.write(tags);
+        })();
+    </script>
 </body>
 </html>
+
