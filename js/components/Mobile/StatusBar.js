@@ -10,7 +10,6 @@
       ? window.MobileUtils.getMobileTheme(uiStyle)
       : null;
     const tcpText = `TCP ${tcpStatus === 'ONLINE' ? 'ONLINE' : (tcpStatus === 'CONNECTING' ? 'CONNECTING' : 'OFFLINE')}`;
-    const wsText = 'WS';
     const linkText = 'LINK';
     const rtkText = posReady === false ? 'GPS WAIT' : 'RTK FLOAT';
 
@@ -31,10 +30,6 @@
             <span className={`flex items-center gap-1 ${tcpStatus === 'ONLINE' ? 'text-green-400' : (tcpStatus === 'CONNECTING' ? 'text-amber-400' : 'text-red-400')}`}>
               <div className={`w-1.5 h-1.5 rounded-full ${tcpStatus === 'ONLINE' ? 'bg-green-500 animate-pulse' : (tcpStatus === 'CONNECTING' ? 'bg-amber-500 animate-pulse' : 'bg-red-500')}`}></div>
               {tcpText}
-            </span>
-            <span className={`flex items-center gap-1 ${ui?.statusBar?.metaMuted || 'text-cyan-300/70'}`}>
-              <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${ui?.key === 'ios' ? 'bg-[#007AFF]' : 'bg-cyan-500'}`}></div>
-              {wsText}
             </span>
           </div>
         </div>
