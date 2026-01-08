@@ -163,26 +163,45 @@
 <body class="bg-slate-950 text-slate-200 overflow-hidden font-sans selection:bg-cyan-500/30">
     <div id="root"></div>
 
-    <script type="text/babel" src="js/locales.js"></script>
-    <script type="text/babel" src="js/icons.js"></script>
+	    <script>
+	        (function () {
+	            var isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+	            var scripts = [
+	                'js/locales.js',
+	                'js/icons.js',
+	                'js/components/Shared/LogDrawer.js',
+	                'js/components/Shared/MapComponent.js',
+	                'js/components/Shared/SettingsModal.js'
+	            ];
 
-    <script type="text/babel" src="js/components/Desktop/Header.js"></script>
-    <script type="text/babel" src="js/components/Desktop/Sidebar.js"></script>
-    <script type="text/babel" src="js/components/Shared/LogDrawer.js"></script>
-    <script type="text/babel" src="js/components/Shared/MapComponent.js"></script>
-    <script type="text/babel" src="js/components/Desktop/ChartModal.js"></script>
-    <script type="text/babel" src="js/components/Shared/SettingsModal.js"></script>
+	            if (isMobile) {
+	                scripts.push(
+	                    'js/components/Mobile/utils.js',
+	                    'js/components/Mobile/locales.js',
+	                    'js/components/Mobile/HUDBox.js',
+	                    'js/components/Mobile/EmbeddedChart.js',
+	                    'js/components/Mobile/JoystickComponent.js',
+	                    'js/components/Mobile/BottomNav.js',
+	                    'js/components/Mobile/StatusBar.js',
+	                    'js/components/Mobile/SideDrawer.js',
+	                    'js/MobileStationApp.js'
+	                );
+	            } else {
+	                scripts.push(
+	                    'js/components/Desktop/Header.js',
+	                    'js/components/Desktop/Sidebar.js',
+	                    'js/components/Desktop/ChartModal.js'
+	                );
+	            }
 
-    <script type="text/babel" src="js/components/Mobile/utils.js"></script>
-    <script type="text/babel" src="js/components/Mobile/locales.js"></script>
-    <script type="text/babel" src="js/components/Mobile/HUDBox.js"></script>
-    <script type="text/babel" src="js/components/Mobile/EmbeddedChart.js"></script>
-    <script type="text/babel" src="js/components/Mobile/JoystickComponent.js"></script>
-    <script type="text/babel" src="js/components/Mobile/BottomNav.js"></script>
-    <script type="text/babel" src="js/components/Mobile/StatusBar.js"></script>
-    <script type="text/babel" src="js/components/Mobile/SideDrawer.js"></script>
+	            scripts.push('js/app.js');
 
-    <script type="text/babel" src="js/MobileStationApp.js"></script>
-    <script type="text/babel" src="js/app.js"></script>
+	            var tags = '';
+		            for (var i = 0; i < scripts.length; i++) {
+		                tags += '<script type="text/babel" src="' + scripts[i] + '"><\/script>\n';
+		            }
+		            document.write(tags);
+		        })();
+		    </script>
 </body>
 </html>

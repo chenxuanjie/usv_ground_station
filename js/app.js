@@ -565,7 +565,17 @@ function BoatGroundStation() {
                     }
                     if (parts.length >= 5) setBoatStyle(parts[4].trim());
                     if (parts.length >= 6) setWaypointStyle(parts[5].trim());
-                    if (parts.length >= 11) setUiStyle(String(parts[10] || '').trim() || 'cyber');
+                    if (parts.length >= 11) {
+                        const nextUiStyleRaw = String(parts[10] || '').trim() || 'cyber';
+                        const nextUiStyle = nextUiStyleRaw.toLowerCase();
+                        if (nextUiStyle === 'ios' && window.MobileUtils && typeof window.MobileUtils.loadTheme === 'function') {
+                            window.MobileUtils.loadTheme('ios')
+                                .then(() => setUiStyle('ios'))
+                                .catch(() => setUiStyle('cyber'));
+                        } else {
+                            setUiStyle(nextUiStyle || 'cyber');
+                        }
+                    }
                     if (parts.length >= 7) setEmbeddedChannelExpanded(parseBool(parts[6], true));
                     if (parts.length >= 10) {
                         setEmbeddedChannelEnabled({
@@ -785,44 +795,60 @@ function BoatGroundStation() {
     ]);
 
     const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle, newUiStyle) => {
-        // 1. 更新本地状态
-        setServerIp(newIp);
-        setServerPort(newPort);
-        setAutoReconnect(!!newAutoReconnect);
-        if (newBoatStyle) setBoatStyle(newBoatStyle);
-        if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
-        if (newUiStyle) setUiStyle(newUiStyle);
+        const nextUiStyleRaw = (typeof newUiStyle === 'string' && newUiStyle.trim())
+            ? newUiStyle.trim()
+            : (typeof uiStyle === 'string' && uiStyle.trim() ? uiStyle.trim() : 'cyber');
+        const nextUiStyle = nextUiStyleRaw.toLowerCase() || 'cyber';
 
-        if (newChartFps !== undefined) {
-            const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
-            setChartFps(fps);
-            if (window.localStorage) window.localStorage.setItem('chart_fps', String(fps));
+        const applySave = () => {
+            // 1. 更新本地状态
+            setServerIp(newIp);
+            setServerPort(newPort);
+            setAutoReconnect(!!newAutoReconnect);
+            if (newBoatStyle) setBoatStyle(newBoatStyle);
+            if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
+            setUiStyle(nextUiStyle);
+
+            if (newChartFps !== undefined) {
+                const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
+                setChartFps(fps);
+                if (window.localStorage) window.localStorage.setItem('chart_fps', String(fps));
+            }
+            
+            // 2. 发送指令给后端保存到 config.ini
+            if (sendSetConfig({
+                ip: newIp,
+                port: newPort,
+                autoReconnect: !!newAutoReconnect,
+                boatStyle: newBoatStyle || 'default',
+                waypointStyle: newWaypointStyle || 'default',
+                uiStyle: nextUiStyle
+            })) {
+                addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
+            } else {
+                addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
+            }
+        };
+
+        if (nextUiStyle === 'ios' && window.MobileUtils && typeof window.MobileUtils.loadTheme === 'function') {
+            return window.MobileUtils.loadTheme('ios').then(() => {
+                applySave();
+            });
         }
-        
-        // 2. 发送指令给后端保存到 config.ini
-        if (sendSetConfig({
-            ip: newIp,
-            port: newPort,
-            autoReconnect: !!newAutoReconnect,
-            boatStyle: newBoatStyle || 'default',
-            waypointStyle: newWaypointStyle || 'default',
-            uiStyle: newUiStyle || uiStyle || 'cyber'
-        })) {
-            addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
-        } else {
-            addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
-        }
+
+        applySave();
     };
 
     useEffect(() => {
         if (typeof document === 'undefined') return;
-        const normalized = uiStyle === 'ios' ? 'ios' : 'cyber';
+        const canUseMobile = isMobile && typeof window.MobileStationApp === 'function';
+        const normalized = (canUseMobile && uiStyle === 'ios') ? 'ios' : 'cyber';
         document.documentElement.dataset.uiStyle = normalized;
         document.documentElement.style.colorScheme = normalized === 'ios' ? 'light' : 'dark';
 
         const meta = document.getElementById('meta-theme-color');
         if (meta) meta.setAttribute('content', normalized === 'ios' ? '#F2F2F7' : '#020617');
-    }, [uiStyle]);
+    }, [uiStyle, isMobile]);
 
     const handlePersistEmbeddedChartConfig = useCallback((patch = {}) => {
         const nextExpanded = Object.prototype.hasOwnProperty.call(patch, 'embeddedChannelExpanded')
@@ -988,14 +1014,16 @@ function BoatGroundStation() {
                 </>
             )}
             
-            <ChartModal 
-                isOpen={showChart}
-                onClose={() => setShowChart(false)}
-                dataRef={chartDataRef}
-                onClear={() => { chartDataRef.current = []; }}
-                fps={chartFps}
-                t={t}
-            />
+            {!shouldUseMobile && (
+                <ChartModal 
+                    isOpen={showChart}
+                    onClose={() => setShowChart(false)}
+                    dataRef={chartDataRef}
+                    onClear={() => { chartDataRef.current = []; }}
+                    fps={chartFps}
+                    t={t}
+                />
+            )}
 
             {showSettings && (
                 <SettingsModal 

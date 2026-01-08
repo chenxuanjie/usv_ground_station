@@ -92,15 +92,28 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
         }
 
         setSaveStatus('saving');
+        setErrorMsg('');
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-            onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle, uiStyle);
-            setSaveStatus('success');
-            
-            if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-            closeTimerRef.current = setTimeout(() => {
-                onClose();
-            }, 800);
+            let result;
+            try {
+                result = onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle, uiStyle);
+            } catch (err) {
+                setSaveStatus('error');
+                setErrorMsg((err && err.message) ? String(err.message) : (t ? t('err_invalid_ip') : "Save failed."));
+                return;
+            }
+
+            Promise.resolve(result).then(() => {
+                setSaveStatus('success');
+                if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = setTimeout(() => {
+                    onClose();
+                }, 800);
+            }).catch((err) => {
+                setSaveStatus('error');
+                setErrorMsg((err && err.message) ? String(err.message) : (t ? t('err_invalid_ip') : "Save failed."));
+            });
         }, 600);
     };
 
