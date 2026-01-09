@@ -4,7 +4,7 @@ services:
   usv-ground-station:
     build: .
     image: usv-ground-station:latest
-    container_name: usv_server
+    container_name: usv_ground_station
     restart: unless-stopped
     ports:
       - "8888:8888"  # 映射 宿主机端口:容器端口

@@ -102,10 +102,16 @@ const AppTranslations = {
 
         connection_tab: "连接",
         system_tab: "系统",
+        ui_style: "界面风格",
+        desc_ui_style: "切换移动端界面主题",
+        style_cyber: "赛博",
+        style_ios: "iOS",
         boat_style: "船体样式",
         desc_boat_style: "选择船体图标样式",
         wp_style: "航点样式",
         desc_wp_style: "选择航点图标样式",
+        default: "默认",
+        cyber: "赛博",
 
         settings_title: "系统连接设置",
         set_boat_ip: "无人艇 IP 地址",
@@ -116,7 +122,12 @@ const AppTranslations = {
         btn_cancel: "取消",
         msg_save_success: "配置已保存!",
         err_invalid_input: "输入无效",
+        err_invalid_ip: "IP/端口无效，请检查输入",
+        err_invalid_fps: "FPS 必须在 5 ~ 240 之间",
+        saving: "保存中...",
+        saved: "已保存",
         auto_reconnect: "自动重连",
+        desc_reconnect: "断线后自动尝试重连",
         cancel_auto_reconnect: "已取消自动重连", // [新增]
         btn_cancel_reconnect: "取消自动重连", // [新增]
         auto_reconnect_hint: "仅在点击“连接设备”后生效，断线/失败将按间隔自动重试",
@@ -225,10 +236,16 @@ const AppTranslations = {
 
         connection_tab: "CONNECTION",
         system_tab: "SYSTEM",
+        ui_style: "UI STYLE",
+        desc_ui_style: "Switch mobile UI theme",
+        style_cyber: "CYBER",
+        style_ios: "iOS",
         boat_style: "BOAT STYLE",
         desc_boat_style: "Select boat icon style",
         wp_style: "WP STYLE",
         desc_wp_style: "Select waypoint marker style",
+        default: "DEFAULT",
+        cyber: "CYBER",
 
         settings_title: "CONNECTION SETTINGS",
         set_boat_ip: "BOAT IP ADDRESS",
@@ -239,7 +256,12 @@ const AppTranslations = {
         btn_cancel: "CANCEL",
         msg_save_success: "Config Saved!",
         err_invalid_input: "Invalid Input",
+        err_invalid_ip: "Invalid IP/Port",
+        err_invalid_fps: "FPS must be between 5 and 240.",
+        saving: "APPLYING...",
+        saved: "SAVED",
         auto_reconnect: "AUTO RECONNECT",
+        desc_reconnect: "Auto reconnect on drop/fail",
         cancel_auto_reconnect: "Auto reconnect cancelled", // [新增]
         btn_cancel_reconnect: "CANCEL AUTO RECONNECT", // [新增]
         auto_reconnect_hint: "Only takes effect after clicking CONNECT. Retries on drop/fail with interval.",
@@ -247,3 +269,7 @@ const AppTranslations = {
         toggle_off: "OFF",
     }
 };
+
+if (typeof window !== 'undefined') {
+    window.AppTranslations = AppTranslations;
+}

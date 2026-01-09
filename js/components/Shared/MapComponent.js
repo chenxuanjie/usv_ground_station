@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
-const { useEffect, useRef, useState } = React;
+var { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default' }) {
+function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber' }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -13,6 +13,8 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
     const contextMenuRef = useRef(null);
     const suppressAddUntilRef = useRef(0);
     const tRef = useRef(t);
+    const waypointDragRafRef = useRef(0);
+    const waypointDragPendingRef = useRef(null);
     
     const [internalMapMode, setInternalMapMode] = useState('pan');
     const mapMode = controlledMapMode || internalMapMode;
@@ -251,6 +253,28 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         const missionPathPoints = [];
 
+        const scheduleMissionPathPreview = (index, currentPt) => {
+            waypointDragPendingRef.current = { index, currentPt };
+            if (waypointDragRafRef.current) return;
+            waypointDragRafRef.current = window.requestAnimationFrame(() => {
+                waypointDragRafRef.current = 0;
+                const pending = waypointDragPendingRef.current;
+                if (!pending || !missionPathRef.current) return;
+
+                const { index: pendingIndex, currentPt: pendingPoint } = pending;
+                waypointDragPendingRef.current = null;
+
+                const currentPath = missionPathRef.current.getPath();
+                if (currentPath.length > pendingIndex) {
+                    currentPath[pendingIndex] = pendingPoint;
+                    if (cruiseMode === '1' && currentPath.length > 2 && pendingIndex === 0) {
+                        currentPath[currentPath.length - 1] = pendingPoint;
+                    }
+                    missionPathRef.current.setPath(currentPath);
+                }
+            });
+        };
+
         waypoints.forEach((wp, index) => {
             const [bdLng, bdLat] = wgs84tobd09(wp.lng, wp.lat);
             const pt = new BMap.Point(bdLng, bdLat);
@@ -297,15 +321,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             });
 
             marker.addEventListener("dragging", function(e) {
-                const currentPt = e.point; 
-                const currentPath = missionPathRef.current.getPath();
-                if (currentPath.length > index) {
-                    currentPath[index] = currentPt;
-                    if (cruiseMode === '1' && currentPath.length > 2 && index === 0) {
-                        currentPath[currentPath.length - 1] = currentPt;
-                    }
-                    missionPathRef.current.setPath(currentPath);
-                }
+                scheduleMissionPathPreview(index, e.point);
             });
 
             marker.addEventListener("dragend", function(e) {
@@ -348,6 +364,13 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             missionPathRef.current.setPath([]);
         }
 
+        return () => {
+            if (waypointDragRafRef.current) {
+                window.cancelAnimationFrame(waypointDragRafRef.current);
+                waypointDragRafRef.current = 0;
+            }
+            waypointDragPendingRef.current = null;
+        };
     }, [waypoints, cruiseMode, t, waypointStyle]);
 
     // --- 5. 实时更新 ---
@@ -409,11 +432,13 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
         Target: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
     };
 
+    const isIosMobile = uiStyle === 'ios' && !!hideToolbar;
+
     return (
         <div className="w-full h-full relative group">
-            <div ref={containerRef} className="w-full h-full rounded bg-slate-900" />
+            <div ref={containerRef} className={`w-full h-full rounded ${isIosMobile ? 'bg-white' : 'bg-slate-900'}`} />
             
-            <div className="absolute inset-0 pointer-events-none border border-cyan-500/20 rounded shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]"></div>
+            <div className={`absolute inset-0 pointer-events-none border rounded ${isIosMobile ? 'border-white/50 shadow-[inset_0_0_30px_rgba(0,0,0,0.06)]' : 'border-cyan-500/20 shadow-[inset_0_0_20px_rgba(6,182,212,0.1)]'}`}></div>
             
             {/* 上方工具栏 (移除了定位按钮) */}
             {!hideToolbar && (
@@ -442,14 +467,21 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
             <div className={`absolute bottom-8 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
                 <button 
                     onClick={handleLocateBoat}
-                    className="p-2 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg shadow-lg text-cyan-400 hover:text-white hover:bg-slate-800 transition-all hover:scale-110 active:scale-95"
+                    className={isIosMobile
+                        ? "p-2 bg-white/80 backdrop-blur-xl border border-white/60 rounded-full shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#007AFF] hover:bg-white/90 transition-all active:scale-95"
+                        : "p-2 bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg shadow-lg text-cyan-400 hover:text-white hover:bg-slate-800 transition-all hover:scale-110 active:scale-95"
+                    }
                     title={t ? t('map_locate') : "Locate"}
                 >
                     <MapIcons.Target />
                 </button>
             </div>
 
-            <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur px-2 py-1 rounded border border-slate-700 text-[10px] text-cyan-300 font-mono pointer-events-none z-10 flex flex-col gap-1">
+            <div className={`absolute bottom-2 left-2 px-2 py-1 rounded border pointer-events-none z-10 flex flex-col gap-1 ${
+                isIosMobile
+                    ? 'bg-white/80 backdrop-blur-xl border-white/60 text-[11px] text-slate-700 font-sans shadow-sm'
+                    : 'bg-slate-950/80 backdrop-blur border-slate-700 text-[10px] text-cyan-300 font-mono'
+            }`}>
                 <span>{t ? t('map_system_active') : "BD09 MAP SYSTEM ACTIVE"}</span>
                 <span className="text-slate-500">
                     {mapMode === 'add' 

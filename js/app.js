@@ -1,5 +1,5 @@
 // js/app.js
-const { useState, useEffect, useRef, useCallback } = React;
+var { useState, useEffect, useRef, useCallback } = React;
 
 const CheckCircle2 = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -554,13 +554,70 @@ function BoatGroundStation() {
                 const msg = event.data;
                 if (msg.startsWith('CURRENT_CONFIG')) {
                     const parts = msg.split(',');
+                    const parseBool = (raw, fallback = false) => {
+                        if (raw == null) return fallback;
+                        const v = String(raw).trim().toLowerCase();
+                        return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+                    };
                     if (parts.length >= 3) { setServerIp(parts[1]); setServerPort(parts[2]); }
                     if (parts.length >= 4) {
-                        const v = String(parts[3]).trim().toLowerCase();
-                        setAutoReconnect(v === '1' || v === 'true' || v === 'yes' || v === 'on');
+                        setAutoReconnect(parseBool(parts[3], false));
                     }
                     if (parts.length >= 5) setBoatStyle(parts[4].trim());
                     if (parts.length >= 6) setWaypointStyle(parts[5].trim());
+                    if (parts.length >= 11) {
+                        const nextUiStyleRaw = String(parts[10] || '').trim() || 'cyber';
+                        const nextUiStyle = nextUiStyleRaw.toLowerCase();
+                        if (nextUiStyle === 'ios' && window.MobileUtils && typeof window.MobileUtils.loadTheme === 'function') {
+                            window.MobileUtils.loadTheme('ios')
+                                .then(() => setUiStyle('ios'))
+                                .catch(() => setUiStyle('cyber'));
+                        } else {
+                            setUiStyle(nextUiStyle || 'cyber');
+                        }
+                    }
+                    if (parts.length >= 7) setEmbeddedChannelExpanded(parseBool(parts[6], true));
+                    if (parts.length >= 10) {
+                        setEmbeddedChannelEnabled({
+                            heading: parseBool(parts[7], false),
+                            batL: parseBool(parts[8], false),
+                            batR: parseBool(parts[9], false)
+                        });
+                    }
+                    if (parts.length >= 3 && (parts.length < 7 || parts.length < 10)) {
+                        try {
+                            const readFlag = (k) => {
+                                const v = window.localStorage ? window.localStorage.getItem(k) : null;
+                                if (v == null) return null;
+                                const t = String(v).trim().toLowerCase();
+                                return t === '1' || t === 'true' || t === 'yes' || t === 'on';
+                            };
+                            const exp = readFlag('embedded_channel_expanded');
+                            const hdg = readFlag('embedded_channel_enabled_heading');
+                            const bl = readFlag('embedded_channel_enabled_batL');
+                            const br = readFlag('embedded_channel_enabled_batR');
+
+                            if (exp != null || hdg != null || bl != null || br != null) {
+                                const nextExpanded = exp == null ? true : exp;
+                                const nextEnabled = {
+                                    heading: hdg == null ? false : hdg,
+                                    batL: bl == null ? false : bl,
+                                    batR: br == null ? false : br
+                                };
+                                setEmbeddedChannelExpanded(nextExpanded);
+                                setEmbeddedChannelEnabled(nextEnabled);
+
+                                const nextAuto = parts.length >= 4 ? parseBool(parts[3], false) : false;
+                                const nextBoatStyle = parts.length >= 5 ? String(parts[4] || '').trim() : 'default';
+                                const nextWpStyle = parts.length >= 6 ? String(parts[5] || '').trim() : 'default';
+                                const nextUiStyle = parts.length >= 11 ? String(parts[10] || '').trim() : 'cyber';
+
+                                ws.send(
+                                    `CMD,SET_CONFIG,${parts[1]},${parts[2]},${nextAuto ? '1' : '0'},${nextBoatStyle || 'default'},${nextWpStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
+                                );
+                            }
+                        } catch (_) {}
+                    }
                 } 
                 else if (msg.startsWith('TCP_STATUS')) {
                     const curLang = langRef.current === 'zh' ? 'zh' : 'en';
@@ -703,45 +760,140 @@ function BoatGroundStation() {
 
     const [boatStyle, setBoatStyle] = useState('default');
     const [waypointStyle, setWaypointStyle] = useState('default');
+    const [uiStyle, setUiStyle] = useState('cyber');
+    const [embeddedChannelExpanded, setEmbeddedChannelExpanded] = useState(true);
+    const [embeddedChannelEnabled, setEmbeddedChannelEnabled] = useState({ heading: false, batL: false, batR: false });
+    const pendingEmbeddedChartConfigRef = useRef(null);
 
-    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle) => {
-        // 1. 更新本地状态
-        setServerIp(newIp);
-        setServerPort(newPort);
-        setAutoReconnect(!!newAutoReconnect);
-        if (newBoatStyle) setBoatStyle(newBoatStyle);
-        if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
+    const sendSetConfig = useCallback((opts = {}) => {
+        if (!wsRef.current || !webConnected) return false;
 
-        if (newChartFps !== undefined) {
-            const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
-            setChartFps(fps);
-            if (window.localStorage) window.localStorage.setItem('chart_fps', String(fps));
-        }
-        
-        // 2. 发送指令给后端保存到 config.ini
-        // 协议: CMD,SET_CONFIG,IP,PORT,AUTO_RECONNECT,BOAT_STYLE,WP_STYLE
-        if (wsRef.current && webConnected) {
-            wsRef.current.send(`CMD,SET_CONFIG,${newIp},${newPort},${newAutoReconnect ? '1' : '0'},${newBoatStyle || 'default'},${newWaypointStyle || 'default'}`);
-            addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
-            if (window.SystemToast && window.SystemToast.show) {
-                window.SystemToast.show(t('msg_save_success'), { type: 'success' });
+        const nextIp = Object.prototype.hasOwnProperty.call(opts, 'ip') ? opts.ip : serverIp;
+        const nextPort = Object.prototype.hasOwnProperty.call(opts, 'port') ? opts.port : serverPort;
+        if (!nextIp || !nextPort) return false;
+        const nextAutoReconnect = Object.prototype.hasOwnProperty.call(opts, 'autoReconnect') ? opts.autoReconnect : autoReconnect;
+        const nextBoatStyle = Object.prototype.hasOwnProperty.call(opts, 'boatStyle') ? opts.boatStyle : boatStyle;
+        const nextWaypointStyle = Object.prototype.hasOwnProperty.call(opts, 'waypointStyle') ? opts.waypointStyle : waypointStyle;
+        const nextUiStyle = Object.prototype.hasOwnProperty.call(opts, 'uiStyle') ? opts.uiStyle : uiStyle;
+        const nextExpanded = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelExpanded') ? opts.embeddedChannelExpanded : embeddedChannelExpanded;
+        const nextEnabled = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelEnabled') ? opts.embeddedChannelEnabled : embeddedChannelEnabled;
+
+        wsRef.current.send(
+            `CMD,SET_CONFIG,${nextIp},${nextPort},${nextAutoReconnect ? '1' : '0'},${nextBoatStyle || 'default'},${nextWaypointStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
+        );
+        return true;
+    }, [
+        autoReconnect,
+        boatStyle,
+        embeddedChannelEnabled,
+        embeddedChannelExpanded,
+        serverIp,
+        serverPort,
+        uiStyle,
+        waypointStyle,
+        webConnected
+    ]);
+
+    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle, newUiStyle) => {
+        const nextUiStyleRaw = (typeof newUiStyle === 'string' && newUiStyle.trim())
+            ? newUiStyle.trim()
+            : (typeof uiStyle === 'string' && uiStyle.trim() ? uiStyle.trim() : 'cyber');
+        const nextUiStyle = nextUiStyleRaw.toLowerCase() || 'cyber';
+
+        const applySave = () => {
+            // 1. 更新本地状态
+            setServerIp(newIp);
+            setServerPort(newPort);
+            setAutoReconnect(!!newAutoReconnect);
+            if (newBoatStyle) setBoatStyle(newBoatStyle);
+            if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
+            setUiStyle(nextUiStyle);
+
+            if (newChartFps !== undefined) {
+                const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
+                setChartFps(fps);
+                if (window.localStorage) window.localStorage.setItem('chart_fps', String(fps));
             }
-        } else {
-            addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
+            
+            // 2. 发送指令给后端保存到 config.ini
+            if (sendSetConfig({
+                ip: newIp,
+                port: newPort,
+                autoReconnect: !!newAutoReconnect,
+                boatStyle: newBoatStyle || 'default',
+                waypointStyle: newWaypointStyle || 'default',
+                uiStyle: nextUiStyle
+            })) {
+                addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
+            } else {
+                addLog('ERR', "前端未连接，无法保存配置到文件", 'error');
+            }
+        };
+
+        if (nextUiStyle === 'ios' && window.MobileUtils && typeof window.MobileUtils.loadTheme === 'function') {
+            return window.MobileUtils.loadTheme('ios').then(() => {
+                applySave();
+            });
         }
+
+        applySave();
     };
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const canUseMobile = isMobile && typeof window.MobileStationApp === 'function';
+        const normalized = (canUseMobile && uiStyle === 'ios') ? 'ios' : 'cyber';
+        document.documentElement.dataset.uiStyle = normalized;
+        document.documentElement.style.colorScheme = normalized === 'ios' ? 'light' : 'dark';
+
+        const meta = document.getElementById('meta-theme-color');
+        if (meta) meta.setAttribute('content', normalized === 'ios' ? '#F2F2F7' : '#020617');
+    }, [uiStyle, isMobile]);
+
+    const handlePersistEmbeddedChartConfig = useCallback((patch = {}) => {
+        const nextExpanded = Object.prototype.hasOwnProperty.call(patch, 'embeddedChannelExpanded')
+            ? !!patch.embeddedChannelExpanded
+            : embeddedChannelExpanded;
+        const nextEnabled = Object.prototype.hasOwnProperty.call(patch, 'embeddedChannelEnabled')
+            ? {
+                heading: !!patch.embeddedChannelEnabled?.heading,
+                batL: !!patch.embeddedChannelEnabled?.batL,
+                batR: !!patch.embeddedChannelEnabled?.batR
+            }
+            : embeddedChannelEnabled;
+
+        setEmbeddedChannelExpanded(nextExpanded);
+        setEmbeddedChannelEnabled(nextEnabled);
+        const ok = sendSetConfig({ embeddedChannelExpanded: nextExpanded, embeddedChannelEnabled: nextEnabled });
+        if (!ok) pendingEmbeddedChartConfigRef.current = { embeddedChannelExpanded: nextExpanded, embeddedChannelEnabled: nextEnabled };
+    }, [embeddedChannelEnabled, embeddedChannelExpanded, sendSetConfig]);
+
+    useEffect(() => {
+        if (!webConnected) return;
+        if (!serverIp || !serverPort) return;
+        const pending = pendingEmbeddedChartConfigRef.current;
+        if (!pending) return;
+        const ok = sendSetConfig(pending);
+        if (ok) pendingEmbeddedChartConfigRef.current = null;
+    }, [sendSetConfig, serverIp, serverPort, webConnected]);
 
     const MobileStationApp = window.MobileStationApp;
     const shouldUseMobile = !!isMobile && typeof MobileStationApp === 'function';
+    const isMobileIos = shouldUseMobile && uiStyle === 'ios';
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-mono overflow-hidden relative bg-grid">
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
+        <div
+            className={`flex flex-col app-height overflow-hidden relative ${
+                isMobileIos ? 'bg-[#F2F2F7] text-slate-900 font-sans' : 'bg-slate-950 text-slate-200 font-mono bg-grid'
+            }`}
+        >
+            {!isMobileIos && <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>}
 
             {!shouldUseMobile && <NotificationCenter items={notifications} onDismiss={dismissToast} />}
 
             {shouldUseMobile ? (
                 <MobileStationApp
+                    uiStyle={uiStyle}
                     boatStyle={boatStyle}
                     setBoatStyle={setBoatStyle}
                     waypointStyle={waypointStyle}
@@ -771,6 +923,9 @@ function BoatGroundStation() {
                     setShowChart={setShowChart}
                     chartDataRef={chartDataRef}
                     chartFps={chartFps}
+                    embeddedChannelExpanded={embeddedChannelExpanded}
+                    embeddedChannelEnabled={embeddedChannelEnabled}
+                    onPersistEmbeddedChartConfig={handlePersistEmbeddedChartConfig}
                     setShowSettings={setShowSettings}
                     showLogs={showLogs}
                     setShowLogs={setShowLogs}
@@ -847,38 +1002,45 @@ function BoatGroundStation() {
                             )}
                         </div>
 
-                        <LogDrawer 
+                        <LogDrawer
                             show={showLogs} setShow={setShowLogs}
                             logs={logs} setLogs={setLogs}
                             devMode={devMode} setDevMode={setDevModeSafe}
                             sendData={sendData}
                             t={t}
+                            uiStyle={uiStyle}
                         />
                     </div>
                 </>
             )}
             
-            <ChartModal 
-                isOpen={showChart}
-                onClose={() => setShowChart(false)}
-                dataRef={chartDataRef}
-                onClear={() => { chartDataRef.current = []; }}
-                fps={chartFps}
-                t={t}
-            />
+            {!shouldUseMobile && (
+                <ChartModal 
+                    isOpen={showChart}
+                    onClose={() => setShowChart(false)}
+                    dataRef={chartDataRef}
+                    onClear={() => { chartDataRef.current = []; }}
+                    fps={chartFps}
+                    t={t}
+                />
+            )}
 
-            <SettingsModal 
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
-                currentIp={serverIp}
-                currentPort={serverPort}
-                currentChartFps={chartFps}
-                currentAutoReconnect={autoReconnect}
-                currentBoatStyle={boatStyle}
-                currentWaypointStyle={waypointStyle}
-                onSave={handleSaveConfig}
-                t={t}
-            />
+            {showSettings && (
+                <SettingsModal 
+                    isOpen={true}
+                    onClose={() => setShowSettings(false)}
+                    currentIp={serverIp}
+                    currentPort={serverPort}
+                    currentChartFps={chartFps}
+                    currentAutoReconnect={autoReconnect}
+                    currentBoatStyle={boatStyle}
+                    currentWaypointStyle={waypointStyle}
+                    currentUiStyle={uiStyle}
+                    onSave={handleSaveConfig}
+                    t={t}
+                    isMobile={shouldUseMobile}
+                />
+            )}
         </div>
     );
 }

@@ -39,6 +39,11 @@ struct AppConfig {
     bool auto_reconnect = false;
     string boat_style = "default";
     string waypoint_style = "default";
+    string ui_style = "cyber";
+    bool embedded_channel_expanded = true;
+    bool embedded_heading_enabled = false;
+    bool embedded_bat_l_enabled = false;
+    bool embedded_bat_r_enabled = false;
 };
  
  AppConfig g_config;
@@ -55,7 +60,12 @@ void save_config() {
        outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
        outfile << "boat_style=" << g_config.boat_style << endl;
        outfile << "waypoint_style=" << g_config.waypoint_style << endl;
-       cout << "[Config] Saved to " << CONFIG_FILE << " (Styles: " << g_config.boat_style << ", " << g_config.waypoint_style << ")" << endl;
+       outfile << "ui_style=" << g_config.ui_style << endl;
+       outfile << "embedded_channel_expanded=" << (g_config.embedded_channel_expanded ? 1 : 0) << endl;
+       outfile << "embedded_heading_enabled=" << (g_config.embedded_heading_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_l_enabled=" << (g_config.embedded_bat_l_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_r_enabled=" << (g_config.embedded_bat_r_enabled ? 1 : 0) << endl;
+       cout << "[Config] Saved to " << CONFIG_FILE << " (Styles: " << g_config.boat_style << ", " << g_config.waypoint_style << ", " << g_config.ui_style << ")" << endl;
    } else {
        cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
    }
@@ -89,6 +99,27 @@ void parse_config_stream(ifstream& file) {
             }
             else if (key == "boat_style") g_config.boat_style = value;
             else if (key == "waypoint_style") g_config.waypoint_style = value;
+            else if (key == "ui_style") g_config.ui_style = value;
+            else if (key == "embedded_channel_expanded") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.embedded_channel_expanded = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
+            else if (key == "embedded_heading_enabled") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.embedded_heading_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
+            else if (key == "embedded_bat_l_enabled") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.embedded_bat_l_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
+            else if (key == "embedded_bat_r_enabled") {
+                string v = value;
+                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                g_config.embedded_bat_r_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+            }
         }
     }
 }
@@ -188,10 +219,33 @@ void load_config() {
  }
  
  string get_mime_type(const string& path) {
-    if (path.find(".html") != string::npos) return "text/html; charset=utf-8";
-    if (path.find(".js") != string::npos) return "application/javascript; charset=utf-8";
-    if (path.find(".css") != string::npos) return "text/css; charset=utf-8";
-    return "text/plain";
+    string clean = path;
+    const size_t query_pos = clean.find_first_of("?#");
+    if (query_pos != string::npos) clean = clean.substr(0, query_pos);
+
+    auto has_suffix = [&](const string& suffix) {
+        if (clean.length() < suffix.length()) return false;
+        return clean.compare(clean.length() - suffix.length(), suffix.length(), suffix) == 0;
+    };
+
+    if (has_suffix(".html")) return "text/html; charset=utf-8";
+    if (has_suffix(".css")) return "text/css; charset=utf-8";
+    if (has_suffix(".js")) return "application/javascript; charset=utf-8";
+    if (has_suffix(".json")) return "application/json; charset=utf-8";
+
+    if (has_suffix(".woff2")) return "font/woff2";
+    if (has_suffix(".woff")) return "font/woff";
+    if (has_suffix(".ttf")) return "font/ttf";
+    if (has_suffix(".otf")) return "font/otf";
+
+    if (has_suffix(".svg")) return "image/svg+xml";
+    if (has_suffix(".png")) return "image/png";
+    if (has_suffix(".jpg") || has_suffix(".jpeg")) return "image/jpeg";
+    if (has_suffix(".gif")) return "image/gif";
+    if (has_suffix(".ico")) return "image/x-icon";
+    if (has_suffix(".cur")) return "image/x-icon";
+
+    return "application/octet-stream";
 }
 
 // === 修改：通用文件服务函数 ===
@@ -330,8 +384,12 @@ void boat_listener_loop() {
                     
                     // [新增] 处理获取配置请求 (前端初始化时调用)
                     if (decoded == "GET_CONFIG") {
-                        // 格式: CURRENT_CONFIG,IP,PORT,AUTO_RECONNECT,BOAT_STYLE,WAYPOINT_STYLE
-                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," + (g_config.auto_reconnect ? "1" : "0") + "," + g_config.boat_style + "," + g_config.waypoint_style;
+                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," +
+                            (g_config.auto_reconnect ? "1" : "0") + "," + g_config.boat_style + "," + g_config.waypoint_style + "," +
+                            (g_config.embedded_channel_expanded ? "1" : "0") + "," +
+                            (g_config.embedded_heading_enabled ? "1" : "0") + "," +
+                            (g_config.embedded_bat_l_enabled ? "1" : "0") + "," +
+                            (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style;
                         send_ws_frame(msg);
                         cout << "[Config] Sent current config to client." << endl;
                     }
@@ -354,6 +412,27 @@ void boat_listener_loop() {
                             }
                             if (parts.size() >= 6) g_config.boat_style = parts[5];
                             if (parts.size() >= 7) g_config.waypoint_style = parts[6];
+                            if (parts.size() >= 8) {
+                                string v = parts[7];
+                                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                g_config.embedded_channel_expanded = (v == "1" || v == "true" || v == "yes" || v == "on");
+                            }
+                            if (parts.size() >= 9) {
+                                string v = parts[8];
+                                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                g_config.embedded_heading_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                            }
+                            if (parts.size() >= 10) {
+                                string v = parts[9];
+                                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                g_config.embedded_bat_l_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                            }
+                            if (parts.size() >= 11) {
+                                string v = parts[10];
+                                transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                g_config.embedded_bat_r_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                            }
+                            if (parts.size() >= 12) g_config.ui_style = parts[11];
 
                             save_config();
                             cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;

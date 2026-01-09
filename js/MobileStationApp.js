@@ -1,22 +1,15 @@
 (function () {
-  const { useCallback, useEffect, useMemo, useRef, useState, memo } = React;
+  const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
   const { HUDBox, StatusBar, BottomNav, SideDrawer, JoystickComponent, EmbeddedChart } = window.MobileComponents;
 
   // Icons
-  const MapIcon = Icon('Map');
-  const Video = Icon('Video');
   const Plus = Icon('Plus');
-  const Target = Icon('Target');
   const Home = Icon('Home');
   const Check = Icon('Check');
-  const LineChart = Icon('LineChart');
-  const UploadCloud = Icon('UploadCloud');
-  const Settings = Icon('Settings');
   const Zap = Icon('Zap');
-  const RefreshCw = Icon('RefreshCw');
   const Activity = Icon('Activity');
   const List = Icon('List');
   const X = Icon('X');
@@ -25,45 +18,63 @@
   const Send = Icon('Send');
   const Trash2 = Icon('Trash2');
 
-  const FeaturePending = ({ title, t }) => (
-    <div className="w-full h-full bg-slate-950 relative flex items-center justify-center">
-      <div className="absolute top-0 w-full h-16 z-30 px-4 flex items-center bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent pointer-events-none">
-        <div className="text-cyan-400 font-mono font-bold text-lg flex items-center gap-2">{t ? t(title.toLowerCase()) : title}</div>
-      </div>
-      <HUDBox className="p-6 w-[90%] max-w-sm">
+  const FeaturePending = ({ title, t, uiStyle }) => {
+    const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
+      ? window.MobileUtils.getMobileTheme(uiStyle)
+      : null;
+    const pendingIcon = ui?.key === 'ios' ? 'text-[#007AFF]/70' : 'text-cyan-500/60';
+
+    return (
+      <div className={`w-full h-full relative flex items-center justify-center ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
+        <div className={`absolute top-0 w-full h-16 z-30 px-4 flex items-center pointer-events-none ${ui?.statusBar?.wrapper || 'bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent'}`}>
+          <div className={`${ui?.accentText || 'text-cyan-400'} ${ui?.key === 'ios' ? 'font-sans' : 'font-mono'} font-bold text-lg flex items-center gap-2`}>{t ? t(title.toLowerCase()) : title}</div>
+        </div>
+        <HUDBox className="p-6 w-[90%] max-w-sm" uiStyle={uiStyle}>
         <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
-          <Activity className="w-8 h-8 text-cyan-500/60 animate-pulse" />
+          <Activity className={`w-8 h-8 ${pendingIcon} animate-pulse`} />
           <div className="text-center space-y-1">
             <span className="font-mono text-xs block text-slate-400">FEATURE_PENDING</span>
             <span className="text-xs text-amber-500/80">待开发...</span>
           </div>
         </div>
-      </HUDBox>
-    </div>
-  );
+        </HUDBox>
+      </div>
+    );
+  };
 
   // --- Global Toast Component (Adapted from 1.js) ---
-  const ToastOverlay = ({ toast, onDismiss }) => {
+  const ToastOverlay = ({ toast, onDismiss, uiStyle }) => {
     if (!toast) return null;
+    const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
+      ? window.MobileUtils.getMobileTheme(uiStyle)
+      : null;
     // toast can be a string or an object { message, loading, type, durationMs }
     const msg = typeof toast === 'object' ? toast.message : toast;
     const isLoading = typeof toast === 'object' && toast.loading;
     const isError = typeof toast === 'object' && toast.type === 'error';
     const isSuccess = typeof toast === 'object' && toast.type === 'success';
+    const spinnerBorder = ui?.key === 'ios' ? 'border-[#007AFF]' : 'border-cyan-500';
+    const accentIcon = ui?.accentText || 'text-cyan-400';
 
     return (
         <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in zoom-in duration-200 pointer-events-none w-full max-w-xs flex justify-center">
-            <div className={`relative pointer-events-auto bg-cyan-950/90 border ${isError ? 'border-red-500 text-red-100' : 'border-cyan-500 text-cyan-100'} px-6 py-3 rounded shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-3 font-mono text-sm`}>
+            <div
+              className={`relative pointer-events-auto px-6 py-3 rounded flex items-center gap-3 ${ui?.key === 'ios' ? 'font-sans text-[13px]' : 'font-mono text-sm'} ${
+                ui?.toast?.wrapper || 'bg-cyan-950/90 border border-cyan-500 text-cyan-100 shadow-[0_0_20px_rgba(6,182,212,0.4)]'
+              } ${isError ? 'border-red-500/60 text-red-100' : ''} ${isSuccess ? 'border-green-500/50' : ''}`}
+            >
                 {isLoading ? (
-                     <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                     <div className={`w-4 h-4 border-2 ${spinnerBorder} border-t-transparent rounded-full animate-spin`}></div>
                 ) : (
-                     <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : 'text-cyan-400 animate-pulse'}`} />
+                     <Activity size={18} className={`${isError ? 'text-red-400' : isSuccess ? 'text-green-400' : `${accentIcon} animate-pulse`}`} />
                 )}
                 <div className="flex-1 min-w-0 pr-6">{msg}</div>
                 <button
                   type="button"
                   onClick={onDismiss}
-                  className="absolute right-1.5 top-1.5 w-6 h-6 flex items-center justify-center rounded text-cyan-100/60 hover:text-cyan-50 hover:bg-white/5 active:scale-95 transition-all"
+                  className={`absolute right-1.5 top-1.5 w-6 h-6 flex items-center justify-center rounded active:scale-95 transition-all ${
+                    ui?.toast?.close || 'text-cyan-100/60 hover:text-cyan-50 hover:bg-white/5'
+                  }`}
                   aria-label="Close"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -73,10 +84,211 @@
     );
   };
 
+  function clampNumber(value, min, max) {
+    if (!Number.isFinite(value)) return min;
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function averageOf(values) {
+    if (!Array.isArray(values) || values.length === 0) return 0;
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) sum += values[i];
+    return sum / values.length;
+  }
+
+  function mapVoltageToBatteryPercent(voltage, opts = {}) {
+    const vMin = Number.isFinite(opts.vMin) ? opts.vMin : 22.99;
+    const vMax = Number.isFinite(opts.vMax) ? opts.vMax : 24.33;
+
+    if (!Number.isFinite(voltage) || voltage <= 0) return 0;
+    if (vMax <= vMin) return 0;
+
+    const raw = clampNumber(((voltage - vMin) / (vMax - vMin)) * 100, 0, 100);
+
+    // 底部拖尾：把“原始 0~5%”压缩成“显示 0~1%”，让 1% 更“耐用”
+    const tailRaw = Number.isFinite(opts.tailRaw) ? opts.tailRaw : 5;
+    const tailDisplay = Number.isFinite(opts.tailDisplay) ? opts.tailDisplay : 1;
+
+    let shaped = raw;
+    if (tailRaw > 0 && tailDisplay > 0 && tailDisplay < 100) {
+      if (raw <= tailRaw) {
+        shaped = (raw / tailRaw) * tailDisplay;
+      } else {
+        shaped = tailDisplay + ((raw - tailRaw) / (100 - tailRaw)) * (100 - tailDisplay);
+      }
+    }
+
+    // 只要不是 0，就至少显示 1%，避免“刚掉到 0% 就直接没电”的体验
+    if (raw > 0 && shaped < 1) shaped = 1;
+
+    return clampNumber(shaped, 0, 100);
+  }
+
+  // 电量状态机：
+  // 1: 充电中（仅当检测到明显充电特征时）
+  // 2: 闲置中（稳定/无变化）
+  // 3: 放电中（电量在缓慢下降）
+  // 4: 极低电量
+  const BATTERY_STATE = Object.freeze({
+    CHARGING: 1,
+    IDLE: 2,
+    DISCHARGING: 3,
+    VERY_LOW: 4
+  });
+
+	  function useSmoothedBatteryGauge(rawVoltage, tcpStatus, opts = {}) {
+	    const {
+	      sampleCount = 20,
+	      vMin = 22.99,
+	      vMax = 24.33,
+	      slowDropPerSecond = 1,
+	      slowRisePerSecond = 1,
+	      veryLowThreshold = 10,
+	      // 没有“是否在充电”的明确信号时，只做一个极保守的检测（电压明显高于满电阈值）
+	      chargeDetectOverV = 0.08,
+	      tailRaw = 5,
+      tailDisplay = 1,
+      // 兼容旧版 12V/14V 显示：当电压明显不在 24V 区间时，退回到原先的粗略算法
+      legacy12vFallback = true
+    } = opts;
+
+    const ref = useRef({
+      samples: [],
+      filteredV: 0,
+      targetPct: 0,
+      displayPct: 0,
+      isCharging: false,
+      state: BATTERY_STATE.IDLE,
+      timer: null
+    });
+
+    const [ui, setUi] = useState(() => ({
+      voltage: 0,
+      percent: 0,
+      state: BATTERY_STATE.IDLE
+    }));
+
+    const tcpStatusRef = useRef(tcpStatus);
+    useEffect(() => {
+      tcpStatusRef.current = tcpStatus;
+    }, [tcpStatus]);
+
+    const stopTimer = useCallback(() => {
+      if (ref.current.timer) {
+        window.clearInterval(ref.current.timer);
+        ref.current.timer = null;
+      }
+    }, []);
+
+    useEffect(() => stopTimer, [stopTimer]);
+
+    const syncUi = useCallback(() => {
+      const s = ref.current;
+      setUi({ voltage: s.filteredV, percent: s.displayPct, state: s.state });
+    }, []);
+
+    const recomputeState = useCallback(() => {
+      const s = ref.current;
+      if (tcpStatusRef.current !== 'ONLINE') {
+        s.state = BATTERY_STATE.IDLE;
+        return;
+      }
+      if (s.isCharging) {
+        s.state = BATTERY_STATE.CHARGING;
+        return;
+      }
+      if (s.displayPct <= veryLowThreshold) {
+        s.state = BATTERY_STATE.VERY_LOW;
+        return;
+      }
+      if (s.targetPct < s.displayPct) {
+        s.state = BATTERY_STATE.DISCHARGING;
+        return;
+      }
+      s.state = BATTERY_STATE.IDLE;
+    }, [veryLowThreshold]);
+
+    useEffect(() => {
+      const s = ref.current;
+      const shouldSample = Number.isFinite(rawVoltage) && rawVoltage > 1;
+      if (!shouldSample) {
+        recomputeState();
+        syncUi();
+        return;
+      }
+
+      // 1) 移动平均滤波：取最近 N 次采样的平均值作为显示电压
+      s.samples.push(rawVoltage);
+      if (s.samples.length > sampleCount) s.samples.shift();
+      s.filteredV = averageOf(s.samples);
+
+      // 2) 电量百分比（线性映射 + 底部拖尾）
+      const looksLike24v = s.filteredV >= 18;
+      const pctFloat = (legacy12vFallback && !looksLike24v)
+        ? clampNumber((s.filteredV / 14) * 100, 0, 100)
+        : mapVoltageToBatteryPercent(s.filteredV, { vMin, vMax, tailRaw, tailDisplay });
+      const pctCandidate = Math.round(pctFloat);
+
+      // 3) 充电检测（保守）：仅当电压明显高于“满电阈值”时，才允许电量回升
+      s.isCharging = looksLike24v && s.filteredV >= (vMax + chargeDetectOverV);
+
+      // 首次有数据时，直接初始化显示值，避免从 0% 慢慢掉
+      if (s.samples.length === 1 && s.displayPct === 0) {
+        s.displayPct = pctCandidate;
+      }
+
+	      // 4) 目标电量（由电压映射得到）
+	      s.targetPct = pctCandidate;
+
+	      // 5) 缓冲显示（Slow Rise / Slow Drop）：目标变化时，按速率逐步逼近，避免抖动
+	      if (s.targetPct !== s.displayPct) {
+	        if (!s.timer) {
+	          s.timer = window.setInterval(() => {
+	            const inner = ref.current;
+	            const upStep = Math.max(1, Math.round(slowRisePerSecond));
+	            const downStep = Math.max(1, Math.round(slowDropPerSecond));
+
+	            if (inner.displayPct < inner.targetPct) {
+	              inner.displayPct = Math.min(inner.targetPct, inner.displayPct + upStep);
+	            } else if (inner.displayPct > inner.targetPct) {
+	              inner.displayPct = Math.max(inner.targetPct, inner.displayPct - downStep);
+	            }
+
+	            recomputeState();
+	            syncUi();
+	            if (inner.displayPct === inner.targetPct) stopTimer();
+	          }, 1000);
+	        }
+	      } else {
+	        stopTimer();
+	      }
+
+	      recomputeState();
+	      syncUi();
+	    }, [
+      chargeDetectOverV,
+      legacy12vFallback,
+      rawVoltage,
+      recomputeState,
+	      sampleCount,
+	      slowRisePerSecond,
+	      slowDropPerSecond,
+	      stopTimer,
+	      syncUi,
+	      tailDisplay,
+      tailRaw,
+      vMax,
+      vMin
+    ]);
+
+    return ui;
+  }
+
   function MobileStationApp(props) {
     const {
       lang,
       setLang,
+      uiStyle,
       boatStyle,
       setBoatStyle,
       waypointStyle,
@@ -101,9 +313,11 @@
       sendSCommand,
       sendWaypointsCommand,
       sendKCommand,
-      setShowChart,
       chartDataRef, // [Added]
       chartFps,     // [Added]
+      embeddedChannelExpanded,
+      embeddedChannelEnabled,
+      onPersistEmbeddedChartConfig,
       setShowSettings,
       showLogs,
       setShowLogs,
@@ -129,6 +343,12 @@
       return key;
     }, [lang]);
 
+    const ui = useMemo(() => {
+      if (window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function') return window.MobileUtils.getMobileTheme(uiStyle);
+      return null;
+    }, [uiStyle]);
+    const isIos = ui?.key === 'ios';
+
     const [activeTab, setActiveTab] = useState('map');
     const [quickMenuOpen, setQuickMenuOpen] = useState(false);
     const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
@@ -141,6 +361,7 @@
 
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
+    const deployReminderShownRef = useRef(false);
 
     const clearToastTimer = useCallback(() => {
       if (toastTimerRef.current) {
@@ -250,6 +471,16 @@
         }
     }, [dismissToast, resolveToast, showToast, updateToast]);
 
+    useEffect(() => {
+      if (tcpStatus === 'ONLINE') {
+        if (deployReminderShownRef.current) return;
+        deployReminderShownRef.current = true;
+        showToast(t('deploy_reminder'), { type: 'info', durationMs: 4500 });
+        return;
+      }
+      deployReminderShownRef.current = false;
+    }, [showToast, t, tcpStatus]);
+
     const signal = useMemo(() => {
       if (tcpStatus !== 'ONLINE') return 0;
       if (!boatStatus || !boatStatus.lastUpdate) return 60;
@@ -258,13 +489,30 @@
       return Math.max(0, Math.min(100, 100 - age / 40));
     }, [boatStatus, tcpStatus]);
 
-    const lat = Number(boatStatus && boatStatus.latitude) || 0;
-    const lng = Number(boatStatus && boatStatus.longitude) || 0;
-    const heading = Number(boatStatus && boatStatus.heading) || 0;
-    const batL = Number(boatStatus && boatStatus.batteryL) || 0;
-    const batR = Number(boatStatus && boatStatus.batteryR) || 0;
-    const batteryV = (batL + batR) / 2;
-    const batteryPct = Math.max(0, Math.min(100, (batteryV / 14) * 100));
+	    const lat = Number(boatStatus && boatStatus.latitude) || 0;
+	    const lng = Number(boatStatus && boatStatus.longitude) || 0;
+	    const heading = Number(boatStatus && boatStatus.heading) || 0;
+	    const posReady = lat !== 0 || lng !== 0;
+
+	    // 仅使用左电池口作为“总电压”（右口未接）
+	    const batL = Number(boatStatus && boatStatus.batteryL) || 0;
+	    // 线路压降补偿（单位：V）。该值来自实测，后续可按需要调整。
+	    const batteryVoltageDropCompensationV = 1.25;
+	    // 若未接入/无数据（0V），不要把压降补偿加进去，避免出现“凭空有电”的显示。
+	    const batteryVRaw = batL > 0 ? (batL + batteryVoltageDropCompensationV) : 0;
+
+	    const batteryGauge = useSmoothedBatteryGauge(batteryVRaw, tcpStatus, {
+		      sampleCount: 20,
+		      vMin: 22.99,
+		      vMax: 24.33,
+		      slowDropPerSecond: 1,
+		      veryLowThreshold: 10,
+		      tailRaw: 5,
+		      tailDisplay: 1,
+		      legacy12vFallback: true
+		    });
+	    const batteryV = batteryGauge.voltage || 0;
+	    const batteryPct = Number.isFinite(batteryGauge.percent) ? batteryGauge.percent : 0;
 
     const setTab = useCallback((id) => {
       setActiveTab(id);
@@ -323,20 +571,26 @@
       const cy = rect.top + rect.height / 2;
       const dx = clientX - cx;
       const dy = clientY - cy;
-      const clamp = (v) => Math.max(-40, Math.min(40, v));
-      setJoystickPosition({ x: clamp(dx), y: clamp(dy) });
+      const knobRadiusPx = 28; // matches w-14/h-14
+      const maxRadius = Math.max(0, rect.width / 2 - knobRadiusPx);
+      const baseLimit = 40;
+      const limit = Math.max(0, Math.min(baseLimit, maxRadius));
+      const magnitude = Math.hypot(dx, dy);
+      const scale = magnitude > limit && magnitude > 0 ? (limit / magnitude) : 1;
+      setJoystickPosition({ x: dx * scale, y: dy * scale });
     }, []);
 
     const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@';
 
     return (
-      <div className="relative w-full h-full bg-slate-950 flex flex-col overflow-hidden font-sans select-none">
-        <ToastOverlay toast={toast} onDismiss={() => dismissToast(toast && toast.id)} />
+      <div className={`relative w-full h-full flex flex-col overflow-hidden font-sans select-none ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
+        <ToastOverlay toast={toast} onDismiss={() => dismissToast(toast && toast.id)} uiStyle={uiStyle} />
         <SideDrawer
           open={sideDrawerOpen}
           onClose={() => setSideDrawerOpen(false)}
           lang={lang}
           setLang={setLang}
+          uiStyle={uiStyle}
           serverIp={serverIp}
           setServerIp={setServerIp}
           serverPort={serverPort}
@@ -358,11 +612,13 @@
 
         <div className="flex-1 relative overflow-hidden">
           {activeTab === 'map' && (
-            <div className="relative w-full h-full bg-[#0f172a] overflow-hidden">
-              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} />
+            <div className={`relative w-full h-full overflow-hidden ${isIos ? 'bg-[#F2F2F7]' : 'bg-[#0f172a]'}`}>
+              <StatusBar title={t('usv_op_core')} signal={signal} tcpStatus={tcpStatus} posReady={posReady} setSideDrawerOpen={setSideDrawerOpen} onOpenSettings={() => setShowSettings(true)} t={t} uiStyle={uiStyle} />
 
               <div className="absolute inset-0 z-0">
-                <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+                {!isIos && (
+                  <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+                )}
                 <div className="absolute inset-0 z-10">
                   <MapComponent
                     lng={lng}
@@ -378,6 +634,7 @@
                     locateNonce={locateNonce}
                     boatStyle={boatStyle}
                     waypointStyle={waypointStyle}
+                    uiStyle={uiStyle}
                   />
                 </div>
               </div>
@@ -386,7 +643,11 @@
                 <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
                   <button 
                     onClick={() => setMapMode('pan')}
-                    className="pointer-events-auto bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-full shadow-lg border-2 border-green-400 animate-in fade-in zoom-in duration-300 flex items-center gap-2"
+                    className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
+                      isIos
+                        ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
+                        : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
+                    }`}
                   >
                     <Check className="w-5 h-5" />
                     {t('finish_add')}
@@ -398,90 +659,132 @@
                 <div className="pointer-events-auto flex flex-col items-end gap-3">
                   <button
                     onClick={() => setQuickMenuOpen(!quickMenuOpen)}
-                    className={`w-12 h-12 flex items-center justify-center border border-cyan-500/50 bg-slate-900/80 backdrop-blur shadow-[0_0_10px_rgba(6,182,212,0.2)] transition-all active:scale-90 ${quickMenuOpen ? 'text-cyan-400 rotate-45 border-cyan-400' : 'text-slate-400'}`}
-                    style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                    className={`w-12 h-12 flex items-center justify-center transition-all ${
+                      isIos
+                        ? `rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.35)] active:scale-95 ${
+                            quickMenuOpen ? 'text-[#007AFF] rotate-45' : 'text-slate-600 hover:text-[#007AFF]'
+                          }`
+                        : `border border-cyan-500/50 bg-slate-900/80 backdrop-blur shadow-[0_0_10px_rgba(6,182,212,0.2)] active:scale-90 ${
+                            quickMenuOpen ? 'text-cyan-400 rotate-45 border-cyan-400' : 'text-slate-400'
+                          }`
+                    }`}
+                    style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
                   >
                     <Plus className="w-6 h-6" />
                   </button>
-                  {quickMenuOpen && (
+                      {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
                       <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-yellow-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('add_wp_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><MapPin className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-yellow-200 bg-black/60'}`}>{t('add_wp_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#FF9500] hover:bg-[#FF9500]/10 hover:border-[#FF9500]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-yellow-500/50 hover:bg-yellow-900/20 text-yellow-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <MapPin className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { sendWaypointsCommand && sendWaypointsCommand(); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-green-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('upload_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Send className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-green-200 bg-black/60'}`}>{t('upload_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#007AFF] hover:bg-[#007AFF]/10 hover:border-[#007AFF]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-green-500/50 hover:bg-green-900/20 text-green-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Send className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { setWaypoints([]); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-red-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('clear_btn')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-red-500/50 hover:bg-red-900/20 text-red-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Trash2 className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-red-200 bg-black/60'}`}>{t('clear_btn')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#FF3B30] hover:bg-[#FF3B30]/10 hover:border-[#FF3B30]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-red-500/50 hover:bg-red-900/20 text-red-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Trash2 className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                       <button onClick={() => { setLocateNonce(v => v + 1); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
-                        <span className="text-[10px] font-mono text-cyan-200 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">{t('map_locate')}</span>
-                        <div className="w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90" style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}><Home className="w-[18px] h-[18px]" /></div>
+                        <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-cyan-200 bg-black/60'}`}>{t('map_locate')}</span>
+                        <div
+                          className={isIos
+                            ? 'w-11 h-11 flex items-center justify-center rounded-full bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.35)] text-[#007AFF] hover:bg-[#007AFF]/10 hover:border-[#007AFF]/20 transition-all active:scale-95'
+                            : 'w-10 h-10 flex items-center justify-center border border-slate-700 bg-slate-900/90 hover:border-cyan-500/50 hover:bg-cyan-900/20 text-cyan-400 transition-all active:scale-90'
+                          }
+                          style={isIos ? undefined : { clipPath: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)' }}
+                        >
+                          <Home className="w-[18px] h-[18px]" />
+                        </div>
                       </button>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="absolute bottom-24 left-4 z-20 w-44 flex flex-col-reverse gap-2 pointer-events-none">
-                <HUDBox className="p-3 pointer-events-auto">
+              <div className={`absolute bottom-24 left-4 z-20 flex flex-col-reverse gap-2 pointer-events-none ${isIos ? 'w-52' : 'w-44'}`}>
+                <HUDBox className={`p-3 pointer-events-auto ${isIos ? 'rounded-[22px] overflow-hidden' : ''}`} uiStyle={uiStyle}>
                   <div className="space-y-3">
-                    <div className="space-y-1 font-mono">
-                      <div className="flex justify-between text-[10px] text-cyan-600">
-                        <span>{t('latitude')}</span>
-                        <span className="text-cyan-100">{lat ? lat.toFixed(6) : '0.000000'}</span>
+                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
+                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
+                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
                       </div>
-                      <div className="flex justify-between text-[10px] text-cyan-600">
-                        <span>{t('longitude')}</span>
-                        <span className="text-cyan-100">{lng ? lng.toFixed(6) : '0.000000'}</span>
+                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
+                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
                       </div>
                     </div>
-                    <div className="h-px bg-cyan-900/50 w-full"></div>
+                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">{t('heading')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{heading.toFixed(0)}°</div>
+                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('heading')}</div>
+                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(1)}°</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-[9px] text-slate-400 mb-1">{t('waypoint')}</div>
-                        <div className="text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{Array.isArray(waypoints) ? waypoints.length : 0}</div>
+                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('waypoint')}</div>
+                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-slate-400 flex items-center gap-1"><Zap className="w-3 h-3" /> {t('battery')}</span>
-                        <span className={`${batteryPct < 30 ? 'text-red-400' : 'text-cyan-400'}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
-                      </div>
-                      <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                        <div className={`h-full shadow-[0_0_10px_currentColor] transition-all duration-500 ${batteryPct < 30 ? 'bg-red-500 text-red-500' : 'bg-cyan-500 text-cyan-500'}`} style={{ width: `${batteryPct}%` }}></div>
-                      </div>
-                      <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                        <span>{t('batL')}:{batL ? batL.toFixed(2) : '0.00'}</span>
-                        <span>{t('batR')}:{batR ? batR.toFixed(2) : '0.00'}</span>
-                      </div>
-                    </div>
+	                      <div className="space-y-1">
+	                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
+	                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
+	                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
+	                        </span>
+	                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V · {batteryPct}%</span>
+	                      </div>
+	                      <div className={`w-full ${isIos ? 'h-1.5' : 'h-1'} rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
+	                        <div className={`h-full transition-all duration-500 ${
+	                          batteryPct < 30
+	                            ? (isIos ? 'bg-[#FF3B30]' : 'bg-red-500 text-red-500 shadow-[0_0_10px_currentColor]')
+	                            : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
+	                        }`} style={{ width: `${batteryPct}%` }}></div>
+	                      </div>
+	                    </div>
                   </div>
                 </HUDBox>
 
                 {mapMode === 'add' && showWaypointList && (
-                  <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in">
+                  <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in" uiStyle={uiStyle}>
                     <style>{`
                       .custom-scrollbar::-webkit-scrollbar { width: 3px; }
                       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                      .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(6, 182, 212, 0.4); border-radius: 2px; }
+                      .custom-scrollbar::-webkit-scrollbar-thumb { background: ${isIos ? 'rgba(0, 122, 255, 0.35)' : 'rgba(6, 182, 212, 0.4)'}; border-radius: 2px; }
                     `}</style>
 
-                    <div className="p-2 border-b border-cyan-500/20 flex justify-between items-center bg-cyan-950/50 backdrop-blur">
-                      <div className="flex items-center gap-2 text-cyan-400">
+                    <div className={`p-2 flex justify-between items-center ${isIos ? 'bg-white/70 backdrop-blur-xl border-b border-slate-200/60' : 'border-b border-cyan-500/20 bg-cyan-950/50 backdrop-blur'}`}>
+                      <div className={`flex items-center gap-2 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`}>
                         <List className="w-3 h-3" />
-                        <span className="text-[10px] font-mono font-bold tracking-wider">{t('mission_wps')} ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
+                        <span className={`${isIos ? 'text-[12px] font-semibold tracking-tight text-slate-800' : 'text-[10px] font-mono font-bold tracking-wider'}`}>{t('mission_wps')} ({Array.isArray(waypoints) ? waypoints.length : 0})</span>
                       </div>
                       <button
                         onClick={() => setShowWaypointList(false)}
-                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        className={`${isIos ? 'text-slate-400 hover:text-[#FF3B30] hover:bg-slate-200/40 rounded-full w-7 h-7 flex items-center justify-center transition-colors' : 'text-slate-500 hover:text-red-400 transition-colors'}`}
                         aria-label="Close waypoint list"
                       >
                         <X className="w-3 h-3" />
@@ -490,14 +793,14 @@
 
                     <div className="flex-1 overflow-y-auto p-1 space-y-0.5 custom-scrollbar">
                       {(Array.isArray(waypoints) ? waypoints : []).map((wp, idx) => (
-                        <div key={`${idx}-${wp.lng}-${wp.lat}`} className="flex items-center justify-between px-2 py-1.5 rounded-sm bg-slate-900/30 border-l-2 border-transparent transition-all">
+                        <div key={`${idx}-${wp.lng}-${wp.lat}`} className={`flex items-center justify-between px-2 py-1.5 transition-all ${isIos ? 'rounded-[12px] bg-white/60 border border-white/50' : 'rounded-sm bg-slate-900/30 border-l-2 border-transparent'}`}>
                           <div className="flex items-center gap-3">
                             <span className="text-[9px] font-mono text-slate-500 w-3 text-right">{String(idx + 1).padStart(2, '0')}</span>
-                            <span className="text-[10px] font-mono text-cyan-100/80 tracking-wide">{t('waypoint')}_{idx + 1}</span>
+                            <span className={`${isIos ? 'text-[12px] font-sans font-medium text-slate-800 tracking-tight' : 'text-[10px] font-mono text-cyan-100/80 tracking-wide'}`}>{t('waypoint')}_{idx + 1}</span>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setWaypoints && setWaypoints(prev => (Array.isArray(prev) ? prev : []).filter((_, i) => i !== idx)); }}
-                            className="text-slate-600 hover:text-red-400 transition-all transform hover:scale-110"
+                            className={`${isIos ? 'text-slate-400 hover:text-[#FF3B30] transition-colors' : 'text-slate-600 hover:text-red-400 transition-all transform hover:scale-110'}`}
                             aria-label="Delete waypoint"
                           >
                             <Trash className="w-3 h-3" />
@@ -505,7 +808,7 @@
                         </div>
                       ))}
                       {(!Array.isArray(waypoints) || waypoints.length === 0) && (
-                        <div className="p-3 text-center text-[9px] text-slate-600 font-mono italic">
+                        <div className={`p-3 text-center text-[11px] ${isIos ? 'text-slate-400 font-sans' : 'text-slate-600 font-mono italic'}`}>
                           {t('no_waypoints')}
                         </div>
                       )}
@@ -521,13 +824,14 @@
                 setJoystickPosition={setJoystickPosition} 
                 handleJoyMove={handleJoyMove} 
                 joystickDisabled={joystickDisabled} 
+                uiStyle={uiStyle}
               />
             </div>
           )}
 
           {activeTab === 'video' && (
-            <div className="relative w-full h-full bg-black overflow-hidden">
-              <FeaturePending title="OPTICAL_FEED" t={t} />
+            <div className={`relative w-full h-full overflow-hidden ${isIos ? 'bg-[#F2F2F7]' : 'bg-black'}`}>
+              <FeaturePending title="OPTICAL_FEED" t={t} uiStyle={uiStyle} />
               <JoystickComponent 
                 joystickActive={joystickActive} 
                 setJoystickActive={setJoystickActive} 
@@ -535,23 +839,28 @@
                 setJoystickPosition={setJoystickPosition} 
                 handleJoyMove={handleJoyMove} 
                 joystickDisabled={joystickDisabled} 
+                uiStyle={uiStyle}
               />
             </div>
           )}
 
           {activeTab === 'charts' && (
-            <div className="w-full h-full bg-slate-950 relative">
+            <div className={`w-full h-full relative ${ui?.key === 'ios' ? 'bg-[#F2F2F7]' : 'bg-slate-950'}`}>
                <EmbeddedChart 
                   dataRef={chartDataRef}
                   fps={chartFps}
                   t={t}
                   tcpStatus={tcpStatus}
+                  persistedChannelExpanded={embeddedChannelExpanded}
+                  persistedChannelEnabled={embeddedChannelEnabled}
+                  onPersistConfig={onPersistEmbeddedChartConfig}
+                  uiStyle={uiStyle}
                />
             </div>
           )}
         </div>
 
-        <BottomNav activeTab={activeTab} setActiveTab={setTab} lang={lang} />
+        <BottomNav activeTab={activeTab} setActiveTab={setTab} lang={lang} uiStyle={uiStyle} />
 
         <LogDrawer
           show={!!showLogs}
@@ -562,6 +871,7 @@
           setDevMode={setDevMode}
           sendData={sendData}
           t={t}
+          uiStyle={uiStyle}
           topOffsetPx={0}
           fullWidth={true}
         />
