@@ -84,6 +84,206 @@
     );
   };
 
+  function clampNumber(value, min, max) {
+    if (!Number.isFinite(value)) return min;
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function averageOf(values) {
+    if (!Array.isArray(values) || values.length === 0) return 0;
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) sum += values[i];
+    return sum / values.length;
+  }
+
+  function mapVoltageToBatteryPercent(voltage, opts = {}) {
+    const vMin = Number.isFinite(opts.vMin) ? opts.vMin : 22.99;
+    const vMax = Number.isFinite(opts.vMax) ? opts.vMax : 24.33;
+
+    if (!Number.isFinite(voltage) || voltage <= 0) return 0;
+    if (vMax <= vMin) return 0;
+
+    const raw = clampNumber(((voltage - vMin) / (vMax - vMin)) * 100, 0, 100);
+
+    // 底部拖尾：把“原始 0~5%”压缩成“显示 0~1%”，让 1% 更“耐用”
+    const tailRaw = Number.isFinite(opts.tailRaw) ? opts.tailRaw : 5;
+    const tailDisplay = Number.isFinite(opts.tailDisplay) ? opts.tailDisplay : 1;
+
+    let shaped = raw;
+    if (tailRaw > 0 && tailDisplay > 0 && tailDisplay < 100) {
+      if (raw <= tailRaw) {
+        shaped = (raw / tailRaw) * tailDisplay;
+      } else {
+        shaped = tailDisplay + ((raw - tailRaw) / (100 - tailRaw)) * (100 - tailDisplay);
+      }
+    }
+
+    // 只要不是 0，就至少显示 1%，避免“刚掉到 0% 就直接没电”的体验
+    if (raw > 0 && shaped < 1) shaped = 1;
+
+    return clampNumber(shaped, 0, 100);
+  }
+
+  // 电量状态机：
+  // 1: 充电中（仅当检测到明显充电特征时）
+  // 2: 闲置中（稳定/无变化）
+  // 3: 放电中（电量在缓慢下降）
+  // 4: 极低电量
+  const BATTERY_STATE = Object.freeze({
+    CHARGING: 1,
+    IDLE: 2,
+    DISCHARGING: 3,
+    VERY_LOW: 4
+  });
+
+	  function useSmoothedBatteryGauge(rawVoltage, tcpStatus, opts = {}) {
+	    const {
+	      sampleCount = 20,
+	      vMin = 22.99,
+	      vMax = 24.33,
+	      slowDropPerSecond = 1,
+	      slowRisePerSecond = 1,
+	      veryLowThreshold = 10,
+	      // 没有“是否在充电”的明确信号时，只做一个极保守的检测（电压明显高于满电阈值）
+	      chargeDetectOverV = 0.08,
+	      tailRaw = 5,
+      tailDisplay = 1,
+      // 兼容旧版 12V/14V 显示：当电压明显不在 24V 区间时，退回到原先的粗略算法
+      legacy12vFallback = true
+    } = opts;
+
+    const ref = useRef({
+      samples: [],
+      filteredV: 0,
+      targetPct: 0,
+      displayPct: 0,
+      isCharging: false,
+      state: BATTERY_STATE.IDLE,
+      timer: null
+    });
+
+    const [ui, setUi] = useState(() => ({
+      voltage: 0,
+      percent: 0,
+      state: BATTERY_STATE.IDLE
+    }));
+
+    const tcpStatusRef = useRef(tcpStatus);
+    useEffect(() => {
+      tcpStatusRef.current = tcpStatus;
+    }, [tcpStatus]);
+
+    const stopTimer = useCallback(() => {
+      if (ref.current.timer) {
+        window.clearInterval(ref.current.timer);
+        ref.current.timer = null;
+      }
+    }, []);
+
+    useEffect(() => stopTimer, [stopTimer]);
+
+    const syncUi = useCallback(() => {
+      const s = ref.current;
+      setUi({ voltage: s.filteredV, percent: s.displayPct, state: s.state });
+    }, []);
+
+    const recomputeState = useCallback(() => {
+      const s = ref.current;
+      if (tcpStatusRef.current !== 'ONLINE') {
+        s.state = BATTERY_STATE.IDLE;
+        return;
+      }
+      if (s.isCharging) {
+        s.state = BATTERY_STATE.CHARGING;
+        return;
+      }
+      if (s.displayPct <= veryLowThreshold) {
+        s.state = BATTERY_STATE.VERY_LOW;
+        return;
+      }
+      if (s.targetPct < s.displayPct) {
+        s.state = BATTERY_STATE.DISCHARGING;
+        return;
+      }
+      s.state = BATTERY_STATE.IDLE;
+    }, [veryLowThreshold]);
+
+    useEffect(() => {
+      const s = ref.current;
+      const shouldSample = Number.isFinite(rawVoltage) && rawVoltage > 1;
+      if (!shouldSample) {
+        recomputeState();
+        syncUi();
+        return;
+      }
+
+      // 1) 移动平均滤波：取最近 N 次采样的平均值作为显示电压
+      s.samples.push(rawVoltage);
+      if (s.samples.length > sampleCount) s.samples.shift();
+      s.filteredV = averageOf(s.samples);
+
+      // 2) 电量百分比（线性映射 + 底部拖尾）
+      const looksLike24v = s.filteredV >= 18;
+      const pctFloat = (legacy12vFallback && !looksLike24v)
+        ? clampNumber((s.filteredV / 14) * 100, 0, 100)
+        : mapVoltageToBatteryPercent(s.filteredV, { vMin, vMax, tailRaw, tailDisplay });
+      const pctCandidate = Math.round(pctFloat);
+
+      // 3) 充电检测（保守）：仅当电压明显高于“满电阈值”时，才允许电量回升
+      s.isCharging = looksLike24v && s.filteredV >= (vMax + chargeDetectOverV);
+
+      // 首次有数据时，直接初始化显示值，避免从 0% 慢慢掉
+      if (s.samples.length === 1 && s.displayPct === 0) {
+        s.displayPct = pctCandidate;
+      }
+
+	      // 4) 目标电量（由电压映射得到）
+	      s.targetPct = pctCandidate;
+
+	      // 5) 缓冲显示（Slow Rise / Slow Drop）：目标变化时，按速率逐步逼近，避免抖动
+	      if (s.targetPct !== s.displayPct) {
+	        if (!s.timer) {
+	          s.timer = window.setInterval(() => {
+	            const inner = ref.current;
+	            const upStep = Math.max(1, Math.round(slowRisePerSecond));
+	            const downStep = Math.max(1, Math.round(slowDropPerSecond));
+
+	            if (inner.displayPct < inner.targetPct) {
+	              inner.displayPct = Math.min(inner.targetPct, inner.displayPct + upStep);
+	            } else if (inner.displayPct > inner.targetPct) {
+	              inner.displayPct = Math.max(inner.targetPct, inner.displayPct - downStep);
+	            }
+
+	            recomputeState();
+	            syncUi();
+	            if (inner.displayPct === inner.targetPct) stopTimer();
+	          }, 1000);
+	        }
+	      } else {
+	        stopTimer();
+	      }
+
+	      recomputeState();
+	      syncUi();
+	    }, [
+      chargeDetectOverV,
+      legacy12vFallback,
+      rawVoltage,
+      recomputeState,
+	      sampleCount,
+	      slowRisePerSecond,
+	      slowDropPerSecond,
+	      stopTimer,
+	      syncUi,
+	      tailDisplay,
+      tailRaw,
+      vMax,
+      vMin
+    ]);
+
+    return ui;
+  }
+
   function MobileStationApp(props) {
     const {
       lang,
@@ -289,14 +489,30 @@
       return Math.max(0, Math.min(100, 100 - age / 40));
     }, [boatStatus, tcpStatus]);
 
-    const lat = Number(boatStatus && boatStatus.latitude) || 0;
-    const lng = Number(boatStatus && boatStatus.longitude) || 0;
-    const heading = Number(boatStatus && boatStatus.heading) || 0;
-    const posReady = lat !== 0 || lng !== 0;
-    const batL = Number(boatStatus && boatStatus.batteryL) || 0;
-    const batR = Number(boatStatus && boatStatus.batteryR) || 0;
-    const batteryV = (batL + batR) / 2;
-    const batteryPct = Math.max(0, Math.min(100, (batteryV / 14) * 100));
+	    const lat = Number(boatStatus && boatStatus.latitude) || 0;
+	    const lng = Number(boatStatus && boatStatus.longitude) || 0;
+	    const heading = Number(boatStatus && boatStatus.heading) || 0;
+	    const posReady = lat !== 0 || lng !== 0;
+
+	    // 仅使用左电池口作为“总电压”（右口未接）
+	    const batL = Number(boatStatus && boatStatus.batteryL) || 0;
+	    // 线路压降补偿（单位：V）。该值来自实测，后续可按需要调整。
+	    const batteryVoltageDropCompensationV = 1.25;
+	    // 若未接入/无数据（0V），不要把压降补偿加进去，避免出现“凭空有电”的显示。
+	    const batteryVRaw = batL > 0 ? (batL + batteryVoltageDropCompensationV) : 0;
+
+	    const batteryGauge = useSmoothedBatteryGauge(batteryVRaw, tcpStatus, {
+		      sampleCount: 20,
+		      vMin: 22.99,
+		      vMax: 24.33,
+		      slowDropPerSecond: 1,
+		      veryLowThreshold: 10,
+		      tailRaw: 5,
+		      tailDisplay: 1,
+		      legacy12vFallback: true
+		    });
+	    const batteryV = batteryGauge.voltage || 0;
+	    const batteryPct = Number.isFinite(batteryGauge.percent) ? batteryGauge.percent : 0;
 
     const setTab = useCallback((id) => {
       setActiveTab(id);
@@ -535,21 +751,21 @@
                         <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
-                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
-                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
-                        </span>
-                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V</span>
-                      </div>
-                      <div className={`w-full ${isIos ? 'h-1.5' : 'h-1'} rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
-                        <div className={`h-full transition-all duration-500 ${
-                          batteryPct < 30
-                            ? (isIos ? 'bg-[#FF3B30]' : 'bg-red-500 text-red-500 shadow-[0_0_10px_currentColor]')
-                            : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
-                        }`} style={{ width: `${batteryPct}%` }}></div>
-                      </div>
-                    </div>
+	                      <div className="space-y-1">
+	                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
+	                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
+	                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
+	                        </span>
+	                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V · {batteryPct}%</span>
+	                      </div>
+	                      <div className={`w-full ${isIos ? 'h-1.5' : 'h-1'} rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
+	                        <div className={`h-full transition-all duration-500 ${
+	                          batteryPct < 30
+	                            ? (isIos ? 'bg-[#FF3B30]' : 'bg-red-500 text-red-500 shadow-[0_0_10px_currentColor]')
+	                            : (isIos ? 'bg-[#007AFF]' : 'bg-cyan-500 text-cyan-500 shadow-[0_0_10px_currentColor]')
+	                        }`} style={{ width: `${batteryPct}%` }}></div>
+	                      </div>
+	                    </div>
                   </div>
                 </HUDBox>
 
