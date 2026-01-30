@@ -8,6 +8,7 @@
   const Unplug = Icon('Unplug');
   const Link = Icon('Link');
   const Anchor = Icon('Anchor');
+  const Waypoints = Icon('Waypoints');
   const Video = Icon('Video');
   const CloudDownload = Icon('CloudDownload');
   const Repeat = Icon('Repeat');
@@ -54,6 +55,7 @@
     })();
 
     const [keyboardSelected, setKeyboardSelected] = useState(false);
+    const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
     const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
@@ -387,6 +389,35 @@
                     }}
                     colorClass="emerald"
                   />
+                </div>
+
+                <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
+                  <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                    <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
+                    <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                      <button
+                        key={algo}
+                        type="button"
+                        onClick={() => setActivePathAlgorithm(algo)}
+                        className={`py-2 text-[10px] font-bold border transition-all duration-200 ${
+                          isIos
+                            ? (activePathAlgorithm === algo
+                              ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
+                              : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
+                            )
+                            : (activePathAlgorithm === algo
+                              ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                              : 'bg-transparent border-slate-700/50 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                            )
+                        }`}
+                      >
+                        {algo}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className={isIos ? `${cardBase} rounded-[22px] p-3` : 'tech-border p-2'}>

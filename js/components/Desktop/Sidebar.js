@@ -7,6 +7,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
 
     // === 新增状态：控制提示框显示 ===
     const [showDeployHint, setShowDeployHint] = useState(false);
+    const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
     const hintTimerRef = useRef(null);
 
     // === 新增逻辑：监听连接状态，自动显示和自动消失 ===
@@ -128,6 +129,31 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <Icons.Settings size={14}/> {t('system_config')}
                 </h3>
                 <div className="space-y-2">
+                    <div className="p-2 rounded border border-slate-800 bg-slate-950/30">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            <Icons.Anchor size={12}/> {t('deployment')}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            <Icons.Waypoints size={12} className="text-cyan-400" />
+                            <span>{t('path_planning')}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                            {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                                <button
+                                    key={algo}
+                                    type="button"
+                                    onClick={() => setActivePathAlgorithm(algo)}
+                                    className={`py-2 text-[10px] font-bold border transition-all duration-200 ${
+                                        activePathAlgorithm === algo
+                                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                            : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    {algo}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => setStreamOn(!streamOn)} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${streamOn?'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{streamOn?t('stream_on'):t('stream_off')}</button>
                         <button onClick={() => setRecvOn(!recvOn)} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${recvOn?'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{recvOn?t('recv_on'):t('recv_off')}</button>
