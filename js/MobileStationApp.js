@@ -542,7 +542,8 @@
       sendKCommandRef.current = sendKCommand;
     }, [sendKCommand]);
 
-    const joystickEnabled = typeof sendKCommand === 'function' && joystickActive && tcpStatus === 'ONLINE' && controlMode === '@' && !keyboardSelected;
+    // Note: `keyboardSelected` here represents "joystick control selected" in the mobile UI.
+    const joystickEnabled = typeof sendKCommand === 'function' && joystickActive && tcpStatus === 'ONLINE' && controlMode === '@' && keyboardSelected;
     useEffect(() => {
       const sendFn = sendKCommandRef.current;
       if (typeof sendFn !== 'function') return;
@@ -614,7 +615,7 @@
       setJoystickPosition({ x: dx * scale, y: dy * scale, limit });
     }, []);
 
-    const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@' || keyboardSelected;
+    const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@' || !keyboardSelected;
 
     return (
       <div className={`relative w-full h-full flex flex-col overflow-hidden font-sans select-none ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
