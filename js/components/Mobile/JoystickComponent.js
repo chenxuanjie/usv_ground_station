@@ -34,8 +34,8 @@
           const rect = e.currentTarget.getBoundingClientRect();
           handleJoyMove(e.clientX, e.clientY, rect);
         }}
-        onPointerUp={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
-        onPointerCancel={() => { setJoystickActive(false); setJoystickPosition({ x: 0, y: 0 }); }}
+        onPointerUp={() => { setJoystickActive(false); setJoystickPosition((prev) => ({ x: 0, y: 0, limit: prev?.limit || 40 })); }}
+        onPointerCancel={() => { setJoystickActive(false); setJoystickPosition((prev) => ({ x: 0, y: 0, limit: prev?.limit || 40 })); }}
       >
         <div className={`absolute inset-2 rounded-full border border-dashed ${ring} animate-[spin_10s_linear_infinite]`}></div>
         <div className="absolute inset-8 rounded-full border border-cyan-500/10"></div>

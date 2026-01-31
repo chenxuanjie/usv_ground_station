@@ -413,7 +413,36 @@ function BoatGroundStation() {
         return ok;
     };
 
-    const sendKCommand = (w,a,s,d) => sendData(`K,${w},${a},${s},${d},`);
+    // K command protocol:
+    // - New: `K,x,y,` where x/y are normalized in [-1.00, 1.00]
+    // - Backward compatible: if called with (w,a,s,d), convert to x=d-a, y=w-s
+    const sendKCommand = (...args) => {
+        const toNum = (v) => {
+            if (typeof v === 'number') return v;
+            const n = parseFloat(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+        let x = 0;
+        let y = 0;
+        if (args.length >= 4) {
+            const w = toNum(args[0]);
+            const a = toNum(args[1]);
+            const s = toNum(args[2]);
+            const d = toNum(args[3]);
+            x = d - a;
+            y = w - s;
+        } else {
+            x = toNum(args[0]);
+            y = toNum(args[1]);
+        }
+
+        x = clamp(x, -1, 1);
+        y = clamp(y, -1, 1);
+
+        return sendData(`K,${x.toFixed(2)},${y.toFixed(2)},`);
+    };
 
     const RECONNECT_INTERVAL_MS = 3000;
 
