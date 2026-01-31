@@ -236,6 +236,7 @@ function BoatGroundStation() {
     const [cruiseMode, setCruiseMode] = useState('0');
     
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
+    const keyStateRef = useRef({ w: false, a: false, s: false, d: false });
 
     const [isMobile, setIsMobile] = useState(() => {
         if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches;
@@ -739,18 +740,23 @@ function BoatGroundStation() {
             if (e.repeat || document.activeElement.tagName === 'INPUT') return;
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
-                setKeyState(prev => ({ ...prev, [key]: true }));
-                if (key === 'w') sendKCommand(1, 0, 0, 0);
-                if (key === 'a') sendKCommand(0, 1, 0, 0);
-                if (key === 's') sendKCommand(0, 0, 1, 0);
-                if (key === 'd') sendKCommand(0, 0, 0, 1);
+                keyStateRef.current = { ...keyStateRef.current, [key]: true };
+                setKeyState({ ...keyStateRef.current });
+
+                const x = (keyStateRef.current.d ? 1 : 0) - (keyStateRef.current.a ? 1 : 0);
+                const y = (keyStateRef.current.w ? 1 : 0) - (keyStateRef.current.s ? 1 : 0);
+                sendKCommand(x, y);
             }
         };
         const handleKeyUp = (e) => {
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
-                setKeyState(prev => ({ ...prev, [key]: false }));
-                sendKCommand(0, 0, 0, 0);
+                keyStateRef.current = { ...keyStateRef.current, [key]: false };
+                setKeyState({ ...keyStateRef.current });
+
+                const x = (keyStateRef.current.d ? 1 : 0) - (keyStateRef.current.a ? 1 : 0);
+                const y = (keyStateRef.current.w ? 1 : 0) - (keyStateRef.current.s ? 1 : 0);
+                sendKCommand(x, y);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
