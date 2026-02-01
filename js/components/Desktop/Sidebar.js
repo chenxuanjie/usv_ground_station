@@ -7,6 +7,7 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
 
     // === 新增状态：控制提示框显示 ===
     const [showDeployHint, setShowDeployHint] = useState(false);
+    const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
     const hintTimerRef = useRef(null);
 
     // === 新增逻辑：监听连接状态，自动显示和自动消失 ===
@@ -139,6 +140,34 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => setCruiseMode('1')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='1'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_on')}</button>
                         <button onClick={() => setCruiseMode('0')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='0'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_off')}</button>
+                    </div>
+
+                    {/* Path Planning */}
+                    <div className="pt-2 mt-1 border-t border-slate-800/50">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                <Icons.Waypoints size={12} className="text-cyan-400" />
+                                <span>{t('path_planning')}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-600 font-mono">{activePathAlgorithm}</span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                            {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                                <button
+                                    key={algo}
+                                    type="button"
+                                    onClick={() => setActivePathAlgorithm(algo)}
+                                    className={`p-2 rounded border text-[10px] font-bold transition-all ${
+                                        activePathAlgorithm === algo
+                                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                            : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    {algo}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     
                     {/* === 修改：绑定新的点击事件 handleDeployClick === */}

@@ -137,6 +137,14 @@ local_web_port=8080   # 本地 Web 服务端口
 
 *点击顶部导航栏的 **"连接设备"** 按钮，系统将通过 WebSocket 连接后端，并自动转发 TCP 指令至无人艇。*
 
+## 🐳 Docker 镜像构建与导出
+
+```bash
+sudo docker build -t usv_image:latest .
+sudo docker save usv_image:latest -o usv_image.tar
+sudo chmod 777 usv_image.tar
+```
+
 ## ⚙️ 通信协议 (Protocol)
 
 前端与 C++ 后端通过 WebSocket 交互，后端负责将其转换为 TCP 报文透传给无人艇。
