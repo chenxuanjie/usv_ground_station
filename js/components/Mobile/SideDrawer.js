@@ -32,6 +32,8 @@
     setRecvOn,
     controlMode,
     setControlMode,
+    keyboardSelected: keyboardSelectedProp,
+    setKeyboardSelected: setKeyboardSelectedProp,
     cruiseMode,
     setCruiseMode,
     sendSCommand,
@@ -53,7 +55,9 @@
       return null;
     })();
 
-    const [keyboardSelected, setKeyboardSelected] = useState(false);
+    const [keyboardSelectedInternal, setKeyboardSelectedInternal] = useState(false);
+    const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
+    const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
     const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
@@ -67,7 +71,7 @@
 
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
-    }, [controlMode]);
+    }, [controlMode, setKeyboardSelected]);
 
     useEffect(() => {
       const prev = prevTcpStatusRef.current;

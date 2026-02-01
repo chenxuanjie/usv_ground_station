@@ -353,7 +353,9 @@
     const [quickMenuOpen, setQuickMenuOpen] = useState(false);
     const [sideDrawerOpen, setSideDrawerOpen] = useState(false);
     const [joystickActive, setJoystickActive] = useState(false);
-    const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
+    // include clamp limit for correct normalization when sending to backend
+    const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0, limit: 40 });
+    const [keyboardSelected, setKeyboardSelected] = useState(false);
     const [mapMode, setMapMode] = useState('pan');
     const [toast, setToast] = useState(null);
     const [showWaypointList, setShowWaypointList] = useState(false);
@@ -531,40 +533,73 @@
     }, [mapMode]);
 
     const lastCmdRef = useRef({ w: 0, a: 0, s: 0, d: 0 });
+    const joystickPosRef = useRef({ x: 0, y: 0, limit: 40 });
+    const sendKCommandRef = useRef(sendKCommand);
     useEffect(() => {
-      if (!joystickActive) return;
-      if (tcpStatus !== 'ONLINE') return;
-      if (controlMode !== '@') return;
-      if (!sendKCommand) return;
+      joystickPosRef.current = joystickPosition;
+    }, [joystickPosition]);
+    useEffect(() => {
+      sendKCommandRef.current = sendKCommand;
+    }, [sendKCommand]);
+
+    // Note: `keyboardSelected` here represents "joystick control selected" in the mobile UI.
+    const joystickEnabled = typeof sendKCommand === 'function' && joystickActive && tcpStatus === 'ONLINE' && controlMode === '@' && keyboardSelected;
+    useEffect(() => {
+      const sendFn = sendKCommandRef.current;
+      if (typeof sendFn !== 'function') return;
+
+      // 安全：一旦摇杆控制不再可用（松手/切模式/断连/切到键盘模式），立刻发送归零，避免保持最后一次非零指令
+      if (!joystickEnabled) {
+        const prev = lastCmdRef.current;
+        if (prev.w || prev.a || prev.s || prev.d) {
+          lastCmdRef.current = { w: 0, a: 0, s: 0, d: 0 };
+          sendFn('0.00', '0.00', '0.00', '0.00');
+        }
+        return;
+      }
 
       const tick = () => {
-        const threshold = 12;
-        const w = joystickPosition.y < -threshold ? 1 : 0;
-        const s = joystickPosition.y > threshold ? 1 : 0;
-        const a = joystickPosition.x < -threshold ? 1 : 0;
-        const d = joystickPosition.x > threshold ? 1 : 0;
+        const pos = joystickPosRef.current || { x: 0, y: 0, limit: 40 };
+        const limit = Math.max(1, pos.limit || 40);
+        let normX = Math.max(-1, Math.min(1, (pos.x || 0) / limit));
+        // y axis：向上为前进，所以取负号
+        let normY = Math.max(-1, Math.min(1, -(pos.y || 0) / limit));
+
+        // 对齐后端 deadband（参考 test.cpp：0.05）
+        const deadband = 0.05;
+        if (Math.abs(normX) < deadband) normX = 0;
+        if (Math.abs(normY) < deadband) normY = 0;
+
+        const w = Math.max(0, normY);
+        const s = Math.max(0, -normY);
+        const a = Math.max(0, -normX);
+        const d = Math.max(0, normX);
+
+        // 两位小数，范围 0.00-1.00
+        const round2 = (v) => Math.min(1, Math.max(0, Math.round(v * 100) / 100));
+        const nextCmd = {
+          w: round2(w),
+          a: round2(a),
+          s: round2(s),
+          d: round2(d)
+        };
 
         const prev = lastCmdRef.current;
-        if (prev.w !== w || prev.a !== a || prev.s !== s || prev.d !== d) {
-          lastCmdRef.current = { w, a, s, d };
-          sendKCommand(w, a, s, d);
+        if (prev.w !== nextCmd.w || prev.a !== nextCmd.a || prev.s !== nextCmd.s || prev.d !== nextCmd.d) {
+          lastCmdRef.current = nextCmd;
+          sendFn(
+            nextCmd.w.toFixed(2),
+            nextCmd.a.toFixed(2),
+            nextCmd.s.toFixed(2),
+            nextCmd.d.toFixed(2)
+          );
         }
       };
 
       tick();
       const timer = setInterval(tick, 120);
       return () => clearInterval(timer);
-    }, [joystickActive, joystickPosition, tcpStatus, controlMode, sendKCommand]);
-
-    useEffect(() => {
-      if (joystickActive) return;
-      if (!sendKCommand) return;
-      const prev = lastCmdRef.current;
-      if (prev.w || prev.a || prev.s || prev.d) {
-        lastCmdRef.current = { w: 0, a: 0, s: 0, d: 0 };
-        sendKCommand(0, 0, 0, 0);
-      }
-    }, [joystickActive, sendKCommand]);
+    }, [joystickEnabled]);
 
     const handleJoyMove = useCallback((clientX, clientY, rect) => {
       const cx = rect.left + rect.width / 2;
@@ -577,10 +612,10 @@
       const limit = Math.max(0, Math.min(baseLimit, maxRadius));
       const magnitude = Math.hypot(dx, dy);
       const scale = magnitude > limit && magnitude > 0 ? (limit / magnitude) : 1;
-      setJoystickPosition({ x: dx * scale, y: dy * scale });
+      setJoystickPosition({ x: dx * scale, y: dy * scale, limit });
     }, []);
 
-    const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@';
+    const joystickDisabled = tcpStatus !== 'ONLINE' || controlMode !== '@' || !keyboardSelected;
 
     return (
       <div className={`relative w-full h-full flex flex-col overflow-hidden font-sans select-none ${ui?.root || 'bg-slate-950 text-slate-200'}`}>
@@ -603,6 +638,8 @@
           setRecvOn={setRecvOn}
           controlMode={controlMode}
           setControlMode={setControlMode}
+          keyboardSelected={keyboardSelected}
+          setKeyboardSelected={setKeyboardSelected}
           cruiseMode={cruiseMode}
           setCruiseMode={setCruiseMode}
           sendSCommand={sendSCommand}

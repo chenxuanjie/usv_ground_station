@@ -236,6 +236,7 @@ function BoatGroundStation() {
     const [cruiseMode, setCruiseMode] = useState('0');
     
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
+    const keyStateRef = useRef({ w: false, a: false, s: false, d: false });
 
     const [isMobile, setIsMobile] = useState(() => {
         if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches;
@@ -413,7 +414,36 @@ function BoatGroundStation() {
         return ok;
     };
 
-    const sendKCommand = (w,a,s,d) => sendData(`K,${w},${a},${s},${d},`);
+    // K command protocol:
+    // - New: `K,x,y,` where x/y are normalized in [-1.00, 1.00]
+    // - Backward compatible: if called with (w,a,s,d), convert to x=d-a, y=w-s
+    const sendKCommand = (...args) => {
+        const toNum = (v) => {
+            if (typeof v === 'number') return v;
+            const n = parseFloat(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+        let x = 0;
+        let y = 0;
+        if (args.length >= 4) {
+            const w = toNum(args[0]);
+            const a = toNum(args[1]);
+            const s = toNum(args[2]);
+            const d = toNum(args[3]);
+            x = d - a;
+            y = w - s;
+        } else {
+            x = toNum(args[0]);
+            y = toNum(args[1]);
+        }
+
+        x = clamp(x, -1, 1);
+        y = clamp(y, -1, 1);
+
+        return sendData(`K,${x.toFixed(2)},${y.toFixed(2)},`);
+    };
 
     const RECONNECT_INTERVAL_MS = 3000;
 
@@ -710,18 +740,23 @@ function BoatGroundStation() {
             if (e.repeat || document.activeElement.tagName === 'INPUT') return;
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
-                setKeyState(prev => ({ ...prev, [key]: true }));
-                if (key === 'w') sendKCommand(1, 0, 0, 0);
-                if (key === 'a') sendKCommand(0, 1, 0, 0);
-                if (key === 's') sendKCommand(0, 0, 1, 0);
-                if (key === 'd') sendKCommand(0, 0, 0, 1);
+                keyStateRef.current = { ...keyStateRef.current, [key]: true };
+                setKeyState({ ...keyStateRef.current });
+
+                const x = (keyStateRef.current.d ? 1 : 0) - (keyStateRef.current.a ? 1 : 0);
+                const y = (keyStateRef.current.w ? 1 : 0) - (keyStateRef.current.s ? 1 : 0);
+                sendKCommand(x, y);
             }
         };
         const handleKeyUp = (e) => {
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
-                setKeyState(prev => ({ ...prev, [key]: false }));
-                sendKCommand(0, 0, 0, 0);
+                keyStateRef.current = { ...keyStateRef.current, [key]: false };
+                setKeyState({ ...keyStateRef.current });
+
+                const x = (keyStateRef.current.d ? 1 : 0) - (keyStateRef.current.a ? 1 : 0);
+                const y = (keyStateRef.current.w ? 1 : 0) - (keyStateRef.current.s ? 1 : 0);
+                sendKCommand(x, y);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
