@@ -129,31 +129,6 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <Icons.Settings size={14}/> {t('system_config')}
                 </h3>
                 <div className="space-y-2">
-                    <div className="p-2 rounded border border-slate-800 bg-slate-950/30">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                            <Icons.Anchor size={12}/> {t('deployment')}
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                            <Icons.Waypoints size={12} className="text-cyan-400" />
-                            <span>{t('path_planning')}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1">
-                            {['A*', 'Hybrid A*', 'DWA'].map(algo => (
-                                <button
-                                    key={algo}
-                                    type="button"
-                                    onClick={() => setActivePathAlgorithm(algo)}
-                                    className={`py-2 text-[10px] font-bold border transition-all duration-200 ${
-                                        activePathAlgorithm === algo
-                                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                                            : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
-                                    }`}
-                                >
-                                    {algo}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => setStreamOn(!streamOn)} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${streamOn?'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{streamOn?t('stream_on'):t('stream_off')}</button>
                         <button onClick={() => setRecvOn(!recvOn)} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${recvOn?'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{recvOn?t('recv_on'):t('recv_off')}</button>
@@ -165,6 +140,34 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
                     <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => setCruiseMode('1')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='1'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_on')}</button>
                         <button onClick={() => setCruiseMode('0')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='0'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_off')}</button>
+                    </div>
+
+                    {/* Path Planning */}
+                    <div className="pt-2 mt-1 border-t border-slate-800/50">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                <Icons.Waypoints size={12} className="text-cyan-400" />
+                                <span>{t('path_planning')}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-600 font-mono">{activePathAlgorithm}</span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                            {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                                <button
+                                    key={algo}
+                                    type="button"
+                                    onClick={() => setActivePathAlgorithm(algo)}
+                                    className={`p-2 rounded border text-[10px] font-bold transition-all ${
+                                        activePathAlgorithm === algo
+                                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                            : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    {algo}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     
                     {/* === 修改：绑定新的点击事件 handleDeployClick === */}
