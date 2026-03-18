@@ -59,7 +59,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     
     const [saveStatus, setSaveStatus] = useState('idle');
     const [errorMsg, setErrorMsg] = useState('');
-    const [activeTab, setActiveTab] = useState('connection'); // 'connection' | 'system'
+    const [activeTab, setActiveTab] = useState('connection'); // 'connection' | 'system' | 'advanced'
     const closeTimerRef = useRef(null);
     const saveTimerRef = useRef(null);
 
@@ -161,6 +161,13 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
                     >
                         {t ? t('system_tab') : 'SYSTEM'}
                     </button>
+                    <div className={`w-px ${isIosModal ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
+                    <button 
+                        onClick={() => setActiveTab('advanced')} 
+                        className={`flex-1 py-3 text-xs font-bold transition-colors ${isIosModal ? 'font-sans tracking-tight' : 'font-mono tracking-wider'} ${activeTab === 'advanced' ? (isIosModal ? 'bg-[#007AFF] text-white shadow-[0_6px_18px_-8px_rgba(0,122,255,0.45)]' : 'bg-cyan-500/20 text-cyan-100 shadow-[inset_0_-2px_0_0_rgba(6,182,212,1)]') : (isIosModal ? 'text-slate-600 hover:bg-white/60' : 'text-slate-500 hover:bg-slate-800')}`}
+                    >
+                        {t ? t('advanced_tab') : 'ADVANCED'}
+                    </button>
                 </div>
 
                 {/* 内容区 */}
@@ -204,6 +211,53 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
 
                     {activeTab === 'system' && (
                         <div className="space-y-3 animate-in slide-in-from-right-4 fade-in duration-300">
+	                            <SettingRow
+	                                icon={Icons.Sidebar}
+	                                title={t ? t('ui_style') : "UI STYLE"}
+	                                desc={t ? t('desc_ui_style') : "Switch UI theme"}
+	                                variant={variant}
+	                            >
+	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-40' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-40'}`}>
+	                                    {uiStyleOptions.map((opt) => (
+	                                        <button
+	                                            key={opt.value}
+	                                            onClick={() => setUiStyle(opt.value)}
+	                                            className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${uiStyle === opt.value ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}
+	                                        >
+	                                            {t ? t(opt.labelKey) : opt.fallback}
+	                                        </button>
+	                                    ))}
+	                                </div>
+	                            </SettingRow>
+
+	                            <SettingRow
+	                                icon={Icons.Navigation}
+	                                title={t ? t('boat_style') : "BOAT STYLE"}
+	                                desc={t ? t('desc_boat_style') : "Select boat icon style"}
+	                                variant={variant}
+	                            >
+	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-32' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-32'}`}>
+	                                    <button onClick={() => setBoatStyle('default')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${boatStyle === 'default' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('default') : 'DEFAULT'}</button>
+	                                    <button onClick={() => setBoatStyle('cyber')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${boatStyle === 'cyber' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('cyber') : 'CYBER'}</button>
+	                                </div>
+	                            </SettingRow>
+
+	                            <SettingRow
+	                                icon={Icons.MapPin}
+	                                title={t ? t('wp_style') : "WP STYLE"}
+	                                desc={t ? t('desc_wp_style') : "Select waypoint marker style"}
+	                                variant={variant}
+	                            >
+	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-32' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-32'}`}>
+	                                    <button onClick={() => setWaypointStyle('default')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${waypointStyle === 'default' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('default') : 'DEFAULT'}</button>
+	                                    <button onClick={() => setWaypointStyle('cyber')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${waypointStyle === 'cyber' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('cyber') : 'CYBER'}</button>
+	                                </div>
+	                            </SettingRow>
+                        </div>
+                    )}
+
+                    {activeTab === 'advanced' && (
+                        <div className="space-y-3 animate-in slide-in-from-right-4 fade-in duration-300">
 		                            <SettingRow
 		                                icon={Icons.Activity}
 		                                title={t ? t('chart_fps') : "Chart FPS"}
@@ -234,28 +288,9 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
 	                            </SettingRow>
 
 	                            <SettingRow
-	                                icon={Icons.Sidebar}
-	                                title={t ? t('ui_style') : "UI STYLE"}
-	                                desc={t ? t('desc_ui_style') : "Switch UI theme"}
-	                                variant={variant}
-	                            >
-	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-40' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-40'}`}>
-	                                    {uiStyleOptions.map((opt) => (
-	                                        <button
-	                                            key={opt.value}
-	                                            onClick={() => setUiStyle(opt.value)}
-	                                            className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${uiStyle === opt.value ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}
-	                                        >
-	                                            {t ? t(opt.labelKey) : opt.fallback}
-	                                        </button>
-	                                    ))}
-	                                </div>
-	                            </SettingRow>
-
-	                            <SettingRow
 	                                icon={Icons.Navigation}
 	                                title={t ? t('heading_reference') : "Heading Basis"}
-	                                desc={t ? t('desc_heading_reference') : "Standard uses North 0, REP uses East 0"}
+	                                desc={t ? t('desc_heading_reference') : "North/East is 0°"}
 	                                variant={variant}
 	                            >
 	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-44' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-44'}`}>
@@ -268,30 +303,6 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
 	                                            {t ? t(opt.labelKey) : opt.fallback}
 	                                        </button>
 	                                    ))}
-	                                </div>
-	                            </SettingRow>
-
-	                            <SettingRow
-	                                icon={Icons.Navigation}
-	                                title={t ? t('boat_style') : "BOAT STYLE"}
-	                                desc={t ? t('desc_boat_style') : "Select boat icon style"}
-	                                variant={variant}
-	                            >
-	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-32' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-32'}`}>
-	                                    <button onClick={() => setBoatStyle('default')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${boatStyle === 'default' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('default') : 'DEFAULT'}</button>
-	                                    <button onClick={() => setBoatStyle('cyber')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${boatStyle === 'cyber' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('cyber') : 'CYBER'}</button>
-	                                </div>
-	                            </SettingRow>
-
-	                            <SettingRow
-	                                icon={Icons.MapPin}
-	                                title={t ? t('wp_style') : "WP STYLE"}
-	                                desc={t ? t('desc_wp_style') : "Select waypoint marker style"}
-	                                variant={variant}
-	                            >
-	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-32' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-32'}`}>
-	                                    <button onClick={() => setWaypointStyle('default')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${waypointStyle === 'default' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('default') : 'DEFAULT'}</button>
-	                                    <button onClick={() => setWaypointStyle('cyber')} className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${waypointStyle === 'cyber' ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}>{t ? t('cyber') : 'CYBER'}</button>
 	                                </div>
 	                            </SettingRow>
                         </div>

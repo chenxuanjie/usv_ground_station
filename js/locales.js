@@ -104,6 +104,7 @@ const AppTranslations = {
 
         connection_tab: "连接",
         system_tab: "系统",
+        advanced_tab: "高级",
         ui_style: "界面风格",
         desc_ui_style: "切换移动端界面主题",
         heading_reference: "航向角基准",
@@ -244,6 +245,7 @@ const AppTranslations = {
 
         connection_tab: "CONNECTION",
         system_tab: "SYSTEM",
+        advanced_tab: "ADVANCED",
         ui_style: "UI STYLE",
         desc_ui_style: "Switch mobile UI theme",
         heading_reference: "HEADING BASIS",
