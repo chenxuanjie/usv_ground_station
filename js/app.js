@@ -795,6 +795,15 @@ function BoatGroundStation() {
         });
 
         setBoatStatus((prev) => {
+            if (!prev || !prev.lastUpdate) {
+                if (prev && prev.heading === 0 && prev.headingRaw === 0) return prev;
+                return {
+                    ...prev,
+                    heading: 0,
+                    headingRaw: 0
+                };
+            }
+
             const rawHeading = Number.isFinite(Number(prev && prev.headingRaw))
                 ? normalizeHeadingDegrees(prev.headingRaw)
                 : normalizeHeadingDegrees(prev && prev.heading);
