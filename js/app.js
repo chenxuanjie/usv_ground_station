@@ -39,6 +39,38 @@ const Loader2 = ({ className }) => (
     </svg>
 );
 
+const HEADING_MODE_NORTH_CW = 'north_cw';
+const HEADING_MODE_EAST_CCW = 'east_ccw';
+
+const normalizeHeadingMode = (raw) => {
+    const value = String(raw || '').trim().toLowerCase();
+    return value === HEADING_MODE_EAST_CCW ? HEADING_MODE_EAST_CCW : HEADING_MODE_NORTH_CW;
+};
+
+const normalizeHeadingDegrees = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    const normalized = num % 360;
+    return normalized < 0 ? normalized + 360 : normalized;
+};
+
+const convertBoatHeadingForDisplay = (rawHeading, mode) => {
+    const normalizedRaw = normalizeHeadingDegrees(rawHeading);
+    return normalizeHeadingMode(mode) === HEADING_MODE_NORTH_CW
+        ? normalizeHeadingDegrees(90 - normalizedRaw)
+        : normalizedRaw;
+};
+
+if (typeof window !== 'undefined') {
+    window.HeadingUtils = {
+        HEADING_MODE_NORTH_CW,
+        HEADING_MODE_EAST_CCW,
+        normalizeHeadingMode,
+        normalizeHeadingDegrees,
+        convertBoatHeadingForDisplay
+    };
+}
+
 function NotificationCenter({ items, onDismiss }) {
     const [, forceUpdate] = useState({});
 
@@ -214,9 +246,15 @@ function BoatGroundStation() {
     const [serverPort, setServerPort] = useState('');
     const [autoReconnect, setAutoReconnect] = useState(false);
     const [isAutoReconnectLooping, setIsAutoReconnectLooping] = useState(false); // [新增] 状态用于UI显示取消按钮
+    const [headingMode, setHeadingMode] = useState(HEADING_MODE_NORTH_CW);
+    const headingModeRef = useRef(headingMode);
+
+    useEffect(() => {
+        headingModeRef.current = headingMode;
+    }, [headingMode]);
 
     const [boatStatus, setBoatStatus] = useState({
-        longitude: 0, latitude: 0, heading: 0,
+        longitude: 0, latitude: 0, heading: 0, headingRaw: 0,
         batteryL: 0, batteryR: 0,
         lastUpdate: null,
     });
@@ -606,6 +644,11 @@ function BoatGroundStation() {
                             setUiStyle(nextUiStyle || 'cyber');
                         }
                     }
+                    if (parts.length >= 12) {
+                        const nextHeadingMode = normalizeHeadingMode(parts[11]);
+                        headingModeRef.current = nextHeadingMode;
+                        setHeadingMode(nextHeadingMode);
+                    }
                     if (parts.length >= 7) setEmbeddedChannelExpanded(parseBool(parts[6], true));
                     if (parts.length >= 10) {
                         setEmbeddedChannelEnabled({
@@ -641,9 +684,10 @@ function BoatGroundStation() {
                                 const nextBoatStyle = parts.length >= 5 ? String(parts[4] || '').trim() : 'default';
                                 const nextWpStyle = parts.length >= 6 ? String(parts[5] || '').trim() : 'default';
                                 const nextUiStyle = parts.length >= 11 ? String(parts[10] || '').trim() : 'cyber';
+                                const nextHeadingMode = parts.length >= 12 ? normalizeHeadingMode(parts[11]) : headingModeRef.current;
 
                                 ws.send(
-                                    `CMD,SET_CONFIG,${parts[1]},${parts[2]},${nextAuto ? '1' : '0'},${nextBoatStyle || 'default'},${nextWpStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
+                                    `CMD,SET_CONFIG,${parts[1]},${parts[2]},${nextAuto ? '1' : '0'},${nextBoatStyle || 'default'},${nextWpStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'},${nextHeadingMode}`
                                 );
                             }
                         } catch (_) {}
@@ -684,14 +728,16 @@ function BoatGroundStation() {
                     if (parts.length >= 6) {
                         const bL = parseFloat(parts[4]) || 0;
                         const bR = parseFloat(parts[5]) || 0;
-                        const heading = parseFloat(parts[3]) || 0;
+                        const rawHeading = parseFloat(parts[3]) || 0;
+                        const displayHeading = convertBoatHeadingForDisplay(rawHeading, headingModeRef.current);
                         
                         // === 1. 数据收集：始终全速运行，保证图表数据完整 ===
                         const newPoint = {
                             time: new Date().toLocaleTimeString('en-GB'),
                             batL: bL,
                             batR: bR,
-                            heading: heading
+                            headingRaw: normalizeHeadingDegrees(rawHeading),
+                            heading: displayHeading
                         };
                         chartDataRef.current.push(newPoint);
                         if (chartDataRef.current.length > 1000) chartDataRef.current.shift();
@@ -705,7 +751,8 @@ function BoatGroundStation() {
                             setBoatStatus({
                                 longitude: parseFloat(parts[1]) || 0,
                                 latitude: parseFloat(parts[2]) || 0,
-                                heading: heading,
+                                heading: displayHeading,
+                                headingRaw: normalizeHeadingDegrees(rawHeading),
                                 batteryL: bL,
                                 batteryR: bR,
                                 lastUpdate: new Date()
@@ -734,6 +781,32 @@ function BoatGroundStation() {
         if (tcpStatus === 'ONLINE') clearReconnectTimer();
         if (tcpStatus === 'CONNECTING') clearReconnectTimer();
     }, [tcpStatus, autoReconnect]);
+
+    useEffect(() => {
+        chartDataRef.current = chartDataRef.current.map((item) => {
+            const rawHeading = Number.isFinite(Number(item && item.headingRaw))
+                ? normalizeHeadingDegrees(item.headingRaw)
+                : normalizeHeadingDegrees(item && item.heading);
+            return {
+                ...item,
+                headingRaw: rawHeading,
+                heading: convertBoatHeadingForDisplay(rawHeading, headingMode)
+            };
+        });
+
+        setBoatStatus((prev) => {
+            const rawHeading = Number.isFinite(Number(prev && prev.headingRaw))
+                ? normalizeHeadingDegrees(prev.headingRaw)
+                : normalizeHeadingDegrees(prev && prev.heading);
+            const nextHeading = convertBoatHeadingForDisplay(rawHeading, headingMode);
+            if (prev.heading === nextHeading && prev.headingRaw === rawHeading) return prev;
+            return {
+                ...prev,
+                headingRaw: rawHeading,
+                heading: nextHeading
+            };
+        });
+    }, [headingMode]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -810,11 +883,14 @@ function BoatGroundStation() {
         const nextBoatStyle = Object.prototype.hasOwnProperty.call(opts, 'boatStyle') ? opts.boatStyle : boatStyle;
         const nextWaypointStyle = Object.prototype.hasOwnProperty.call(opts, 'waypointStyle') ? opts.waypointStyle : waypointStyle;
         const nextUiStyle = Object.prototype.hasOwnProperty.call(opts, 'uiStyle') ? opts.uiStyle : uiStyle;
+        const nextHeadingMode = Object.prototype.hasOwnProperty.call(opts, 'headingMode')
+            ? normalizeHeadingMode(opts.headingMode)
+            : headingMode;
         const nextExpanded = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelExpanded') ? opts.embeddedChannelExpanded : embeddedChannelExpanded;
         const nextEnabled = Object.prototype.hasOwnProperty.call(opts, 'embeddedChannelEnabled') ? opts.embeddedChannelEnabled : embeddedChannelEnabled;
 
         wsRef.current.send(
-            `CMD,SET_CONFIG,${nextIp},${nextPort},${nextAutoReconnect ? '1' : '0'},${nextBoatStyle || 'default'},${nextWaypointStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'}`
+            `CMD,SET_CONFIG,${nextIp},${nextPort},${nextAutoReconnect ? '1' : '0'},${nextBoatStyle || 'default'},${nextWaypointStyle || 'default'},${nextExpanded ? '1' : '0'},${nextEnabled.heading ? '1' : '0'},${nextEnabled.batL ? '1' : '0'},${nextEnabled.batR ? '1' : '0'},${nextUiStyle || 'cyber'},${nextHeadingMode}`
         );
         return true;
     }, [
@@ -822,6 +898,7 @@ function BoatGroundStation() {
         boatStyle,
         embeddedChannelEnabled,
         embeddedChannelExpanded,
+        headingMode,
         serverIp,
         serverPort,
         uiStyle,
@@ -829,11 +906,12 @@ function BoatGroundStation() {
         webConnected
     ]);
 
-    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle, newUiStyle) => {
+    const handleSaveConfig = (newIp, newPort, newChartFps, newAutoReconnect, newBoatStyle, newWaypointStyle, newUiStyle, newHeadingMode) => {
         const nextUiStyleRaw = (typeof newUiStyle === 'string' && newUiStyle.trim())
             ? newUiStyle.trim()
             : (typeof uiStyle === 'string' && uiStyle.trim() ? uiStyle.trim() : 'cyber');
         const nextUiStyle = nextUiStyleRaw.toLowerCase() || 'cyber';
+        const nextHeadingMode = normalizeHeadingMode(newHeadingMode || headingMode);
 
         const applySave = () => {
             // 1. 更新本地状态
@@ -843,6 +921,8 @@ function BoatGroundStation() {
             if (newBoatStyle) setBoatStyle(newBoatStyle);
             if (newWaypointStyle) setWaypointStyle(newWaypointStyle);
             setUiStyle(nextUiStyle);
+            headingModeRef.current = nextHeadingMode;
+            setHeadingMode(nextHeadingMode);
 
             if (newChartFps !== undefined) {
                 const fps = Math.min(240, Math.max(5, Math.round(Number(newChartFps))));
@@ -857,7 +937,8 @@ function BoatGroundStation() {
                 autoReconnect: !!newAutoReconnect,
                 boatStyle: newBoatStyle || 'default',
                 waypointStyle: newWaypointStyle || 'default',
-                uiStyle: nextUiStyle
+                uiStyle: nextUiStyle,
+                headingMode: nextHeadingMode
             })) {
                 addLog('SYS', `配置已保存: ${newIp}:${newPort}`, 'info');
             } else {
@@ -987,6 +1068,7 @@ function BoatGroundStation() {
                     <div className="flex-1 flex overflow-hidden relative z-0">
                         <Sidebar 
                             boatStatus={boatStatus}
+                            headingMode={headingMode}
                             configState={{streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode}}
                             setConfigState={()=>{}} 
                             keyState={keyState}
@@ -1002,7 +1084,8 @@ function BoatGroundStation() {
                             <MapComponent 
                                 lng={boatStatus.longitude} 
                                 lat={boatStatus.latitude} 
-                                heading={boatStatus.heading} 
+                                heading={boatStatus.heading}
+                                headingRaw={boatStatus.headingRaw}
                                 waypoints={waypoints}
                                 setWaypoints={setWaypoints}
                                 cruiseMode={cruiseMode}
@@ -1071,6 +1154,7 @@ function BoatGroundStation() {
                     currentBoatStyle={boatStyle}
                     currentWaypointStyle={waypointStyle}
                     currentUiStyle={uiStyle}
+                    currentHeadingMode={headingMode}
                     onSave={handleSaveConfig}
                     t={t}
                     isMobile={shouldUseMobile}

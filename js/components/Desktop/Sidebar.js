@@ -2,7 +2,7 @@
 // 注意：这里引入了 useEffect, useState, useRef
 var { useEffect, useState, useRef } = React;
 
-function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
+function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
 
     // === 新增状态：控制提示框显示 ===
@@ -53,7 +53,12 @@ function Sidebar({ boatStatus, configState, setConfigState, keyState, sendSComma
 
     // 罗盘角度计算
     const isDataActive = !!boatStatus.lastUpdate;
-    const compassRotation = isDataActive ? (-boatStatus.heading - 45) : 0;
+    const normalizedHeadingMode = window.HeadingUtils && typeof window.HeadingUtils.normalizeHeadingMode === 'function'
+        ? window.HeadingUtils.normalizeHeadingMode(headingMode)
+        : (String(headingMode || '').trim().toLowerCase() === 'east_ccw' ? 'east_ccw' : 'north_cw');
+    const compassRotation = isDataActive
+        ? (normalizedHeadingMode === 'east_ccw' ? (45 - boatStatus.heading) : (boatStatus.heading - 45))
+        : 0;
 
     return (
         <div className="flex-none w-72 max-w-[85vw] sm:w-80 sm:max-w-none bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">

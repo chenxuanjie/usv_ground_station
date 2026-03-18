@@ -40,15 +40,22 @@ struct AppConfig {
     string boat_style = "default";
     string waypoint_style = "default";
     string ui_style = "cyber";
+    string heading_mode = "north_cw";
     bool embedded_channel_expanded = true;
     bool embedded_heading_enabled = false;
     bool embedded_bat_l_enabled = false;
     bool embedded_bat_r_enabled = false;
 };
  
- AppConfig g_config;
- const string CONFIG_FILE = "config.ini";
- const string DEFAULT_CONFIG_FILE = "config_default.ini";
+AppConfig g_config;
+const string CONFIG_FILE = "config.ini";
+const string DEFAULT_CONFIG_FILE = "config_default.ini";
+
+string normalize_heading_mode(const string& raw) {
+    string v = raw;
+    transform(v.begin(), v.end(), v.begin(), ::tolower);
+    return v == "east_ccw" ? "east_ccw" : "north_cw";
+}
 
  // [新增] 保存配置到文件 (前置声明或提前定义)
 void save_config() {
@@ -61,6 +68,7 @@ void save_config() {
        outfile << "boat_style=" << g_config.boat_style << endl;
        outfile << "waypoint_style=" << g_config.waypoint_style << endl;
        outfile << "ui_style=" << g_config.ui_style << endl;
+       outfile << "heading_mode=" << g_config.heading_mode << endl;
        outfile << "embedded_channel_expanded=" << (g_config.embedded_channel_expanded ? 1 : 0) << endl;
        outfile << "embedded_heading_enabled=" << (g_config.embedded_heading_enabled ? 1 : 0) << endl;
        outfile << "embedded_bat_l_enabled=" << (g_config.embedded_bat_l_enabled ? 1 : 0) << endl;
@@ -100,6 +108,7 @@ void parse_config_stream(ifstream& file) {
             else if (key == "boat_style") g_config.boat_style = value;
             else if (key == "waypoint_style") g_config.waypoint_style = value;
             else if (key == "ui_style") g_config.ui_style = value;
+            else if (key == "heading_mode") g_config.heading_mode = normalize_heading_mode(value);
             else if (key == "embedded_channel_expanded") {
                 string v = value;
                 transform(v.begin(), v.end(), v.begin(), ::tolower);
@@ -389,7 +398,7 @@ void boat_listener_loop() {
                             (g_config.embedded_channel_expanded ? "1" : "0") + "," +
                             (g_config.embedded_heading_enabled ? "1" : "0") + "," +
                             (g_config.embedded_bat_l_enabled ? "1" : "0") + "," +
-                            (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style;
+                            (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style + "," + g_config.heading_mode;
                         send_ws_frame(msg);
                         cout << "[Config] Sent current config to client." << endl;
                     }
@@ -433,6 +442,7 @@ void boat_listener_loop() {
                                 g_config.embedded_bat_r_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
                             }
                             if (parts.size() >= 12) g_config.ui_style = parts[11];
+                            if (parts.size() >= 13) g_config.heading_mode = normalize_heading_mode(parts[12]);
 
                             save_config();
                             cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;

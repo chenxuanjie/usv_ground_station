@@ -44,7 +44,8 @@ const SettingRow = ({ icon: Icon, title, desc, children, variant = "cyber" }) =>
     );
 };
 
-function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, currentBoatStyle, currentWaypointStyle, currentUiStyle, onSave, t, isMobile }) {
+function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFps, currentAutoReconnect, currentBoatStyle, currentWaypointStyle, currentUiStyle, currentHeadingMode, onSave, t, isMobile }) {
+    const resolveHeadingMode = (raw) => String(raw || '').trim().toLowerCase() === 'east_ccw' ? 'east_ccw' : 'north_cw';
     const [ip, setIp] = useState(currentIp);
     const [port, setPort] = useState(currentPort);
     const [chartFps, setChartFps] = useState(currentChartFps);
@@ -52,6 +53,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     const [boatStyle, setBoatStyle] = useState(currentBoatStyle || 'default');
     const [waypointStyle, setWaypointStyle] = useState(currentWaypointStyle || 'default');
     const [uiStyle, setUiStyle] = useState(typeof currentUiStyle === 'string' && currentUiStyle ? currentUiStyle : 'cyber');
+    const [headingMode, setHeadingMode] = useState(resolveHeadingMode(currentHeadingMode));
     const isIosModal = !!isMobile && uiStyle === 'ios';
     const variant = isIosModal ? 'ios' : 'cyber';
     
@@ -97,7 +99,7 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
         saveTimerRef.current = setTimeout(() => {
             let result;
             try {
-                result = onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle, uiStyle);
+                result = onSave(ip, port, Math.round(fpsNum), !!autoReconnect, boatStyle, waypointStyle, uiStyle, headingMode);
             } catch (err) {
                 setSaveStatus('error');
                 setErrorMsg((err && err.message) ? String(err.message) : (t ? t('err_invalid_ip') : "Save failed."));
@@ -122,6 +124,11 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
     const uiStyleOptions = [
         { value: 'cyber', labelKey: 'style_cyber', fallback: 'CYBER' },
         { value: 'ios', labelKey: 'style_ios', fallback: 'iOS' }
+    ];
+
+    const headingModeOptions = [
+        { value: 'north_cw', labelKey: 'heading_mode_north_cw', fallback: 'NORTH 0 / CW+' },
+        { value: 'east_ccw', labelKey: 'heading_mode_east_ccw', fallback: 'EAST 0 / CCW+' }
     ];
 
     return (
@@ -238,6 +245,25 @@ function SettingsModal({ isOpen, onClose, currentIp, currentPort, currentChartFp
 	                                            key={opt.value}
 	                                            onClick={() => setUiStyle(opt.value)}
 	                                            className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${uiStyle === opt.value ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}
+	                                        >
+	                                            {t ? t(opt.labelKey) : opt.fallback}
+	                                        </button>
+	                                    ))}
+	                                </div>
+	                            </SettingRow>
+
+	                            <SettingRow
+	                                icon={Icons.Navigation}
+	                                title={t ? t('heading_reference') : "Heading Basis"}
+	                                desc={t ? t('desc_heading_reference') : "Standard uses North 0, REP uses East 0"}
+	                                variant={variant}
+	                            >
+	                                <div className={`${isIosModal ? 'flex bg-[#767680]/10 rounded-[10px] p-1 border border-white/50 w-44' : 'flex bg-slate-900 rounded p-1 border border-slate-800 w-44'}`}>
+	                                    {headingModeOptions.map((opt) => (
+	                                        <button
+	                                            key={opt.value}
+	                                            onClick={() => setHeadingMode(opt.value)}
+	                                            className={`flex-1 py-1 text-[10px] rounded transition-colors ${isIosModal ? 'font-semibold' : 'font-mono'} ${headingMode === opt.value ? (isIosModal ? 'bg-white text-slate-900 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)]' : 'bg-cyan-600 text-white shadow-lg') : (isIosModal ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white')}`}
 	                                        >
 	                                            {t ? t(opt.labelKey) : opt.fallback}
 	                                        </button>

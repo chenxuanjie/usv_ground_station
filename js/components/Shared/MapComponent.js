@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
 var { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber' }) {
+function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber' }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -400,7 +400,16 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
 
         markerRef.current.setIcon(icon);
         if (typeof markerRef.current.setRotation === 'function') {
-            markerRef.current.setRotation(heading ? -heading : 0);
+            const normalizeDegrees = window.HeadingUtils && typeof window.HeadingUtils.normalizeHeadingDegrees === 'function'
+                ? window.HeadingUtils.normalizeHeadingDegrees
+                : (value => {
+                    const num = Number(value);
+                    if (!Number.isFinite(num)) return 0;
+                    const normalized = num % 360;
+                    return normalized < 0 ? normalized + 360 : normalized;
+                });
+            const normalizedRawHeading = normalizeDegrees(headingRaw);
+            markerRef.current.setRotation(normalizedRawHeading - 90);
         }
 
         if (hasGps && pt) {
@@ -412,7 +421,7 @@ function MapComponent({ lng, lat, heading, waypoints, setWaypoints, cruiseMode, 
                 if (boatTrackRef.current) boatTrackRef.current.setPath(pathRef.current);
             }
         }
-    }, [lng, lat, heading, boatStyle]);
+    }, [lng, lat, heading, headingRaw, boatStyle]);
 
     const handleLocateBoat = () => {
         if(mapRef.current && lng && lat) {

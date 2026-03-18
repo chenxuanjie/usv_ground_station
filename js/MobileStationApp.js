@@ -494,6 +494,7 @@
 	    const lat = Number(boatStatus && boatStatus.latitude) || 0;
 	    const lng = Number(boatStatus && boatStatus.longitude) || 0;
 	    const heading = Number(boatStatus && boatStatus.heading) || 0;
+	    const headingRaw = Number(boatStatus && boatStatus.headingRaw) || 0;
 	    const posReady = lat !== 0 || lng !== 0;
 
 	    // 仅使用左电池口作为“总电压”（右口未接）
@@ -661,6 +662,7 @@
                     lng={lng}
                     lat={lat}
                     heading={heading}
+                    headingRaw={headingRaw}
                     waypoints={waypoints}
                     setWaypoints={setWaypoints}
                     cruiseMode={cruiseMode}
