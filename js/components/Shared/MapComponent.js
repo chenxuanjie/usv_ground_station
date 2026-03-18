@@ -408,8 +408,11 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
                     const normalized = num % 360;
                     return normalized < 0 ? normalized + 360 : normalized;
                 });
-            const normalizedRawHeading = normalizeDegrees(headingRaw);
-            markerRef.current.setRotation(normalizedRawHeading - 90);
+            const toNorthClockwise = window.HeadingUtils && typeof window.HeadingUtils.convertBoatHeadingForDisplay === 'function'
+                ? window.HeadingUtils.convertBoatHeadingForDisplay
+                : (rawValue => normalizeDegrees(90 - rawValue));
+            const mapHeading = toNorthClockwise(headingRaw, 'north_cw');
+            markerRef.current.setRotation(mapHeading);
         }
 
         if (hasGps && pt) {

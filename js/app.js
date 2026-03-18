@@ -54,11 +54,16 @@ const normalizeHeadingDegrees = (value) => {
     return normalized < 0 ? normalized + 360 : normalized;
 };
 
+const normalizeSignedHeadingDegrees = (value) => {
+    const normalized = normalizeHeadingDegrees(value);
+    return normalized > 180 ? normalized - 360 : normalized;
+};
+
 const convertBoatHeadingForDisplay = (rawHeading, mode) => {
     const normalizedRaw = normalizeHeadingDegrees(rawHeading);
     return normalizeHeadingMode(mode) === HEADING_MODE_NORTH_CW
         ? normalizeHeadingDegrees(90 - normalizedRaw)
-        : normalizedRaw;
+        : normalizeSignedHeadingDegrees(normalizedRaw);
 };
 
 if (typeof window !== 'undefined') {
@@ -67,6 +72,7 @@ if (typeof window !== 'undefined') {
         HEADING_MODE_EAST_CCW,
         normalizeHeadingMode,
         normalizeHeadingDegrees,
+        normalizeSignedHeadingDegrees,
         convertBoatHeadingForDisplay
     };
 }
