@@ -140,9 +140,13 @@ local_web_port=8080   # 本地 Web 服务端口
 ## 🐳 Docker 镜像构建与导出
 
 ```bash
-sudo docker build -t usv_image:latest .
-sudo docker save usv_image:latest -o usv_image.tar
+sudo docker build -t usv-ground-station:latest .
+sudo docker save usv-ground-station:latest -o usv_image.tar
 sudo chmod 777 usv_image.tar
+
+sudo docker build -t usv-ground-station-test:latest .
+sudo docker save usv-ground-station-test:latest -o usv_image_test.tar
+sudo chmod 777 usv_image_test.tar
 ```
 
 ## ⚙️ 通信协议 (Protocol)
