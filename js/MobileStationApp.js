@@ -313,6 +313,9 @@
       sendSCommand,
       sendWaypointsCommand,
       sendKCommand,
+      onOpenRouteManager,
+      onOpenSaveRoute,
+      hasSavedRoutes,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -364,6 +367,9 @@
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
     const deployReminderShownRef = useRef(false);
+    const addWpLongPressTimerRef = useRef(null);
+    const addWpLongPressTriggeredRef = useRef(false);
+    const addWpSuppressClickUntilRef = useRef(0);
 
     const clearToastTimer = useCallback(() => {
       if (toastTimerRef.current) {
@@ -371,6 +377,15 @@
         toastTimerRef.current = null;
       }
     }, []);
+
+    const clearAddWpLongPress = useCallback(() => {
+      if (addWpLongPressTimerRef.current) {
+        window.clearTimeout(addWpLongPressTimerRef.current);
+        addWpLongPressTimerRef.current = null;
+      }
+    }, []);
+
+    useEffect(() => clearAddWpLongPress, [clearAddWpLongPress]);
 
     const computeMobileDurationMs = useCallback((durationMs) => {
       if (durationMs === null) return null;
@@ -645,6 +660,8 @@
           setCruiseMode={setCruiseMode}
           sendSCommand={sendSCommand}
           sendWaypointsCommand={sendWaypointsCommand}
+          onOpenRouteManager={onOpenRouteManager}
+          onOpenSaveRoute={onOpenSaveRoute}
           onOpenSettings={() => setShowSettings(true)}
         />
 
@@ -679,19 +696,39 @@
               </div>
 
               {mapMode === 'add' && (
-                <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
-                  <button 
-                    onClick={() => setMapMode('pan')}
-                    className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
-                      isIos
-                        ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
-                        : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
-                    }`}
-                  >
-                    <Check className="w-5 h-5" />
-                    {t('finish_add')}
-                  </button>
-                </div>
+                <>
+                  {hasSavedRoutes && (
+                    <div className="absolute top-20 left-4 z-20 pointer-events-none">
+                      <button
+                        onClick={() => {
+                          setQuickMenuOpen(false);
+                          if (typeof onOpenRouteManager === 'function') onOpenRouteManager();
+                        }}
+                        className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center justify-center min-w-[72px] py-1.5 px-3 rounded-full transition-all active:scale-[0.98] ${
+                          isIos
+                            ? 'bg-white/88 text-[#007AFF] border border-white/70 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)] font-semibold text-[13px]'
+                            : 'bg-slate-900/90 text-cyan-100 border border-cyan-500/35 shadow-[0_0_18px_rgba(6,182,212,0.18)] font-bold text-[11px] tracking-[0.12em]'
+                        }`}
+                      >
+                        {lang === 'zh' ? '加载' : 'LOAD'}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
+                    <button 
+                      onClick={() => setMapMode('pan')}
+                      className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
+                          : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
+                      }`}
+                    >
+                      <Check className="w-5 h-5" />
+                      {t('finish_add')}
+                    </button>
+                  </div>
+                </>
               )}
 
               <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-3 pointer-events-none">
@@ -713,7 +750,44 @@
                   </button>
                       {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
-                      <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
+                      <button
+                        onClick={(event) => {
+                          if (Date.now() < addWpSuppressClickUntilRef.current) {
+                            event.preventDefault();
+                            return;
+                          }
+                          setMapMode('add');
+                          setQuickMenuOpen(false);
+                        }}
+                        onTouchStart={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                          addWpLongPressTimerRef.current = window.setTimeout(() => {
+                            addWpLongPressTimerRef.current = null;
+                            addWpLongPressTriggeredRef.current = true;
+                            addWpSuppressClickUntilRef.current = Date.now() + 700;
+                            setQuickMenuOpen(false);
+                            if (typeof onOpenRouteManager === 'function') onOpenRouteManager();
+                          }, 450);
+                        }}
+                        onTouchEnd={(event) => {
+                          clearAddWpLongPress();
+                          if (addWpLongPressTriggeredRef.current) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        onTouchCancel={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        onTouchMove={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        className="flex items-center justify-end gap-2 group pointer-events-auto"
+                      >
                         <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-yellow-200 bg-black/60'}`}>{t('add_wp_btn')}</span>
                         <div
                           className={isIos

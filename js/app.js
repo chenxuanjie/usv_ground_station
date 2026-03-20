@@ -66,6 +66,57 @@ const convertBoatHeadingForDisplay = (rawHeading, mode) => {
         : normalizeSignedHeadingDegrees(normalizedRaw);
 };
 
+const normalizeRouteName = (value) => String(value || '').trim();
+
+const sanitizeWaypoints = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map((item) => {
+            const lng = Number(item && (item.lng ?? item.lon));
+            const lat = Number(item && item.lat);
+            if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+            return { lng, lat };
+        })
+        .filter(Boolean);
+};
+
+const sanitizeSavedRoutes = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map((item, index) => {
+            const id = Number(item && item.id);
+            const name = normalizeRouteName(item && item.name) || `Route ${index + 1}`;
+            const waypoints = sanitizeWaypoints(item && item.waypoints);
+            if (!waypoints.length) return null;
+            return {
+                id: Number.isFinite(id) && id > 0 ? id : index + 1,
+                name,
+                waypoints
+            };
+        })
+        .filter(Boolean);
+};
+
+const getRouteErrorMessage = (translations, code) => {
+    if (!translations) return 'Route operation failed';
+    if (code === 'SAVE_FAILED') return translations.route_save_failed;
+    if (code === 'RENAME_FAILED') return translations.route_rename_failed;
+    if (code === 'DELETE_FAILED') return translations.route_delete_failed;
+    return translations.route_load_failed;
+};
+
+const getRouteErrorDetailMessage = (lang, code) => {
+    const isZh = lang === 'zh';
+    if (code === 'INVALID_PAYLOAD') return isZh ? '请求格式无效' : 'Invalid request payload';
+    if (code === 'EMPTY_NAME') return isZh ? '航线名称不能为空' : 'Route name cannot be empty';
+    if (code === 'EMPTY_ROUTE') return isZh ? '当前没有可保存的航点' : 'No waypoints to save';
+    if (code === 'INVALID_ID') return isZh ? '航线 ID 无效' : 'Invalid route id';
+    if (code === 'ROUTE_NOT_FOUND') return isZh ? '未找到对应航线' : 'Route not found';
+    if (code === 'WRITE_FAILED') return isZh ? '后端写入文件失败' : 'Backend failed to write file';
+    if (code === 'UNKNOWN') return isZh ? '未知错误' : 'Unknown error';
+    return '';
+};
+
 if (typeof window !== 'undefined') {
     window.HeadingUtils = {
         HEADING_MODE_NORTH_CW,
@@ -266,7 +317,11 @@ function BoatGroundStation() {
     });
     
     const [waypoints, setWaypoints] = useState([]);
+    const [savedRoutes, setSavedRoutes] = useState([]);
+    const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false);
+    const [routeModalState, setRouteModalState] = useState({ open: false, mode: 'load' });
     const [logs, setLogs] = useState([]);
+    const pendingRouteActionRef = useRef(null);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -414,6 +469,80 @@ function BoatGroundStation() {
     const addLog = (dir, msg, level = 'info') => {
         setLogs(prev => [{id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), dir, msg, level}, ...prev].slice(0, 100));
     };
+
+    const getBridgeUnavailableMessage = () => (
+        langRef.current === 'zh'
+            ? '前端未连接，无法访问航线库'
+            : 'Frontend is offline. Route library is unavailable.'
+    );
+
+    const closeRouteManager = useCallback(() => {
+        setRouteModalState(prev => ({ ...prev, open: false }));
+    }, []);
+
+    const requestSavedRoutes = useCallback(() => {
+        if (!wsRef.current || !webConnected) return false;
+        wsRef.current.send("CMD,GET_ROUTES");
+        return true;
+    }, [webConnected]);
+
+    const openRouteManager = useCallback((mode = 'load') => {
+        if (!requestSavedRoutes()) {
+            showToast({ type: 'error', message: getBridgeUnavailableMessage(), durationMs: 4000 });
+            return false;
+        }
+        setRouteModalState({ open: true, mode });
+        return true;
+    }, [requestSavedRoutes, showToast]);
+
+    const sendRouteCommand = useCallback((command, payload) => {
+        if (!wsRef.current || !webConnected) throw new Error(getBridgeUnavailableMessage());
+        wsRef.current.send(`${command},${JSON.stringify(payload)}`);
+    }, [webConnected]);
+
+    const handleLoadSavedRoute = useCallback((route) => {
+        const nextWaypoints = sanitizeWaypoints(route && route.waypoints);
+        if (!nextWaypoints.length) throw new Error(t('route_load_failed'));
+        if (waypoints.length > 0 && !window.confirm(t('route_load_confirm_replace'))) return false;
+        setWaypoints(nextWaypoints);
+        addLog('SYS', `${t('toast_route_loaded')}: ${route.name}`, 'info');
+        showToast({ type: 'success', message: `${t('toast_route_loaded')}: ${route.name}`, durationMs: 2500 });
+        return true;
+    }, [addLog, showToast, t, waypoints.length]);
+
+    const handleSaveCurrentRoute = useCallback((name) => {
+        const nextName = normalizeRouteName(name);
+        if (!nextName) throw new Error(t('route_name_required'));
+        const nextWaypoints = sanitizeWaypoints(waypoints);
+        if (!nextWaypoints.length) throw new Error(t('toast_add_waypoints_first'));
+
+        const existingRoute = savedRoutes.find((route) => normalizeRouteName(route.name) === nextName);
+        if (existingRoute && !window.confirm(t('route_save_exists_confirm'))) return false;
+
+        sendRouteCommand("CMD,SAVE_ROUTE", {
+            id: existingRoute ? existingRoute.id : 0,
+            name: nextName,
+            waypoints: nextWaypoints
+        });
+        pendingRouteActionRef.current = { type: 'save', name: nextName };
+        return true;
+    }, [savedRoutes, sendRouteCommand, t, waypoints]);
+
+    const handleRenameSavedRoute = useCallback((routeId, name) => {
+        const nextName = normalizeRouteName(name);
+        if (!nextName) throw new Error(t('route_name_required'));
+        sendRouteCommand("CMD,RENAME_ROUTE", { id: routeId, name: nextName });
+        pendingRouteActionRef.current = { type: 'rename', name: nextName };
+        return true;
+    }, [sendRouteCommand, t]);
+
+    const handleDeleteSavedRoute = useCallback((routeId) => {
+        if (!wsRef.current || !webConnected) throw new Error(getBridgeUnavailableMessage());
+        const currentRoute = savedRoutes.find((route) => route.id === routeId);
+        wsRef.current.send(`CMD,DELETE_ROUTE,${routeId}`);
+        pendingRouteActionRef.current = { type: 'delete', name: currentRoute ? currentRoute.name : '' };
+        return true;
+    }, [savedRoutes, t, webConnected]);
 
     const sendData = (cmd) => {
         if (tcpStatus !== 'ONLINE' || !wsRef.current) {
@@ -615,18 +744,59 @@ function BoatGroundStation() {
             
             ws.onopen = () => {
                 setWebConnected(true);
+                setSavedRoutesLoaded(false);
                 ws.send("GET_CONFIG");
                 ws.send("CMD,QUERY_STATUS"); 
+                ws.send("CMD,GET_ROUTES");
             };
             ws.onclose = () => {
+                pendingRouteActionRef.current = null;
                 setWebConnected(false);
+                setSavedRoutesLoaded(false);
+                setSavedRoutes([]);
                 setTcpStatus('OFFLINE');
                 const curLang = langRef.current === 'zh' ? 'zh' : 'en';
                 addLog('SYS', AppTranslations[curLang].log_ws_disconnect, 'info');
             };
             ws.onmessage = (event) => {
                 const msg = event.data;
-                if (msg.startsWith('CURRENT_CONFIG')) {
+                if (msg.startsWith('ROUTES_DATA,')) {
+                    try {
+                        const payload = JSON.parse(msg.slice('ROUTES_DATA,'.length));
+                        setSavedRoutes(sanitizeSavedRoutes(payload && payload.routes));
+                        setSavedRoutesLoaded(true);
+                        const pendingAction = pendingRouteActionRef.current;
+                        if (pendingAction) {
+                            const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                            const trans = AppTranslations[curLang];
+                            let toastMessage = '';
+                            if (pendingAction.type === 'save') toastMessage = `${trans.toast_route_saved}: ${pendingAction.name}`;
+                            else if (pendingAction.type === 'rename') toastMessage = `${trans.toast_route_renamed}: ${pendingAction.name}`;
+                            else if (pendingAction.type === 'delete') toastMessage = pendingAction.name ? `${trans.toast_route_deleted}: ${pendingAction.name}` : trans.toast_route_deleted;
+                            if (toastMessage) {
+                                addLog('SYS', toastMessage, 'info');
+                                showToast({ type: 'success', message: toastMessage, durationMs: 2500 });
+                            }
+                            pendingRouteActionRef.current = null;
+                        }
+                    } catch (_) {
+                        const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                        addLog('ERR', AppTranslations[curLang].route_load_failed, 'error');
+                    }
+                }
+                else if (msg.startsWith('ROUTE_ERROR')) {
+                    const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                    const parts = msg.split(',');
+                    const errorCode = String(parts[1] || '').trim().toUpperCase();
+                    const errorDetail = String(parts[2] || '').trim().toUpperCase();
+                    const errorMessage = getRouteErrorMessage(AppTranslations[curLang], errorCode);
+                    const errorDetailMessage = getRouteErrorDetailMessage(curLang, errorDetail);
+                    const fullErrorMessage = errorDetailMessage ? `${errorMessage}: ${errorDetailMessage}` : errorMessage;
+                    pendingRouteActionRef.current = null;
+                    addLog('ERR', fullErrorMessage, 'error');
+                    showToast({ type: 'error', message: fullErrorMessage, durationMs: 4500 });
+                }
+                else if (msg.startsWith('CURRENT_CONFIG')) {
                     const parts = msg.split(',');
                     const parseBool = (raw, fallback = false) => {
                         if (raw == null) return fallback;
@@ -1065,6 +1235,9 @@ function BoatGroundStation() {
                     devMode={devMode}
                     setDevMode={setDevModeSafe}
                     sendData={sendData}
+                    onOpenRouteManager={() => openRouteManager('load')}
+                    onOpenSaveRoute={() => openRouteManager('save')}
+                    hasSavedRoutes={savedRoutesLoaded && savedRoutes.length > 0}
                     t={t}
                 />
             ) : (
@@ -1108,6 +1281,8 @@ function BoatGroundStation() {
                                 showLogs={showLogs}
                                 boatStyle={boatStyle}
                                 waypointStyle={waypointStyle}
+                                onOpenRouteManager={() => openRouteManager('load')}
+                                onOpenSaveRoute={() => openRouteManager('save')}
                             />
 
                             <div className="absolute top-4 left-4 flex gap-2 z-10">
@@ -1175,6 +1350,21 @@ function BoatGroundStation() {
                     isMobile={shouldUseMobile}
                 />
             )}
+
+            <RouteManagerModal
+                isOpen={routeModalState.open}
+                mode={routeModalState.mode}
+                onClose={closeRouteManager}
+                routes={savedRoutes}
+                currentWaypointsCount={waypoints.length}
+                onLoadRoute={handleLoadSavedRoute}
+                onSaveRoute={handleSaveCurrentRoute}
+                onRenameRoute={handleRenameSavedRoute}
+                onDeleteRoute={handleDeleteSavedRoute}
+                t={t}
+                isMobile={shouldUseMobile}
+                uiStyle={uiStyle}
+            />
         </div>
     );
 }
