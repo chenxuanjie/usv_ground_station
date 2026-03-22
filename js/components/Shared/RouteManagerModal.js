@@ -128,6 +128,10 @@ function RouteManagerModal({
         Promise.resolve(onLoadRoute(route))
             .then((result) => {
                 if (result === false) return;
+                if (!isIos) {
+                    onClose();
+                    return;
+                }
                 setSelectedRouteId(route.id);
                 window.setTimeout(() => {
                     setSelectedRouteId(null);
@@ -141,30 +145,39 @@ function RouteManagerModal({
 
     const panelClass = isIos
         ? 'bg-white/90 border border-white/70 rounded-[24px] shadow-[0_20px_60px_-24px_rgba(15,23,42,0.35)]'
-        : 'bg-slate-950/95 border border-cyan-500/20 rounded-xl shadow-[0_0_35px_rgba(6,182,212,0.18)]';
+        : 'relative bg-slate-950/95 border border-cyan-500/25 rounded-md shadow-[0_0_28px_rgba(6,182,212,0.12)]';
     const cardClass = isIos
         ? 'bg-white/75 border border-slate-200/70 rounded-[18px]'
-        : 'bg-slate-900/70 border border-slate-800 rounded-lg';
+        : 'bg-slate-900/55 border border-slate-800/70 rounded-md';
     const actionBtnClass = isIos
         ? 'rounded-[12px] border border-slate-200/80 bg-white/80 text-slate-700 hover:bg-white'
         : 'rounded border border-slate-700 bg-slate-800 text-slate-200 hover:border-cyan-500/50 hover:text-cyan-100';
-    const routeRowDesktopClass = 'group relative rounded-lg border border-slate-700 bg-slate-800/50 transition-colors duration-200 hover:border-cyan-700';
+    const routeRowDesktopClass = 'group relative rounded-md border border-slate-700/80 bg-slate-800/45 transition-colors duration-200 hover:border-cyan-600/80 hover:bg-slate-800/70';
     const desktopIconBtnClass = 'p-1.5 rounded transition-colors';
 
     return (
-        <div className={`fixed inset-0 z-[70] flex items-center justify-center p-4 ${isIos ? 'bg-black/20 backdrop-blur-[2px]' : 'bg-black/70 backdrop-blur-sm'}`}>
-            <div className={`w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden ${panelClass}`}>
-                <div className={`flex items-center justify-between px-4 py-4 shrink-0 ${isIos ? 'border-b border-slate-200/70' : 'border-b border-cyan-500/10 bg-slate-900/60'}`}>
+        <div className={`fixed inset-0 z-[70] flex items-center justify-center p-4 ${isIos ? 'bg-black/20 backdrop-blur-[2px]' : 'bg-black/80 backdrop-blur-sm'}`}>
+            <div className={`w-full max-w-[34rem] max-h-[80vh] flex flex-col overflow-hidden ${panelClass}`}>
+                {!isIos && (
+                    <>
+                        <div className="absolute top-0 left-0 w-3 h-3 border-l-2 border-t-2 border-cyan-400 pointer-events-none"></div>
+                        <div className="absolute top-0 right-0 w-3 h-3 border-r-2 border-t-2 border-cyan-400 pointer-events-none"></div>
+                        <div className="absolute bottom-0 left-0 w-3 h-3 border-l-2 border-b-2 border-cyan-400 pointer-events-none"></div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 border-r-2 border-b-2 border-cyan-400 pointer-events-none"></div>
+                    </>
+                )}
+
+                <div className={`h-16 flex items-center justify-between px-4 shrink-0 ${isIos ? 'border-b border-slate-200/70' : 'bg-gradient-to-b from-slate-900 via-slate-900/80 to-transparent border-b border-cyan-500/20'}`}>
                     <div className="flex items-center gap-2">
                         <Icons.MapPin className={`w-5 h-5 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
-                        <h3 className={`${isIos ? 'text-[17px] font-semibold text-slate-900' : 'text-sm font-bold tracking-wider text-cyan-100 font-mono'}`}>{title}</h3>
+                        <h3 className={`${isIos ? 'text-[17px] font-semibold text-slate-900' : 'font-mono font-bold text-cyan-100 text-sm tracking-wider'}`}>{title}</h3>
                     </div>
-                    <button onClick={onClose} className={`${isIos ? 'w-8 h-8 rounded-full hover:bg-slate-200/60 text-slate-500' : 'text-slate-400 hover:text-white'} flex items-center justify-center`}>
-                        <Icons.X className="w-4 h-4" />
+                    <button onClick={onClose} className={`${isIos ? 'w-8 h-8 rounded-full hover:bg-slate-200/60 text-slate-500' : 'text-cyan-500 hover:text-white transition-colors'} flex items-center justify-center`}>
+                        <Icons.X className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isIos ? '' : 'bg-slate-900/90'}`}>
                     {mode === 'save' && (
                         <div className={`${cardClass} p-4 space-y-3`}>
                             <div className="flex items-center justify-between gap-3">
@@ -198,7 +211,7 @@ function RouteManagerModal({
                     <div className={`${cardClass} p-4`}>
                         <div className="flex items-center justify-between mb-3">
                             <div className={`${isIos ? 'text-[13px] font-medium text-slate-900' : 'text-xs font-bold text-cyan-100 uppercase tracking-wider'}`}>{t('route_library')}</div>
-                            <div className={`${isIos ? 'text-[12px] text-slate-500' : 'text-[10px] font-mono text-slate-500'}`}>{sortedRoutes.length} {t('mission_pts')}</div>
+                            <div className={`${isIos ? 'text-[12px] text-slate-500' : 'px-2 py-1 rounded-sm border border-slate-800 bg-slate-950/70 text-[10px] font-mono text-cyan-300'}`}>{sortedRoutes.length} {t('route_points')}</div>
                         </div>
 
                         {sortedRoutes.length === 0 ? (
@@ -211,9 +224,9 @@ function RouteManagerModal({
                                     return (
                                         <div
                                             key={route.id}
-                                            className={`${isIos ? `${cardClass}` : routeRowDesktopClass} p-3 transition-all duration-300 ${
+                                            className={`${isIos ? `${cardClass}` : routeRowDesktopClass} p-4 transition-all duration-300 ${
                                                 selectedRouteId === route.id
-                                                    ? (isIos ? 'ring-2 ring-[#34C759]/60 bg-[#34C759]/10' : 'border-cyan-500 bg-slate-800 shadow-[0_0_18px_rgba(8,145,178,0.16)]')
+                                                    ? (isIos ? 'ring-2 ring-[#34C759]/60 bg-[#34C759]/10' : 'border-cyan-400 bg-slate-800/80 shadow-[0_0_18px_rgba(8,145,178,0.16)]')
                                                     : ''
                                             }`}
                                         >
@@ -240,8 +253,8 @@ function RouteManagerModal({
                                                         disabled={mode !== 'load' || isSubmitting}
                                                         className={`flex-1 min-w-0 text-left transition-colors ${mode === 'load' ? 'cursor-pointer' : 'cursor-default'} ${isSubmitting ? 'opacity-60' : ''} ${!isIos && mode === 'load' ? 'pr-3' : ''}`}
                                                     >
-                                                        <div className={`${isIos ? 'text-[14px] font-medium text-slate-900' : 'text-sm font-bold text-slate-200 group-hover:text-cyan-300'} truncate transition-colors`}>{route.name || t('unnamed_route')}</div>
-                                                        <div className={`${isIos ? 'text-[12px] text-slate-500 mt-1' : 'text-[10px] text-slate-500 font-mono mt-1'}`}>{t('route_points')}: {pointCount}</div>
+                                                        <div className={`${isIos ? 'text-[14px] font-medium text-slate-900' : 'text-[16px] font-bold text-slate-100 group-hover:text-cyan-300'} truncate transition-colors`}>{route.name || t('unnamed_route')}</div>
+                                                        <div className={`${isIos ? 'text-[12px] text-slate-500 mt-1' : 'text-[11px] text-slate-500 font-mono mt-2 tracking-[0.03em]'}`}>{t('route_points')}: {pointCount}</div>
                                                     </button>
                                                     <div className={`flex items-center gap-1 shrink-0 ${isIos ? '' : 'opacity-50 group-hover:opacity-100 transition-opacity'}`}>
                                                         <button

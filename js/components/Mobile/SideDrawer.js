@@ -500,7 +500,6 @@
                     : 'bg-slate-900/80 text-cyan-100 border border-cyan-500/25 rounded clip-path-slant hover:border-cyan-400/50 hover:bg-cyan-500/10'
                 }`}
               >
-                <CloudDownload className="w-4 h-4" />
                 {t.load_route}
               </button>
 
