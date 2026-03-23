@@ -20,6 +20,7 @@
  #include <cstdlib>
  #include <cstring>
  #include <iomanip>
+ #include <sys/stat.h>
  #include <sys/socket.h>
  #include <arpa/inet.h>
  #include <unistd.h>
@@ -66,9 +67,13 @@ struct AppDataStore {
  
 AppConfig g_config;
 AppDataStore g_app_data;
-const string CONFIG_FILE = "config.ini";
-const string DEFAULT_CONFIG_FILE = "config_default.ini";
-const string APP_DATA_FILE = "app_data.json";
+const string DATA_DIR = "data";
+const string CONFIG_FILE = DATA_DIR + "/config.ini";
+const string DEFAULT_CONFIG_FILE = DATA_DIR + "/config_default.ini";
+const string CONFIG_TEMPLATE_FILE = "config.ini";
+const string DEFAULT_CONFIG_TEMPLATE_FILE = "config_default.ini";
+const string APP_DATA_FILE = DATA_DIR + "/app_data.json";
+const string LEGACY_APP_DATA_FILE = "app_data.json";
 mutex g_app_data_mutex;
 
 string normalize_heading_mode(const string& raw) {
@@ -77,26 +82,50 @@ string normalize_heading_mode(const string& raw) {
     return v == "east_ccw" ? "east_ccw" : "north_cw";
 }
 
+bool file_exists(const string& path) {
+    ifstream file(path, ios::binary);
+    return file.good();
+}
+
+void ensure_data_dir() {
+    mkdir(DATA_DIR.c_str(), 0755);
+}
+
+bool copy_file_contents(const string& from, const string& to) {
+    ifstream src(from, ios::binary);
+    if (!src.is_open()) return false;
+    ofstream dst(to, ios::binary);
+    if (!dst.is_open()) return false;
+    dst << src.rdbuf();
+    return dst.good();
+}
+
+bool save_config_to_file(const string& path, const AppConfig& config) {
+   ofstream outfile(path);
+   if (outfile.is_open()) {
+       outfile << "boat_ip=" << config.boat_ip << endl;
+       outfile << "boat_port=" << config.boat_port << endl;
+       outfile << "local_web_port=" << config.local_web_port << endl;
+       outfile << "auto_reconnect=" << (config.auto_reconnect ? 1 : 0) << endl;
+       outfile << "boat_style=" << config.boat_style << endl;
+       outfile << "waypoint_style=" << config.waypoint_style << endl;
+       outfile << "ui_style=" << config.ui_style << endl;
+       outfile << "heading_mode=" << config.heading_mode << endl;
+       outfile << "embedded_channel_expanded=" << (config.embedded_channel_expanded ? 1 : 0) << endl;
+       outfile << "embedded_heading_enabled=" << (config.embedded_heading_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_l_enabled=" << (config.embedded_bat_l_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_r_enabled=" << (config.embedded_bat_r_enabled ? 1 : 0) << endl;
+       cout << "[Config] Saved to " << path << " (Styles: " << config.boat_style << ", " << config.waypoint_style << ", " << config.ui_style << ")" << endl;
+       return true;
+   } else {
+       cerr << "[Config] Error: Cannot write to " << path << endl;
+       return false;
+   }
+}
+
  // [新增] 保存配置到文件 (前置声明或提前定义)
 void save_config() {
-   ofstream outfile(CONFIG_FILE);
-   if (outfile.is_open()) {
-       outfile << "boat_ip=" << g_config.boat_ip << endl;
-       outfile << "boat_port=" << g_config.boat_port << endl;
-       outfile << "local_web_port=" << g_config.local_web_port << endl;
-       outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
-       outfile << "boat_style=" << g_config.boat_style << endl;
-       outfile << "waypoint_style=" << g_config.waypoint_style << endl;
-       outfile << "ui_style=" << g_config.ui_style << endl;
-       outfile << "heading_mode=" << g_config.heading_mode << endl;
-       outfile << "embedded_channel_expanded=" << (g_config.embedded_channel_expanded ? 1 : 0) << endl;
-       outfile << "embedded_heading_enabled=" << (g_config.embedded_heading_enabled ? 1 : 0) << endl;
-       outfile << "embedded_bat_l_enabled=" << (g_config.embedded_bat_l_enabled ? 1 : 0) << endl;
-       outfile << "embedded_bat_r_enabled=" << (g_config.embedded_bat_r_enabled ? 1 : 0) << endl;
-       cout << "[Config] Saved to " << CONFIG_FILE << " (Styles: " << g_config.boat_style << ", " << g_config.waypoint_style << ", " << g_config.ui_style << ")" << endl;
-   } else {
-       cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
-   }
+   save_config_to_file(CONFIG_FILE, g_config);
 }
 
 void parse_config_stream(ifstream& file) {
@@ -154,6 +183,25 @@ void parse_config_stream(ifstream& file) {
 }
  
 void load_config() {
+    ensure_data_dir();
+
+    if (!file_exists(DEFAULT_CONFIG_FILE)) {
+        if (file_exists(DEFAULT_CONFIG_TEMPLATE_FILE)) {
+            if (copy_file_contents(DEFAULT_CONFIG_TEMPLATE_FILE, DEFAULT_CONFIG_FILE)) {
+                cout << "[Config] Created " << DEFAULT_CONFIG_FILE << " from template." << endl;
+            }
+        } else {
+            save_config_to_file(DEFAULT_CONFIG_FILE, AppConfig());
+            cout << "[Config] No default config template found. Created " << DEFAULT_CONFIG_FILE << endl;
+        }
+    }
+
+    if (!file_exists(CONFIG_FILE) && file_exists(CONFIG_TEMPLATE_FILE)) {
+        if (copy_file_contents(CONFIG_TEMPLATE_FILE, CONFIG_FILE)) {
+            cout << "[Config] Created " << CONFIG_FILE << " from template." << endl;
+        }
+    }
+
     ifstream file(CONFIG_FILE);
     if (file.is_open()) {
         parse_config_stream(file);
@@ -531,7 +579,13 @@ bool save_app_data() {
 }
 
 void load_app_data() {
+    ensure_data_dir();
     lock_guard<mutex> lock(g_app_data_mutex);
+    if (!file_exists(APP_DATA_FILE) && file_exists(LEGACY_APP_DATA_FILE)) {
+        if (copy_file_contents(LEGACY_APP_DATA_FILE, APP_DATA_FILE)) {
+            cout << "[AppData] Migrated legacy app data to " << APP_DATA_FILE << endl;
+        }
+    }
     ifstream file(APP_DATA_FILE);
     if (!file.is_open()) {
         g_app_data.routes.clear();
