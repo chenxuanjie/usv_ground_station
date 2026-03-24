@@ -49,6 +49,17 @@ function RouteManagerModal({
             return bId - aId;
         });
     }, [routes]);
+    const matchedDraftRoute = useMemo(() => {
+        const nextName = String(draftName || '').trim();
+        if (!nextName) return null;
+        return sortedRoutes.find((route) => String(route && route.name ? route.name : '').trim() === nextName) || null;
+    }, [draftName, sortedRoutes]);
+
+    useEffect(() => {
+        if (!isOpen || mode !== 'save') return;
+        const nextSelectedRouteId = matchedDraftRoute ? matchedDraftRoute.id : null;
+        setSelectedRouteId((prev) => (prev === nextSelectedRouteId ? prev : nextSelectedRouteId));
+    }, [isOpen, matchedDraftRoute, mode]);
 
     if (!isOpen) return null;
 
@@ -56,6 +67,7 @@ function RouteManagerModal({
         ? t('save_route')
         : t('load_route');
     const isRouteSelectable = (mode === 'load' || mode === 'save') && !isSubmitting;
+    const saveButtonLabel = matchedDraftRoute ? t('btn_overwrite_route') : t('btn_save_new_route');
 
     const handleSave = () => {
         const nextName = String(draftName || '').trim();
@@ -199,11 +211,8 @@ function RouteManagerModal({
                                 <input
                                     value={draftName}
                                     onChange={(event) => {
-                                        const nextValue = event.target.value;
-                                        setDraftName(nextValue);
+                                        setDraftName(event.target.value);
                                         setErrorMsg('');
-                                        const matchedRoute = sortedRoutes.find((route) => String(route && route.name ? route.name : '').trim() === String(nextValue || '').trim());
-                                        setSelectedRouteId(matchedRoute ? matchedRoute.id : null);
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter' && currentWaypointsCount > 0 && !isSubmitting) handleSave();
@@ -216,7 +225,7 @@ function RouteManagerModal({
                                     disabled={currentWaypointsCount === 0 || isSubmitting}
                                     className={`${currentWaypointsCount === 0 || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''} ${isIos ? 'px-4 py-2 rounded-[12px] bg-[#007AFF] text-white font-semibold' : 'px-4 py-2 rounded bg-cyan-600 text-white font-bold text-xs tracking-wider'}`}
                                 >
-                                    {t('btn_save')}
+                                    {saveButtonLabel}
                                 </button>
                             </div>
                         </div>
