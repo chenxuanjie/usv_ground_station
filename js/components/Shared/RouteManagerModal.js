@@ -55,6 +55,7 @@ function RouteManagerModal({
     const title = mode === 'save'
         ? t('save_route')
         : t('load_route');
+    const isRouteSelectable = (mode === 'load' || mode === 'save') && !isSubmitting;
 
     const handleSave = () => {
         const nextName = String(draftName || '').trim();
@@ -124,7 +125,14 @@ function RouteManagerModal({
     };
 
     const handleSelectRoute = (route) => {
-        if (mode !== 'load' || isSubmitting) return;
+        if (isSubmitting) return;
+        if (mode === 'save') {
+            setDraftName(route && route.name ? route.name : '');
+            setSelectedRouteId(route && route.id ? route.id : null);
+            setErrorMsg('');
+            return;
+        }
+        if (mode !== 'load') return;
         Promise.resolve(onLoadRoute(route))
             .then((result) => {
                 if (result === false) return;
@@ -190,7 +198,13 @@ function RouteManagerModal({
                             <div className="flex gap-2">
                                 <input
                                     value={draftName}
-                                    onChange={(event) => setDraftName(event.target.value)}
+                                    onChange={(event) => {
+                                        const nextValue = event.target.value;
+                                        setDraftName(nextValue);
+                                        setErrorMsg('');
+                                        const matchedRoute = sortedRoutes.find((route) => String(route && route.name ? route.name : '').trim() === String(nextValue || '').trim());
+                                        setSelectedRouteId(matchedRoute ? matchedRoute.id : null);
+                                    }}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Enter' && currentWaypointsCount > 0 && !isSubmitting) handleSave();
                                     }}
@@ -250,8 +264,8 @@ function RouteManagerModal({
                                                     <button
                                                         type="button"
                                                         onClick={() => handleSelectRoute(route)}
-                                                        disabled={mode !== 'load' || isSubmitting}
-                                                        className={`flex-1 min-w-0 text-left transition-colors ${mode === 'load' ? 'cursor-pointer' : 'cursor-default'} ${isSubmitting ? 'opacity-60' : ''} ${!isIos && mode === 'load' ? 'pr-3' : ''}`}
+                                                        disabled={!isRouteSelectable}
+                                                        className={`flex-1 min-w-0 text-left transition-colors ${isRouteSelectable ? 'cursor-pointer' : 'cursor-default'} ${isSubmitting ? 'opacity-60' : ''} ${!isIos && isRouteSelectable ? 'pr-3' : ''}`}
                                                     >
                                                         <div className={`${isIos ? 'text-[14px] font-medium text-slate-900' : 'text-[16px] font-bold text-slate-100 group-hover:text-cyan-300'} truncate transition-colors`}>{route.name || t('unnamed_route')}</div>
                                                         <div className={`${isIos ? 'text-[12px] text-slate-500 mt-1' : 'text-[11px] text-slate-500 font-mono mt-2 tracking-[0.03em]'}`}>{t('route_points')}: {pointCount}</div>

@@ -1,5 +1,5 @@
 // js/app.js
-var { useState, useEffect, useRef, useCallback } = React;
+var { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 const CheckCircle2 = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -78,6 +78,16 @@ const sanitizeWaypoints = (items) => {
             return { lng, lat };
         })
         .filter(Boolean);
+};
+
+const EMPTY_ROUTE_SIGNATURE = '[]';
+
+const getWaypointsSignature = (items) => {
+    const normalized = sanitizeWaypoints(items).map((item) => ({
+        lng: Number(item.lng.toFixed(7)),
+        lat: Number(item.lat.toFixed(7))
+    }));
+    return JSON.stringify(normalized);
 };
 
 const sanitizeSavedRoutes = (items) => {
@@ -317,6 +327,7 @@ function BoatGroundStation() {
     });
     
     const [waypoints, setWaypoints] = useState([]);
+    const [routeBaselineSignature, setRouteBaselineSignature] = useState(EMPTY_ROUTE_SIGNATURE);
     const [savedRoutes, setSavedRoutes] = useState([]);
     const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false);
     const [routeModalState, setRouteModalState] = useState({ open: false, mode: 'load' });
@@ -328,6 +339,8 @@ function BoatGroundStation() {
     const lastConnectAttemptAtRef = useRef(0);
     const userInitiatedConnectRef = useRef(false);
     const connectAttemptManualRef = useRef(false);
+    const currentWaypointsSignature = useMemo(() => getWaypointsSignature(waypoints), [waypoints]);
+    const hasUnsavedRouteChanges = currentWaypointsSignature !== routeBaselineSignature;
 
     const [streamOn, setStreamOn] = useState(false);
     const [recvOn, setRecvOn] = useState(true);
@@ -502,13 +515,15 @@ function BoatGroundStation() {
 
     const handleLoadSavedRoute = useCallback((route) => {
         const nextWaypoints = sanitizeWaypoints(route && route.waypoints);
+        const nextSignature = getWaypointsSignature(nextWaypoints);
         if (!nextWaypoints.length) throw new Error(t('route_load_failed'));
-        if (waypoints.length > 0 && !window.confirm(t('route_load_confirm_replace'))) return false;
+        if (hasUnsavedRouteChanges && !window.confirm(t('route_load_confirm_replace'))) return false;
         setWaypoints(nextWaypoints);
+        setRouteBaselineSignature(nextSignature);
         addLog('SYS', `${t('toast_route_loaded')}: ${route.name}`, 'info');
         showToast({ type: 'success', message: `${t('toast_route_loaded')}: ${route.name}`, durationMs: 2500 });
         return true;
-    }, [addLog, showToast, t, waypoints.length]);
+    }, [addLog, hasUnsavedRouteChanges, showToast, t]);
 
     const handleSaveCurrentRoute = useCallback((name) => {
         const nextName = normalizeRouteName(name);
@@ -517,14 +532,16 @@ function BoatGroundStation() {
         if (!nextWaypoints.length) throw new Error(t('toast_add_waypoints_first'));
 
         const existingRoute = savedRoutes.find((route) => normalizeRouteName(route.name) === nextName);
-        if (existingRoute && !window.confirm(t('route_save_exists_confirm'))) return false;
-
         sendRouteCommand("CMD,SAVE_ROUTE", {
             id: existingRoute ? existingRoute.id : 0,
             name: nextName,
             waypoints: nextWaypoints
         });
-        pendingRouteActionRef.current = { type: 'save', name: nextName };
+        pendingRouteActionRef.current = {
+            type: 'save',
+            name: nextName,
+            signature: getWaypointsSignature(nextWaypoints)
+        };
         return true;
     }, [savedRoutes, sendRouteCommand, t, waypoints]);
 
@@ -767,6 +784,9 @@ function BoatGroundStation() {
                         setSavedRoutesLoaded(true);
                         const pendingAction = pendingRouteActionRef.current;
                         if (pendingAction) {
+                            if (pendingAction.type === 'save' && typeof pendingAction.signature === 'string') {
+                                setRouteBaselineSignature(pendingAction.signature);
+                            }
                             const curLang = langRef.current === 'zh' ? 'zh' : 'en';
                             const trans = AppTranslations[curLang];
                             let toastMessage = '';
