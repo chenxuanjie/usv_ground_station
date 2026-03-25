@@ -101,6 +101,7 @@ const sanitizeSavedRoutes = (items) => {
             return {
                 id: Number.isFinite(id) && id > 0 ? id : index + 1,
                 name,
+                favorite: !!(item && item.favorite),
                 waypoints
             };
         })
@@ -112,6 +113,7 @@ const getRouteErrorMessage = (translations, code) => {
     if (code === 'SAVE_FAILED') return translations.route_save_failed;
     if (code === 'RENAME_FAILED') return translations.route_rename_failed;
     if (code === 'DELETE_FAILED') return translations.route_delete_failed;
+    if (code === 'FAVORITE_FAILED') return translations.route_favorite_failed;
     return translations.route_load_failed;
 };
 
@@ -553,6 +555,17 @@ function BoatGroundStation() {
         return true;
     }, [sendRouteCommand, t]);
 
+    const handleToggleFavoriteRoute = useCallback((routeId, favorite) => {
+        const currentRoute = savedRoutes.find((route) => route.id === routeId);
+        sendRouteCommand("CMD,SET_ROUTE_FAVORITE", { id: routeId, favorite: !!favorite });
+        pendingRouteActionRef.current = {
+            type: 'favorite',
+            name: currentRoute ? currentRoute.name : '',
+            favorite: !!favorite
+        };
+        return true;
+    }, [savedRoutes, sendRouteCommand]);
+
     const handleDeleteSavedRoute = useCallback((routeId) => {
         if (!wsRef.current || !webConnected) throw new Error(getBridgeUnavailableMessage());
         const currentRoute = savedRoutes.find((route) => route.id === routeId);
@@ -792,6 +805,9 @@ function BoatGroundStation() {
                             let toastMessage = '';
                             if (pendingAction.type === 'save') toastMessage = `${trans.toast_route_saved}: ${pendingAction.name}`;
                             else if (pendingAction.type === 'rename') toastMessage = `${trans.toast_route_renamed}: ${pendingAction.name}`;
+                            else if (pendingAction.type === 'favorite') toastMessage = pendingAction.name
+                                ? `${pendingAction.favorite ? trans.toast_route_favorited : trans.toast_route_unfavorited}: ${pendingAction.name}`
+                                : (pendingAction.favorite ? trans.toast_route_favorited : trans.toast_route_unfavorited);
                             else if (pendingAction.type === 'delete') toastMessage = pendingAction.name ? `${trans.toast_route_deleted}: ${pendingAction.name}` : trans.toast_route_deleted;
                             if (toastMessage) {
                                 addLog('SYS', toastMessage, 'info');
@@ -1380,6 +1396,7 @@ function BoatGroundStation() {
                 onLoadRoute={handleLoadSavedRoute}
                 onSaveRoute={handleSaveCurrentRoute}
                 onRenameRoute={handleRenameSavedRoute}
+                onToggleFavoriteRoute={handleToggleFavoriteRoute}
                 onDeleteRoute={handleDeleteSavedRoute}
                 t={t}
                 isMobile={shouldUseMobile}

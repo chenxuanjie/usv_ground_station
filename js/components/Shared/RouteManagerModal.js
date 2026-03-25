@@ -9,6 +9,7 @@ function RouteManagerModal({
     onLoadRoute,
     onSaveRoute,
     onRenameRoute,
+    onToggleFavoriteRoute,
     onDeleteRoute,
     t,
     isMobile = false,
@@ -44,6 +45,9 @@ function RouteManagerModal({
 
     const sortedRoutes = useMemo(() => {
         return (Array.isArray(routes) ? routes : []).slice().sort((a, b) => {
+            const aFavorite = !!(a && a.favorite);
+            const bFavorite = !!(b && b.favorite);
+            if (aFavorite !== bFavorite) return bFavorite ? 1 : -1;
             const aId = Number(a && a.id) || 0;
             const bId = Number(b && b.id) || 0;
             return bId - aId;
@@ -133,6 +137,24 @@ function RouteManagerModal({
             .catch((error) => {
                 setIsSubmitting(false);
                 setErrorMsg((error && error.message) ? String(error.message) : t('route_delete_failed'));
+            });
+    };
+
+    const handleToggleFavorite = (route) => {
+        if (isSubmitting || !route || typeof onToggleFavoriteRoute !== 'function') return;
+        setErrorMsg('');
+        setIsSubmitting(true);
+        Promise.resolve(onToggleFavoriteRoute(route.id, !route.favorite))
+            .then((result) => {
+                if (result === false) {
+                    setIsSubmitting(false);
+                    return;
+                }
+                setIsSubmitting(false);
+            })
+            .catch((error) => {
+                setIsSubmitting(false);
+                setErrorMsg((error && error.message) ? String(error.message) : t('route_favorite_failed'));
             });
     };
 
@@ -244,10 +266,16 @@ function RouteManagerModal({
                                 {sortedRoutes.map((route) => {
                                     const pointCount = Array.isArray(route && route.waypoints) ? route.waypoints.length : 0;
                                     const isEditing = editingRouteId === route.id;
+                                    const isFavorite = !!(route && route.favorite);
+                                    const favoriteAccentClass = isFavorite
+                                        ? (isIos
+                                            ? 'border-amber-300/90 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.92))] ring-1 ring-amber-200/70 shadow-[0_10px_24px_-18px_rgba(245,158,11,0.65)]'
+                                            : 'border-amber-400/55 bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(15,23,42,0.08)_42%,rgba(15,23,42,0.55))] ring-1 ring-amber-400/20 shadow-[0_0_22px_rgba(245,158,11,0.16)]')
+                                        : '';
                                     return (
                                         <div
                                             key={route.id}
-                                            className={`${isIos ? `${cardClass}` : routeRowDesktopClass} p-4 transition-all duration-300 ${
+                                            className={`${isIos ? `${cardClass}` : routeRowDesktopClass} ${favoriteAccentClass} p-4 transition-all duration-300 ${
                                                 selectedRouteId === route.id
                                                     ? (isIos ? 'ring-2 ring-[#34C759]/60 bg-[#34C759]/10' : 'border-cyan-400 bg-slate-800/80 shadow-[0_0_18px_rgba(8,145,178,0.16)]')
                                                     : ''
@@ -280,6 +308,20 @@ function RouteManagerModal({
                                                         <div className={`${isIos ? 'text-[12px] text-slate-500 mt-1' : 'text-[11px] text-slate-500 font-mono mt-2 tracking-[0.03em]'}`}>{t('route_points')}: {pointCount}</div>
                                                     </button>
                                                     <div className={`flex items-center gap-1 shrink-0 ${isIos ? '' : 'opacity-50 group-hover:opacity-100 transition-opacity'}`}>
+                                                        <button
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                handleToggleFavorite(route);
+                                                            }}
+                                                            disabled={isSubmitting}
+                                                            title={isFavorite ? t('route_unfavorite') : t('route_favorite')}
+                                                            className={isIos
+                                                                ? `w-9 h-9 ${actionBtnClass} flex items-center justify-center ${isFavorite ? 'text-amber-500 bg-amber-50 border-amber-200 shadow-[0_6px_18px_-12px_rgba(245,158,11,0.75)]' : 'text-slate-400'}`
+                                                                : `${desktopIconBtnClass} ${isFavorite ? 'text-amber-300 bg-amber-500/10 shadow-[0_0_14px_rgba(245,158,11,0.32)] hover:bg-amber-500/15' : 'text-slate-500 hover:bg-slate-700/60'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`
+                                                            }
+                                                        >
+                                                            <Icons.Star filled={isFavorite} className={`w-4 h-4 ${isFavorite ? 'drop-shadow-[0_0_4px_rgba(251,191,36,0.9)]' : ''}`} />
+                                                        </button>
                                                         <button
                                                             onClick={(event) => {
                                                                 event.stopPropagation();

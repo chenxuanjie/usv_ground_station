@@ -58,6 +58,8 @@ struct SavedWaypoint {
 struct SavedRoute {
     int id = 0;
     string name;
+    bool favorite = false;
+    bool has_favorite = false;
     vector<SavedWaypoint> waypoints;
 };
 
@@ -282,6 +284,21 @@ bool parse_json_number(const string& text, size_t& pos, double& out) {
     return true;
 }
 
+bool parse_json_bool(const string& text, size_t& pos, bool& out) {
+    skip_json_ws(text, pos);
+    if (text.compare(pos, 4, "true") == 0) {
+        pos += 4;
+        out = true;
+        return true;
+    }
+    if (text.compare(pos, 5, "false") == 0) {
+        pos += 5;
+        out = false;
+        return true;
+    }
+    return false;
+}
+
 bool skip_json_value(const string& text, size_t& pos);
 
 bool skip_json_array(const string& text, size_t& pos) {
@@ -464,6 +481,11 @@ bool parse_route_object(const string& text, size_t& pos, SavedRoute& route) {
         } else if (key == "name") {
             if (!parse_json_string(text, pos, route.name)) return false;
             has_name = true;
+        } else if (key == "favorite") {
+            bool value = false;
+            if (!parse_json_bool(text, pos, value)) return false;
+            route.favorite = value;
+            route.has_favorite = true;
         } else if (key == "waypoints") {
             if (!parse_waypoints_array(text, pos, route.waypoints)) return false;
             has_waypoints = true;
@@ -550,7 +572,9 @@ string build_app_data_json(const AppDataStore& app_data) {
         const SavedRoute& route = app_data.routes[i];
         if (i > 0) out << ",";
         out << "\n    {\"id\":" << route.id
-            << ",\"name\":\"" << json_escape(route.name) << "\",\"waypoints\":[";
+            << ",\"name\":\"" << json_escape(route.name) << "\""
+            << ",\"favorite\":" << (route.favorite ? "true" : "false")
+            << ",\"waypoints\":[";
         for (size_t j = 0; j < route.waypoints.size(); ++j) {
             const SavedWaypoint& waypoint = route.waypoints[j];
             if (j > 0) out << ",";
@@ -720,7 +744,9 @@ bool save_route_from_payload(const string& payload, string* error_code = NULL) {
     for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
         if (g_app_data.routes[i].id == route.id) {
             g_app_data.routes[i].name = route.name;
+            route.favorite = g_app_data.routes[i].favorite;
             g_app_data.routes[i].waypoints = route.waypoints;
+            g_app_data.routes[i].favorite = route.favorite;
             replaced = true;
             break;
         }
@@ -753,6 +779,94 @@ bool rename_route_from_payload(const string& payload, string* error_code = NULL)
     for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
         if (g_app_data.routes[i].id == route.id) {
             g_app_data.routes[i].name = route.name;
+            if (!save_app_data_unlocked()) {
+                if (error_code) *error_code = "WRITE_FAILED";
+                return false;
+            }
+            return true;
+        }
+    }
+    if (error_code) *error_code = "ROUTE_NOT_FOUND";
+    return false;
+}
+
+bool update_route_favorite_from_payload(const string& payload, string* error_code = NULL) {
+    size_t pos = 0;
+    skip_json_ws(payload, pos);
+    if (pos >= payload.size() || payload[pos] != '{') {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+    ++pos;
+
+    int route_id = 0;
+    bool favorite = false;
+    bool has_id = false;
+    bool has_favorite = false;
+
+    while (pos < payload.size()) {
+        skip_json_ws(payload, pos);
+        if (pos < payload.size() && payload[pos] == '}') {
+            ++pos;
+            break;
+        }
+        string key;
+        if (!parse_json_string(payload, pos, key)) {
+            if (error_code) *error_code = "INVALID_PAYLOAD";
+            return false;
+        }
+        skip_json_ws(payload, pos);
+        if (pos >= payload.size() || payload[pos] != ':') {
+            if (error_code) *error_code = "INVALID_PAYLOAD";
+            return false;
+        }
+        ++pos;
+
+        if (key == "id") {
+            double value = 0;
+            if (!parse_json_number(payload, pos, value)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+            route_id = static_cast<int>(value);
+            has_id = true;
+        } else if (key == "favorite") {
+            if (!parse_json_bool(payload, pos, favorite)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+            has_favorite = true;
+        } else {
+            if (!skip_json_value(payload, pos)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+        }
+
+        skip_json_ws(payload, pos);
+        if (pos < payload.size() && payload[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < payload.size() && payload[pos] == '}') {
+            ++pos;
+            break;
+        }
+    }
+
+    if (!has_id || route_id <= 0) {
+        if (error_code) *error_code = "INVALID_ID";
+        return false;
+    }
+    if (!has_favorite) {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+
+    lock_guard<mutex> lock(g_app_data_mutex);
+    for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
+        if (g_app_data.routes[i].id == route_id) {
+            g_app_data.routes[i].favorite = favorite;
             if (!save_app_data_unlocked()) {
                 if (error_code) *error_code = "WRITE_FAILED";
                 return false;
@@ -1056,6 +1170,16 @@ void boat_listener_loop() {
                             cout << "[AppData] Deleted route." << endl;
                         } else {
                             send_ws_frame("ROUTE_ERROR,DELETE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                        }
+                    }
+                    else if (decoded.find("CMD,SET_ROUTE_FAVORITE,") == 0) {
+                        string payload = decoded.substr(strlen("CMD,SET_ROUTE_FAVORITE,"));
+                        string error_code;
+                        if (update_route_favorite_from_payload(payload, &error_code)) {
+                            send_routes_data();
+                            cout << "[AppData] Updated route favorite." << endl;
+                        } else {
+                            send_ws_frame("ROUTE_ERROR,FAVORITE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
                         }
                     }
 
