@@ -318,6 +318,7 @@
       hasSavedRoutes,
       isRoutePreviewing,
       routePreviewRouteName,
+      routePreviewGhostWaypoints,
       onConfirmRoutePreviewLoad,
       onCancelRoutePreviewLoad,
       chartDataRef, // [Added]
@@ -699,6 +700,7 @@
                     controlledMapMode={mapMode}
                     hideToolbar={true}
                     disableRouteEditing={isRoutePreviewing}
+                    ghostWaypoints={routePreviewGhostWaypoints}
                     locateNonce={locateNonce}
 	                    boatStyle={boatStyle}
 	                    waypointStyle={waypointStyle}

@@ -1306,6 +1306,7 @@ function BoatGroundStation() {
                     hasSavedRoutes={savedRoutesLoaded && savedRoutes.length > 0}
                     isRoutePreviewing={isRoutePreviewing}
                     routePreviewRouteName={routePreviewRouteName}
+                    routePreviewGhostWaypoints={isRoutePreviewing ? routeLoadPreview.previousWaypoints : []}
                     onConfirmRoutePreviewLoad={handleConfirmRouteLoadPreview}
                     onCancelRoutePreviewLoad={handleCancelRouteLoadPreview}
                     t={t}
@@ -1352,6 +1353,7 @@ function BoatGroundStation() {
                                 controlledMapMode={isRoutePreviewing ? 'pan' : undefined}
                                 hideToolbar={isRoutePreviewing}
                                 disableRouteEditing={isRoutePreviewing}
+                                ghostWaypoints={isRoutePreviewing ? routeLoadPreview.previousWaypoints : []}
                                 boatStyle={boatStyle}
                                 waypointStyle={waypointStyle}
                                 onOpenRouteManager={() => openRouteManager('load')}

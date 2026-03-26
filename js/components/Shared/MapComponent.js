@@ -1,15 +1,17 @@
 // js/components/MapComponent.js
 var { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber', onOpenRouteManager, onOpenSaveRoute, disableRouteEditing = false }) {
+function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber', onOpenRouteManager, onOpenSaveRoute, disableRouteEditing = false, ghostWaypoints = [] }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
     const missionPathRef = useRef(null);
+    const ghostPathRef = useRef(null);
     const pathRef = useRef([]);
     const containerRef = useRef(null);
     const distanceToolRef = useRef(null);
     const waypointMarkersRef = useRef([]);
+    const ghostWaypointMarkersRef = useRef([]);
     const contextMenuRef = useRef(null);
     const suppressAddUntilRef = useRef(0);
     const tRef = useRef(t);
@@ -96,6 +98,8 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
 
         const missionPolyline = new BMap.Polyline([], { strokeColor: "#10b981", strokeWeight: 3, strokeOpacity: 0.8, strokeStyle: 'dashed' });
         map.addOverlay(missionPolyline);
+        const ghostMissionPolyline = new BMap.Polyline([], { strokeColor: "#94a3b8", strokeWeight: 2, strokeOpacity: 0.45, strokeStyle: 'dashed' });
+        map.addOverlay(ghostMissionPolyline);
 
         if (window.BMapLib && window.BMapLib.DistanceTool) {
             distanceToolRef.current = new BMapLib.DistanceTool(map);
@@ -105,6 +109,7 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
         markerRef.current = marker;
         boatTrackRef.current = trackPolyline;
         missionPathRef.current = missionPolyline;
+        ghostPathRef.current = ghostMissionPolyline;
 
         return () => {};
     }, []);
@@ -255,7 +260,76 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
         };
     }, [mapMode, setWaypoints]);
 
-    // --- 4. 绘制航点和虚线 ---
+    // --- 4. 绘制对比航点(半透明旧航线) ---
+    useEffect(() => {
+        if (!mapRef.current || !ghostPathRef.current) return;
+
+        ghostWaypointMarkersRef.current.forEach((marker) => mapRef.current.removeOverlay(marker));
+        ghostWaypointMarkersRef.current = [];
+
+        const items = Array.isArray(ghostWaypoints) ? ghostWaypoints : [];
+        const ghostPathPoints = [];
+
+        items.forEach((wp, index) => {
+            const lng = Number(wp && wp.lng);
+            const lat = Number(wp && wp.lat);
+            if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+
+            const [bdLng, bdLat] = wgs84tobd09(lng, lat);
+            const pt = new BMap.Point(bdLng, bdLat);
+            ghostPathPoints.push(pt);
+
+            const marker = new BMap.Marker(pt, {
+                icon: new BMap.Symbol(window.BMap_Symbol_SHAPE_CIRCLE, {
+                    scale: 5,
+                    fillColor: "#94a3b8",
+                    fillOpacity: 0.28,
+                    strokeColor: "#cbd5e1",
+                    strokeOpacity: 0.6,
+                    strokeWeight: 1
+                })
+            });
+
+            const label = new BMap.Label(`${index + 1}`, { offset: new BMap.Size(-7, -8) });
+            label.setStyle({
+                color: "#e2e8f0",
+                backgroundColor: "rgba(15,23,42,0.35)",
+                border: "1px solid rgba(203,213,225,0.5)",
+                borderRadius: "999px",
+                minWidth: "14px",
+                height: "14px",
+                lineHeight: "12px",
+                textAlign: "center",
+                fontSize: "9px",
+                fontWeight: "600",
+                padding: "0 3px",
+                boxSizing: "border-box",
+                pointerEvents: "none"
+            });
+            marker.setLabel(label);
+            marker.disableMassClear && marker.disableMassClear();
+
+            mapRef.current.addOverlay(marker);
+            ghostWaypointMarkersRef.current.push(marker);
+        });
+
+        if (ghostPathPoints.length > 0) {
+            if (cruiseMode === '1' && ghostPathPoints.length > 2) {
+                ghostPathPoints.push(ghostPathPoints[0]);
+            }
+            ghostPathRef.current.setPath(ghostPathPoints);
+        } else {
+            ghostPathRef.current.setPath([]);
+        }
+
+        return () => {
+            if (!mapRef.current) return;
+            ghostWaypointMarkersRef.current.forEach((marker) => mapRef.current.removeOverlay(marker));
+            ghostWaypointMarkersRef.current = [];
+        };
+    }, [cruiseMode, ghostWaypoints]);
+
+    // --- 5. 绘制航点和虚线 ---
     useEffect(() => {
         if (!mapRef.current || !waypoints) return;
         
@@ -323,44 +397,48 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
                 marker.setLabel(label);
             }
 
-            marker.enableDragging();
-            marker.addEventListener("dragstart", function() {
-                suppressAddUntilRef.current = Date.now() + 800;
-            });
-            marker.addEventListener("click", function() {
-                suppressAddUntilRef.current = Date.now() + 500;
-            });
+            if (disableRouteEditing) {
+                if (typeof marker.disableDragging === 'function') marker.disableDragging();
+            } else {
+                marker.enableDragging();
+                marker.addEventListener("dragstart", function() {
+                    suppressAddUntilRef.current = Date.now() + 800;
+                });
+                marker.addEventListener("click", function() {
+                    suppressAddUntilRef.current = Date.now() + 500;
+                });
 
-            marker.addEventListener("dragging", function(e) {
-                scheduleMissionPathPreview(index, e.point);
-            });
+                marker.addEventListener("dragging", function(e) {
+                    scheduleMissionPathPreview(index, e.point);
+                });
 
-            marker.addEventListener("dragend", function(e) {
-                suppressAddUntilRef.current = Date.now() + 800;
-                const newPt = e.point;
-                const [newWgsLng, newWgsLat] = bd09towgs84(newPt.lng, newPt.lat);
-                if (setWaypoints) {
-                    setWaypoints(prev => {
-                        const newList = [...prev];
-                        newList[index] = { lng: newWgsLng, lat: newWgsLat };
-                        return newList;
-                    });
-                }
-            });
+                marker.addEventListener("dragend", function(e) {
+                    suppressAddUntilRef.current = Date.now() + 800;
+                    const newPt = e.point;
+                    const [newWgsLng, newWgsLat] = bd09towgs84(newPt.lng, newPt.lat);
+                    if (setWaypoints) {
+                        setWaypoints(prev => {
+                            const newList = [...prev];
+                            newList[index] = { lng: newWgsLng, lat: newWgsLat };
+                            return newList;
+                        });
+                    }
+                });
 
-            marker.addEventListener("dblclick", function(e) {
-                if (e.domEvent) e.domEvent.stopPropagation();
-                if (setWaypoints) {
+                marker.addEventListener("dblclick", function(e) {
+                    if (e.domEvent) e.domEvent.stopPropagation();
+                    if (setWaypoints) {
+                        setWaypoints(prev => prev.filter((_, i) => i !== index));
+                    }
+                });
+
+                const markerMenu = new BMap.ContextMenu();
+                const delText = `<div style="font-size:12px; padding:0 5px; width:100%; text-align:left;">${t ? t('menu_delete_point') : '❌ 删除此点'}</div>`;
+                markerMenu.addItem(new BMap.MenuItem(delText, () => {
                     setWaypoints(prev => prev.filter((_, i) => i !== index));
-                }
-            });
-
-            const markerMenu = new BMap.ContextMenu();
-            const delText = `<div style="font-size:12px; padding:0 5px; width:100%; text-align:left;">${t ? t('menu_delete_point') : '❌ 删除此点'}</div>`;
-            markerMenu.addItem(new BMap.MenuItem(delText, () => {
-                setWaypoints(prev => prev.filter((_, i) => i !== index));
-            }, { width: 120 }));
-            marker.addContextMenu(markerMenu);
+                }, { width: 120 }));
+                marker.addContextMenu(markerMenu);
+            }
 
             mapRef.current.addOverlay(marker);
             waypointMarkersRef.current.push(marker);
@@ -382,9 +460,9 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
             }
             waypointDragPendingRef.current = null;
         };
-    }, [waypoints, cruiseMode, t, waypointStyle]);
+    }, [waypoints, cruiseMode, t, waypointStyle, disableRouteEditing]);
 
-    // --- 5. 实时更新 ---
+    // --- 6. 实时更新 ---
     useEffect(() => {
         if (!mapRef.current || !markerRef.current) return;
 
