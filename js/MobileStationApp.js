@@ -316,6 +316,10 @@
       onOpenRouteManager,
       onOpenSaveRoute,
       hasSavedRoutes,
+      isRoutePreviewing,
+      routePreviewRouteName,
+      onConfirmRoutePreviewLoad,
+      onCancelRoutePreviewLoad,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -548,6 +552,13 @@
       else setShowWaypointList(false);
     }, [mapMode]);
 
+    useEffect(() => {
+      if (!isRoutePreviewing) return;
+      setMapMode('pan');
+      setQuickMenuOpen(false);
+      setShowWaypointList(false);
+    }, [isRoutePreviewing]);
+
     const lastCmdRef = useRef({ w: 0, a: 0, s: 0, d: 0 });
     const joystickPosRef = useRef({ x: 0, y: 0, limit: 40 });
     const sendKCommandRef = useRef(sendKCommand);
@@ -687,6 +698,7 @@
                     showLogs={false}
                     controlledMapMode={mapMode}
                     hideToolbar={true}
+                    disableRouteEditing={isRoutePreviewing}
                     locateNonce={locateNonce}
 	                    boatStyle={boatStyle}
 	                    waypointStyle={waypointStyle}
@@ -697,7 +709,7 @@
                 </div>
               </div>
 
-              {mapMode === 'add' && (
+              {mapMode === 'add' && !isRoutePreviewing && (
                 <>
                   {hasSavedRoutes && (
                     <div className="absolute top-20 left-4 z-20 pointer-events-none">
@@ -733,6 +745,54 @@
                 </>
               )}
 
+              {isRoutePreviewing && (
+                <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
+                  <div className="pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (typeof onCancelRoutePreviewLoad === 'function') onCancelRoutePreviewLoad();
+                      }}
+                      className={`flex items-center gap-2 py-2 px-5 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-white/88 text-slate-700 border border-white/70 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)] font-semibold'
+                          : 'bg-slate-900/90 text-slate-100 border border-slate-600 shadow-lg font-bold'
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                      {t('btn_cancel')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (typeof onConfirmRoutePreviewLoad === 'function') onConfirmRoutePreviewLoad();
+                      }}
+                      className={`flex items-center gap-2 py-2 px-5 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-[#34C759] hover:bg-[#30b955] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(52,199,89,0.45)]'
+                          : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border border-green-400'
+                      }`}
+                    >
+                      <Check className="w-4 h-4" />
+                      {t('btn_load')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isRoutePreviewing && !!routePreviewRouteName && (
+                <div className="absolute top-20 right-4 z-20 pointer-events-none">
+                  <div
+                    className={`px-3 py-1 rounded-full text-[11px] ${
+                      isIos
+                        ? 'bg-white/90 border border-white/70 text-slate-700 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)]'
+                        : 'bg-slate-900/92 border border-cyan-500/35 text-cyan-100 shadow-[0_0_18px_rgba(6,182,212,0.18)] font-mono'
+                    }`}
+                  >
+                    {t('load_route')}: {routePreviewRouteName}
+                  </div>
+                </div>
+              )}
+
+              {!isRoutePreviewing && (
               <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-3 pointer-events-none">
                 <div className="pointer-events-auto flex flex-col items-end gap-3">
                   <button
@@ -841,6 +901,7 @@
                   )}
                 </div>
               </div>
+              )}
 
 	              <div className={`absolute bottom-24 left-4 z-20 flex flex-col-reverse gap-2 pointer-events-none ${isIos ? 'w-52' : 'w-44'}`}>
 	                <HUDBox className={`p-3 pointer-events-auto ${isIos ? 'rounded-[22px] overflow-hidden' : ''}`} uiStyle={uiStyle}>
@@ -884,7 +945,7 @@
                   </div>
                 </HUDBox>
 
-                {mapMode === 'add' && showWaypointList && (
+                {mapMode === 'add' && showWaypointList && !isRoutePreviewing && (
                   <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in" uiStyle={uiStyle}>
                     <style>{`
                       .custom-scrollbar::-webkit-scrollbar { width: 3px; }

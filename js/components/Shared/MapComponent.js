@@ -1,7 +1,7 @@
 // js/components/MapComponent.js
 var { useEffect, useRef, useState } = React;
 
-function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber', onOpenRouteManager, onOpenSaveRoute }) {
+function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoints, cruiseMode, t, showLogs, controlledMapMode, hideToolbar, locateNonce, boatStyle = 'default', waypointStyle = 'default', uiStyle = 'cyber', onOpenRouteManager, onOpenSaveRoute, disableRouteEditing = false }) {
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const boatTrackRef = useRef(null);
@@ -117,22 +117,24 @@ function MapComponent({ lng, lat, heading, headingRaw = 0, waypoints, setWaypoin
         const contextMenu = new BMap.ContextMenu();
         const rulerText = `<div style="font-size:13px; font-weight:bold; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_ruler') : '📏 开启测距'}</div>`;
         contextMenu.addItem(new BMap.MenuItem(rulerText, () => distanceToolRef.current && distanceToolRef.current.open(), { width: 160 }));
-        contextMenu.addSeparator();
-        if (typeof onOpenRouteManager === 'function') {
-            const loadText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_load_route') : '📂 加载航线'}</div>`;
-            contextMenu.addItem(new BMap.MenuItem(loadText, () => onOpenRouteManager(), { width: 160 }));
+        if (!disableRouteEditing) {
+            contextMenu.addSeparator();
+            if (typeof onOpenRouteManager === 'function') {
+                const loadText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_load_route') : '📂 加载航线'}</div>`;
+                contextMenu.addItem(new BMap.MenuItem(loadText, () => onOpenRouteManager(), { width: 160 }));
+            }
+            if (typeof onOpenSaveRoute === 'function') {
+                const saveText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_save_route') : '💾 保存航线'}</div>`;
+                contextMenu.addItem(new BMap.MenuItem(saveText, () => onOpenSaveRoute(), { width: 160 }));
+            }
+            contextMenu.addSeparator();
+            const clearText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_clear') : '🗑️ 清除所有航点'}</div>`;
+            contextMenu.addItem(new BMap.MenuItem(clearText, () => setWaypoints && setWaypoints([]), { width: 160 }));
         }
-        if (typeof onOpenSaveRoute === 'function') {
-            const saveText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_save_route') : '💾 保存航线'}</div>`;
-            contextMenu.addItem(new BMap.MenuItem(saveText, () => onOpenSaveRoute(), { width: 160 }));
-        }
-        contextMenu.addSeparator();
-        const clearText = `<div style="font-size:13px; padding:2px 5px; width:100%; text-align:left;">${t ? t('menu_clear') : '🗑️ 清除所有航点'}</div>`;
-        contextMenu.addItem(new BMap.MenuItem(clearText, () => setWaypoints && setWaypoints([]), { width: 160 }));
 
         mapRef.current.addContextMenu(contextMenu);
         contextMenuRef.current = contextMenu;
-    }, [onOpenRouteManager, onOpenSaveRoute, setWaypoints, t]);
+    }, [disableRouteEditing, onOpenRouteManager, onOpenSaveRoute, setWaypoints, t]);
 
     // --- 3. 监听地图点击添加航点 ---
     useEffect(() => {

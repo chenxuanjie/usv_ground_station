@@ -166,23 +166,23 @@ function RouteManagerModal({
             setErrorMsg('');
             return;
         }
-        if (mode !== 'load') return;
-        Promise.resolve(onLoadRoute(route))
-            .then((result) => {
-                if (result === false) return;
-                if (!isIos) {
+        if (mode === 'load') {
+            setErrorMsg('');
+            setIsSubmitting(true);
+            Promise.resolve(onLoadRoute(route))
+                .then((result) => {
+                    if (result === false) {
+                        setIsSubmitting(false);
+                        return;
+                    }
+                    setIsSubmitting(false);
                     onClose();
-                    return;
-                }
-                setSelectedRouteId(route.id);
-                window.setTimeout(() => {
-                    setSelectedRouteId(null);
-                    onClose();
-                }, 320);
-            })
-            .catch((error) => {
-                setErrorMsg((error && error.message) ? String(error.message) : t('route_load_failed'));
-            });
+                })
+                .catch((error) => {
+                    setIsSubmitting(false);
+                    setErrorMsg((error && error.message) ? String(error.message) : t('route_load_failed'));
+                });
+        }
     };
 
     const panelClass = isIos
@@ -276,7 +276,7 @@ function RouteManagerModal({
                                         <div
                                             key={route.id}
                                             className={`${isIos ? `${cardClass}` : routeRowDesktopClass} ${favoriteAccentClass} p-4 transition-all duration-300 ${
-                                                selectedRouteId === route.id
+                                                mode === 'save' && selectedRouteId === route.id
                                                     ? (isIos ? 'ring-2 ring-[#34C759]/60 bg-[#34C759]/10' : 'border-cyan-400 bg-slate-800/80 shadow-[0_0_18px_rgba(8,145,178,0.16)]')
                                                     : ''
                                             }`}
