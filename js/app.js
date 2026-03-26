@@ -1,5 +1,5 @@
 // js/app.js
-var { useState, useEffect, useRef, useCallback } = React;
+var { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 const CheckCircle2 = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,6 +64,69 @@ const convertBoatHeadingForDisplay = (rawHeading, mode) => {
     return normalizeHeadingMode(mode) === HEADING_MODE_NORTH_CW
         ? normalizeHeadingDegrees(90 - normalizedRaw)
         : normalizeSignedHeadingDegrees(normalizedRaw);
+};
+
+const normalizeRouteName = (value) => String(value || '').trim();
+
+const sanitizeWaypoints = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map((item) => {
+            const lng = Number(item && (item.lng ?? item.lon));
+            const lat = Number(item && item.lat);
+            if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+            return { lng, lat };
+        })
+        .filter(Boolean);
+};
+
+const EMPTY_ROUTE_SIGNATURE = '[]';
+
+const getWaypointsSignature = (items) => {
+    const normalized = sanitizeWaypoints(items).map((item) => ({
+        lng: Number(item.lng.toFixed(7)),
+        lat: Number(item.lat.toFixed(7))
+    }));
+    return JSON.stringify(normalized);
+};
+
+const sanitizeSavedRoutes = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map((item, index) => {
+            const id = Number(item && item.id);
+            const name = normalizeRouteName(item && item.name) || `Route ${index + 1}`;
+            const waypoints = sanitizeWaypoints(item && item.waypoints);
+            if (!waypoints.length) return null;
+            return {
+                id: Number.isFinite(id) && id > 0 ? id : index + 1,
+                name,
+                favorite: !!(item && item.favorite),
+                waypoints
+            };
+        })
+        .filter(Boolean);
+};
+
+const getRouteErrorMessage = (translations, code) => {
+    if (!translations) return 'Route operation failed';
+    if (code === 'SAVE_FAILED') return translations.route_save_failed;
+    if (code === 'RENAME_FAILED') return translations.route_rename_failed;
+    if (code === 'DELETE_FAILED') return translations.route_delete_failed;
+    if (code === 'FAVORITE_FAILED') return translations.route_favorite_failed;
+    return translations.route_load_failed;
+};
+
+const getRouteErrorDetailMessage = (lang, code) => {
+    const isZh = lang === 'zh';
+    if (code === 'INVALID_PAYLOAD') return isZh ? '请求格式无效' : 'Invalid request payload';
+    if (code === 'EMPTY_NAME') return isZh ? '航线名称不能为空' : 'Route name cannot be empty';
+    if (code === 'EMPTY_ROUTE') return isZh ? '当前没有可保存的航点' : 'No waypoints to save';
+    if (code === 'INVALID_ID') return isZh ? '航线 ID 无效' : 'Invalid route id';
+    if (code === 'ROUTE_NOT_FOUND') return isZh ? '未找到对应航线' : 'Route not found';
+    if (code === 'WRITE_FAILED') return isZh ? '后端写入文件失败' : 'Backend failed to write file';
+    if (code === 'UNKNOWN') return isZh ? '未知错误' : 'Unknown error';
+    return '';
 };
 
 if (typeof window !== 'undefined') {
@@ -266,7 +329,13 @@ function BoatGroundStation() {
     });
     
     const [waypoints, setWaypoints] = useState([]);
+    const [routeBaselineSignature, setRouteBaselineSignature] = useState(EMPTY_ROUTE_SIGNATURE);
+    const [savedRoutes, setSavedRoutes] = useState([]);
+    const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false);
+    const [routeModalState, setRouteModalState] = useState({ open: false, mode: 'load' });
+    const [routeLoadPreview, setRouteLoadPreview] = useState(null);
     const [logs, setLogs] = useState([]);
+    const pendingRouteActionRef = useRef(null);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -414,6 +483,123 @@ function BoatGroundStation() {
     const addLog = (dir, msg, level = 'info') => {
         setLogs(prev => [{id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), dir, msg, level}, ...prev].slice(0, 100));
     };
+
+    const getBridgeUnavailableMessage = () => (
+        langRef.current === 'zh'
+            ? '前端未连接，无法访问航线库'
+            : 'Frontend is offline. Route library is unavailable.'
+    );
+
+    const closeRouteManager = useCallback(() => {
+        setRouteModalState(prev => ({ ...prev, open: false }));
+    }, []);
+
+    const requestSavedRoutes = useCallback(() => {
+        if (!wsRef.current || !webConnected) return false;
+        wsRef.current.send("CMD,GET_ROUTES");
+        return true;
+    }, [webConnected]);
+
+    const openRouteManager = useCallback((mode = 'load') => {
+        if (routeLoadPreview) {
+            setWaypoints(routeLoadPreview.previousWaypoints);
+            setRouteBaselineSignature(routeLoadPreview.previousBaselineSignature);
+            setRouteLoadPreview(null);
+        }
+        if (!requestSavedRoutes()) {
+            showToast({ type: 'error', message: getBridgeUnavailableMessage(), durationMs: 4000 });
+            return false;
+        }
+        setRouteModalState({ open: true, mode });
+        return true;
+    }, [requestSavedRoutes, routeLoadPreview, showToast]);
+
+    const sendRouteCommand = useCallback((command, payload) => {
+        if (!wsRef.current || !webConnected) throw new Error(getBridgeUnavailableMessage());
+        wsRef.current.send(`${command},${JSON.stringify(payload)}`);
+    }, [webConnected]);
+
+    const handleLoadSavedRoute = useCallback((route) => {
+        const nextWaypoints = sanitizeWaypoints(route && route.waypoints);
+        const previousWaypoints = sanitizeWaypoints(waypoints);
+        if (!nextWaypoints.length) throw new Error(t('route_load_failed'));
+        setRouteLoadPreview({
+            routeId: route && route.id ? route.id : null,
+            routeName: normalizeRouteName(route && route.name) || t('unnamed_route'),
+            previewWaypoints: nextWaypoints,
+            previewSignature: getWaypointsSignature(nextWaypoints),
+            previousWaypoints,
+            previousBaselineSignature: routeBaselineSignature
+        });
+        setWaypoints(nextWaypoints);
+        return true;
+    }, [routeBaselineSignature, t, waypoints]);
+
+    const handleConfirmRouteLoadPreview = useCallback(() => {
+        if (!routeLoadPreview) return false;
+        setRouteBaselineSignature(routeLoadPreview.previewSignature);
+        setRouteLoadPreview(null);
+        addLog('SYS', `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, 'info');
+        showToast({ type: 'success', message: `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, durationMs: 2500 });
+        return true;
+    }, [addLog, routeLoadPreview, showToast, t]);
+
+    const handleCancelRouteLoadPreview = useCallback(() => {
+        if (!routeLoadPreview) return false;
+        setWaypoints(routeLoadPreview.previousWaypoints);
+        setRouteBaselineSignature(routeLoadPreview.previousBaselineSignature);
+        setRouteLoadPreview(null);
+        requestSavedRoutes();
+        setRouteModalState({ open: true, mode: 'load' });
+        return true;
+    }, [requestSavedRoutes, routeLoadPreview]);
+
+    const handleSaveCurrentRoute = useCallback((name) => {
+        const nextName = normalizeRouteName(name);
+        if (!nextName) throw new Error(t('route_name_required'));
+        const nextWaypoints = sanitizeWaypoints(waypoints);
+        if (!nextWaypoints.length) throw new Error(t('toast_add_waypoints_first'));
+
+        const existingRoute = savedRoutes.find((route) => normalizeRouteName(route.name) === nextName);
+        sendRouteCommand("CMD,SAVE_ROUTE", {
+            id: existingRoute ? existingRoute.id : 0,
+            name: nextName,
+            waypoints: nextWaypoints
+        });
+        pendingRouteActionRef.current = {
+            type: 'save',
+            name: nextName,
+            signature: getWaypointsSignature(nextWaypoints)
+        };
+        return true;
+    }, [savedRoutes, sendRouteCommand, t, waypoints]);
+
+    const handleRenameSavedRoute = useCallback((routeId, name) => {
+        const nextName = normalizeRouteName(name);
+        if (!nextName) throw new Error(t('route_name_required'));
+        sendRouteCommand("CMD,RENAME_ROUTE", { id: routeId, name: nextName });
+        pendingRouteActionRef.current = { type: 'rename', name: nextName };
+        return true;
+    }, [sendRouteCommand, t]);
+
+    const handleToggleFavoriteRoute = useCallback((routeId, favorite) => {
+        const currentRoute = savedRoutes.find((route) => route.id === routeId);
+        sendRouteCommand("CMD,SET_ROUTE_FAVORITE", { id: routeId, favorite: !!favorite });
+        pendingRouteActionRef.current = {
+            type: 'favorite',
+            name: currentRoute ? currentRoute.name : '',
+            favorite: !!favorite
+        };
+        return true;
+    }, [savedRoutes, sendRouteCommand]);
+
+    const handleDeleteSavedRoute = useCallback((routeId) => {
+        if (!wsRef.current || !webConnected) throw new Error(getBridgeUnavailableMessage());
+        const currentRoute = savedRoutes.find((route) => route.id === routeId);
+        wsRef.current.send(`CMD,DELETE_ROUTE,${routeId}`);
+        pendingRouteActionRef.current = { type: 'delete', name: currentRoute ? currentRoute.name : '' };
+        return true;
+    }, [savedRoutes, t, webConnected]);
 
     const sendData = (cmd) => {
         if (tcpStatus !== 'ONLINE' || !wsRef.current) {
@@ -615,18 +801,66 @@ function BoatGroundStation() {
             
             ws.onopen = () => {
                 setWebConnected(true);
+                setSavedRoutesLoaded(false);
                 ws.send("GET_CONFIG");
                 ws.send("CMD,QUERY_STATUS"); 
+                ws.send("CMD,GET_ROUTES");
             };
             ws.onclose = () => {
+                pendingRouteActionRef.current = null;
                 setWebConnected(false);
+                setSavedRoutesLoaded(false);
+                setSavedRoutes([]);
+                setRouteLoadPreview(null);
                 setTcpStatus('OFFLINE');
                 const curLang = langRef.current === 'zh' ? 'zh' : 'en';
                 addLog('SYS', AppTranslations[curLang].log_ws_disconnect, 'info');
             };
             ws.onmessage = (event) => {
                 const msg = event.data;
-                if (msg.startsWith('CURRENT_CONFIG')) {
+                if (msg.startsWith('ROUTES_DATA,')) {
+                    try {
+                        const payload = JSON.parse(msg.slice('ROUTES_DATA,'.length));
+                        setSavedRoutes(sanitizeSavedRoutes(payload && payload.routes));
+                        setSavedRoutesLoaded(true);
+                        const pendingAction = pendingRouteActionRef.current;
+                        if (pendingAction) {
+                            if (pendingAction.type === 'save' && typeof pendingAction.signature === 'string') {
+                                setRouteBaselineSignature(pendingAction.signature);
+                            }
+                            const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                            const trans = AppTranslations[curLang];
+                            let toastMessage = '';
+                            if (pendingAction.type === 'save') toastMessage = `${trans.toast_route_saved}: ${pendingAction.name}`;
+                            else if (pendingAction.type === 'rename') toastMessage = `${trans.toast_route_renamed}: ${pendingAction.name}`;
+                            else if (pendingAction.type === 'favorite') toastMessage = pendingAction.name
+                                ? `${pendingAction.favorite ? trans.toast_route_favorited : trans.toast_route_unfavorited}: ${pendingAction.name}`
+                                : (pendingAction.favorite ? trans.toast_route_favorited : trans.toast_route_unfavorited);
+                            else if (pendingAction.type === 'delete') toastMessage = pendingAction.name ? `${trans.toast_route_deleted}: ${pendingAction.name}` : trans.toast_route_deleted;
+                            if (toastMessage) {
+                                addLog('SYS', toastMessage, 'info');
+                                showToast({ type: 'success', message: toastMessage, durationMs: 2500 });
+                            }
+                            pendingRouteActionRef.current = null;
+                        }
+                    } catch (_) {
+                        const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                        addLog('ERR', AppTranslations[curLang].route_load_failed, 'error');
+                    }
+                }
+                else if (msg.startsWith('ROUTE_ERROR')) {
+                    const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                    const parts = msg.split(',');
+                    const errorCode = String(parts[1] || '').trim().toUpperCase();
+                    const errorDetail = String(parts[2] || '').trim().toUpperCase();
+                    const errorMessage = getRouteErrorMessage(AppTranslations[curLang], errorCode);
+                    const errorDetailMessage = getRouteErrorDetailMessage(curLang, errorDetail);
+                    const fullErrorMessage = errorDetailMessage ? `${errorMessage}: ${errorDetailMessage}` : errorMessage;
+                    pendingRouteActionRef.current = null;
+                    addLog('ERR', fullErrorMessage, 'error');
+                    showToast({ type: 'error', message: fullErrorMessage, durationMs: 4500 });
+                }
+                else if (msg.startsWith('CURRENT_CONFIG')) {
                     const parts = msg.split(',');
                     const parseBool = (raw, fallback = false) => {
                         if (raw == null) return fallback;
@@ -1011,6 +1245,8 @@ function BoatGroundStation() {
     const MobileStationApp = window.MobileStationApp;
     const shouldUseMobile = !!isMobile && typeof MobileStationApp === 'function';
     const isMobileIos = shouldUseMobile && uiStyle === 'ios';
+    const isRoutePreviewing = !!routeLoadPreview;
+    const routePreviewRouteName = isRoutePreviewing ? String(routeLoadPreview.routeName || '') : '';
 
     return (
         <div
@@ -1065,6 +1301,14 @@ function BoatGroundStation() {
                     devMode={devMode}
                     setDevMode={setDevModeSafe}
                     sendData={sendData}
+                    onOpenRouteManager={() => openRouteManager('load')}
+                    onOpenSaveRoute={() => openRouteManager('save')}
+                    hasSavedRoutes={savedRoutesLoaded && savedRoutes.length > 0}
+                    isRoutePreviewing={isRoutePreviewing}
+                    routePreviewRouteName={routePreviewRouteName}
+                    routePreviewGhostWaypoints={isRoutePreviewing ? routeLoadPreview.previousWaypoints : []}
+                    onConfirmRoutePreviewLoad={handleConfirmRouteLoadPreview}
+                    onCancelRoutePreviewLoad={handleCancelRouteLoadPreview}
                     t={t}
                 />
             ) : (
@@ -1106,14 +1350,49 @@ function BoatGroundStation() {
                                 cruiseMode={cruiseMode}
                                 t={t}
                                 showLogs={showLogs}
+                                controlledMapMode={isRoutePreviewing ? 'pan' : undefined}
+                                hideToolbar={isRoutePreviewing}
+                                disableRouteEditing={isRoutePreviewing}
+                                ghostWaypoints={isRoutePreviewing ? routeLoadPreview.previousWaypoints : []}
                                 boatStyle={boatStyle}
                                 waypointStyle={waypointStyle}
+                                onOpenRouteManager={() => openRouteManager('load')}
+                                onOpenSaveRoute={() => openRouteManager('save')}
                             />
 
                             <div className="absolute top-4 left-4 flex gap-2 z-10">
                                 <div className="bg-slate-950/80 backdrop-blur border border-cyan-500/30 px-3 py-1 text-xs rounded text-cyan-400 font-bold shadow-lg">Map View</div>
                                 <div className="bg-black/40 backdrop-blur border border-white/10 px-3 py-1 text-xs rounded text-slate-400">Main Camera</div>
                             </div>
+
+                            {isRoutePreviewing && (
+                                <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 pointer-events-none">
+                                    <button
+                                        type="button"
+                                        onClick={handleCancelRouteLoadPreview}
+                                        className="pointer-events-auto flex items-center gap-2 px-5 py-2 rounded-full bg-slate-800/95 hover:bg-slate-700 text-slate-100 text-sm font-bold shadow-lg border border-slate-600 transition-all active:scale-95"
+                                    >
+                                        <Icons.X className="w-4 h-4" />
+                                        <span>{t('btn_cancel')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirmRouteLoadPreview}
+                                        className="pointer-events-auto flex items-center gap-2 px-5 py-2 rounded-full bg-green-600 hover:bg-green-500 text-white text-sm font-bold shadow-lg border border-green-400 transition-all active:scale-95"
+                                    >
+                                        <Icons.Check className="w-4 h-4" />
+                                        <span>{t('btn_load')}</span>
+                                    </button>
+                                </div>
+                            )}
+
+                            {isRoutePreviewing && routePreviewRouteName && (
+                                <div className="absolute top-20 right-4 z-30 pointer-events-none">
+                                    <div className="px-3 py-1 rounded-full border border-cyan-400/40 bg-slate-900/90 text-xs font-mono text-cyan-100 shadow-[0_0_16px_rgba(6,182,212,0.2)]">
+                                        {t('load_route')}: {routePreviewRouteName}
+                                    </div>
+                                </div>
+                            )}
                             
                             <div className={`absolute bottom-24 z-20 transition-all duration-300 ease-in-out ${showLogs ? 'right-[21rem]' : 'right-4'}`}>
                                 <button 
@@ -1175,6 +1454,22 @@ function BoatGroundStation() {
                     isMobile={shouldUseMobile}
                 />
             )}
+
+            <RouteManagerModal
+                isOpen={routeModalState.open}
+                mode={routeModalState.mode}
+                onClose={closeRouteManager}
+                routes={savedRoutes}
+                currentWaypointsCount={waypoints.length}
+                onLoadRoute={handleLoadSavedRoute}
+                onSaveRoute={handleSaveCurrentRoute}
+                onRenameRoute={handleRenameSavedRoute}
+                onToggleFavoriteRoute={handleToggleFavoriteRoute}
+                onDeleteRoute={handleDeleteSavedRoute}
+                t={t}
+                isMobile={shouldUseMobile}
+                uiStyle={uiStyle}
+            />
         </div>
     );
 }

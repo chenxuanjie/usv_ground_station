@@ -58,7 +58,7 @@
 /
 ├── index.html              # 前端入口 (React 挂载点)
 ├── index.dev.html          # 开发入口（运行时 Babel，加载更慢）
-├── config.ini              # 系统配置文件 (IP/端口)
+├── data/                   # 运行时数据目录 (config.ini / config_default.ini / app_data.json)
 ├── assets/
 │   ├── fonts/              # 本地字体资源 (离线可用)
 │   └── icons/              # 本地图片/光标等资源
@@ -114,7 +114,7 @@ chmod +x build.sh
 
 ### 2. 配置连接
 
-编辑根目录下的 `config.ini` 文件，设置无人艇的实际 IP 和端口：
+编辑 `data/config.ini` 文件，设置无人艇的实际 IP 和端口：
 
 ```ini
 boat_ip=120.77.0.8    # 无人艇 TCP 服务地址
@@ -122,6 +122,10 @@ boat_port=6202        # 无人艇 TCP 服务端口
 local_web_port=8080   # 本地 Web 服务端口
 
 ```
+
+说明：
+* 首次启动时，程序会自动在 `data/` 下创建 `config.ini`、`config_default.ini` 和 `app_data.json`
+* Docker 部署时只需要挂载整个 `data/` 目录
 
 ### 3. 启动系统
 
@@ -147,6 +151,13 @@ sudo chmod 777 usv_image.tar
 sudo docker build -t usv-ground-station-test:latest .
 sudo docker save usv-ground-station-test:latest -o usv_image_test.tar
 sudo chmod 777 usv_image_test.tar
+```
+
+Docker Compose 推荐把整个运行时数据目录挂载到容器：
+
+```yaml
+volumes:
+  - ./data:/app/data
 ```
 
 ## ⚙️ 通信协议 (Protocol)

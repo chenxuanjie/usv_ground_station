@@ -17,7 +17,10 @@
  #include <mutex>
  #include <algorithm>
  #include <cctype>
+ #include <cstdlib>
  #include <cstring>
+ #include <iomanip>
+ #include <sys/stat.h>
  #include <sys/socket.h>
  #include <arpa/inet.h>
  #include <unistd.h>
@@ -46,10 +49,34 @@ struct AppConfig {
     bool embedded_bat_l_enabled = false;
     bool embedded_bat_r_enabled = false;
 };
+
+struct SavedWaypoint {
+    double lng = 0;
+    double lat = 0;
+};
+
+struct SavedRoute {
+    int id = 0;
+    string name;
+    bool favorite = false;
+    bool has_favorite = false;
+    vector<SavedWaypoint> waypoints;
+};
+
+struct AppDataStore {
+    vector<SavedRoute> routes;
+};
  
 AppConfig g_config;
-const string CONFIG_FILE = "config.ini";
-const string DEFAULT_CONFIG_FILE = "config_default.ini";
+AppDataStore g_app_data;
+const string DATA_DIR = "data";
+const string CONFIG_FILE = DATA_DIR + "/config.ini";
+const string DEFAULT_CONFIG_FILE = DATA_DIR + "/config_default.ini";
+const string CONFIG_TEMPLATE_FILE = "config.ini";
+const string DEFAULT_CONFIG_TEMPLATE_FILE = "config_default.ini";
+const string APP_DATA_FILE = DATA_DIR + "/app_data.json";
+const string LEGACY_APP_DATA_FILE = "app_data.json";
+mutex g_app_data_mutex;
 
 string normalize_heading_mode(const string& raw) {
     string v = raw;
@@ -57,26 +84,50 @@ string normalize_heading_mode(const string& raw) {
     return v == "east_ccw" ? "east_ccw" : "north_cw";
 }
 
+bool file_exists(const string& path) {
+    ifstream file(path, ios::binary);
+    return file.good();
+}
+
+void ensure_data_dir() {
+    mkdir(DATA_DIR.c_str(), 0755);
+}
+
+bool copy_file_contents(const string& from, const string& to) {
+    ifstream src(from, ios::binary);
+    if (!src.is_open()) return false;
+    ofstream dst(to, ios::binary);
+    if (!dst.is_open()) return false;
+    dst << src.rdbuf();
+    return dst.good();
+}
+
+bool save_config_to_file(const string& path, const AppConfig& config) {
+   ofstream outfile(path);
+   if (outfile.is_open()) {
+       outfile << "boat_ip=" << config.boat_ip << endl;
+       outfile << "boat_port=" << config.boat_port << endl;
+       outfile << "local_web_port=" << config.local_web_port << endl;
+       outfile << "auto_reconnect=" << (config.auto_reconnect ? 1 : 0) << endl;
+       outfile << "boat_style=" << config.boat_style << endl;
+       outfile << "waypoint_style=" << config.waypoint_style << endl;
+       outfile << "ui_style=" << config.ui_style << endl;
+       outfile << "heading_mode=" << config.heading_mode << endl;
+       outfile << "embedded_channel_expanded=" << (config.embedded_channel_expanded ? 1 : 0) << endl;
+       outfile << "embedded_heading_enabled=" << (config.embedded_heading_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_l_enabled=" << (config.embedded_bat_l_enabled ? 1 : 0) << endl;
+       outfile << "embedded_bat_r_enabled=" << (config.embedded_bat_r_enabled ? 1 : 0) << endl;
+       cout << "[Config] Saved to " << path << " (Styles: " << config.boat_style << ", " << config.waypoint_style << ", " << config.ui_style << ")" << endl;
+       return true;
+   } else {
+       cerr << "[Config] Error: Cannot write to " << path << endl;
+       return false;
+   }
+}
+
  // [新增] 保存配置到文件 (前置声明或提前定义)
 void save_config() {
-   ofstream outfile(CONFIG_FILE);
-   if (outfile.is_open()) {
-       outfile << "boat_ip=" << g_config.boat_ip << endl;
-       outfile << "boat_port=" << g_config.boat_port << endl;
-       outfile << "local_web_port=" << g_config.local_web_port << endl;
-       outfile << "auto_reconnect=" << (g_config.auto_reconnect ? 1 : 0) << endl;
-       outfile << "boat_style=" << g_config.boat_style << endl;
-       outfile << "waypoint_style=" << g_config.waypoint_style << endl;
-       outfile << "ui_style=" << g_config.ui_style << endl;
-       outfile << "heading_mode=" << g_config.heading_mode << endl;
-       outfile << "embedded_channel_expanded=" << (g_config.embedded_channel_expanded ? 1 : 0) << endl;
-       outfile << "embedded_heading_enabled=" << (g_config.embedded_heading_enabled ? 1 : 0) << endl;
-       outfile << "embedded_bat_l_enabled=" << (g_config.embedded_bat_l_enabled ? 1 : 0) << endl;
-       outfile << "embedded_bat_r_enabled=" << (g_config.embedded_bat_r_enabled ? 1 : 0) << endl;
-       cout << "[Config] Saved to " << CONFIG_FILE << " (Styles: " << g_config.boat_style << ", " << g_config.waypoint_style << ", " << g_config.ui_style << ")" << endl;
-   } else {
-       cerr << "[Config] Error: Cannot write to " << CONFIG_FILE << endl;
-   }
+   save_config_to_file(CONFIG_FILE, g_config);
 }
 
 void parse_config_stream(ifstream& file) {
@@ -134,6 +185,25 @@ void parse_config_stream(ifstream& file) {
 }
  
 void load_config() {
+    ensure_data_dir();
+
+    if (!file_exists(DEFAULT_CONFIG_FILE)) {
+        if (file_exists(DEFAULT_CONFIG_TEMPLATE_FILE)) {
+            if (copy_file_contents(DEFAULT_CONFIG_TEMPLATE_FILE, DEFAULT_CONFIG_FILE)) {
+                cout << "[Config] Created " << DEFAULT_CONFIG_FILE << " from template." << endl;
+            }
+        } else {
+            save_config_to_file(DEFAULT_CONFIG_FILE, AppConfig());
+            cout << "[Config] No default config template found. Created " << DEFAULT_CONFIG_FILE << endl;
+        }
+    }
+
+    if (!file_exists(CONFIG_FILE) && file_exists(CONFIG_TEMPLATE_FILE)) {
+        if (copy_file_contents(CONFIG_TEMPLATE_FILE, CONFIG_FILE)) {
+            cout << "[Config] Created " << CONFIG_FILE << " from template." << endl;
+        }
+    }
+
     ifstream file(CONFIG_FILE);
     if (file.is_open()) {
         parse_config_stream(file);
@@ -154,6 +224,426 @@ void load_config() {
     }
 }
 
+string json_escape(const string& raw) {
+    string out;
+    out.reserve(raw.size() + 8);
+    for (size_t i = 0; i < raw.size(); ++i) {
+        const char ch = raw[i];
+        switch (ch) {
+            case '\\': out += "\\\\"; break;
+            case '"': out += "\\\""; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default: out += ch; break;
+        }
+    }
+    return out;
+}
+
+void skip_json_ws(const string& text, size_t& pos) {
+    while (pos < text.size() && isspace(static_cast<unsigned char>(text[pos]))) ++pos;
+}
+
+bool parse_json_string(const string& text, size_t& pos, string& out) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '"') return false;
+    ++pos;
+    out.clear();
+    while (pos < text.size()) {
+        char ch = text[pos++];
+        if (ch == '"') return true;
+        if (ch == '\\') {
+            if (pos >= text.size()) return false;
+            char escaped = text[pos++];
+            switch (escaped) {
+                case '"': out += '"'; break;
+                case '\\': out += '\\'; break;
+                case '/': out += '/'; break;
+                case 'b': out += '\b'; break;
+                case 'f': out += '\f'; break;
+                case 'n': out += '\n'; break;
+                case 'r': out += '\r'; break;
+                case 't': out += '\t'; break;
+                default: out += escaped; break;
+            }
+        } else {
+            out += ch;
+        }
+    }
+    return false;
+}
+
+bool parse_json_number(const string& text, size_t& pos, double& out) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size()) return false;
+    char* end_ptr = NULL;
+    out = strtod(text.c_str() + pos, &end_ptr);
+    if (end_ptr == text.c_str() + pos) return false;
+    pos = static_cast<size_t>(end_ptr - text.c_str());
+    return true;
+}
+
+bool parse_json_bool(const string& text, size_t& pos, bool& out) {
+    skip_json_ws(text, pos);
+    if (text.compare(pos, 4, "true") == 0) {
+        pos += 4;
+        out = true;
+        return true;
+    }
+    if (text.compare(pos, 5, "false") == 0) {
+        pos += 5;
+        out = false;
+        return true;
+    }
+    return false;
+}
+
+bool skip_json_value(const string& text, size_t& pos);
+
+bool skip_json_array(const string& text, size_t& pos) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '[') return false;
+    ++pos;
+    skip_json_ws(text, pos);
+    if (pos < text.size() && text[pos] == ']') {
+        ++pos;
+        return true;
+    }
+    while (pos < text.size()) {
+        if (!skip_json_value(text, pos)) return false;
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == ']') {
+            ++pos;
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool skip_json_object(const string& text, size_t& pos) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '{') return false;
+    ++pos;
+    skip_json_ws(text, pos);
+    if (pos < text.size() && text[pos] == '}') {
+        ++pos;
+        return true;
+    }
+    while (pos < text.size()) {
+        string key;
+        if (!parse_json_string(text, pos, key)) return false;
+        skip_json_ws(text, pos);
+        if (pos >= text.size() || text[pos] != ':') return false;
+        ++pos;
+        if (!skip_json_value(text, pos)) return false;
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool skip_json_value(const string& text, size_t& pos) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size()) return false;
+    char ch = text[pos];
+    if (ch == '"') {
+        string ignored;
+        return parse_json_string(text, pos, ignored);
+    }
+    if (ch == '{') return skip_json_object(text, pos);
+    if (ch == '[') return skip_json_array(text, pos);
+    if (ch == '-' || ch == '+' || ch == '.' || isdigit(static_cast<unsigned char>(ch))) {
+        double ignored = 0;
+        return parse_json_number(text, pos, ignored);
+    }
+    if (text.compare(pos, 4, "true") == 0) {
+        pos += 4;
+        return true;
+    }
+    if (text.compare(pos, 5, "false") == 0) {
+        pos += 5;
+        return true;
+    }
+    if (text.compare(pos, 4, "null") == 0) {
+        pos += 4;
+        return true;
+    }
+    return false;
+}
+
+bool parse_waypoint_object(const string& text, size_t& pos, SavedWaypoint& waypoint) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '{') return false;
+    ++pos;
+    bool has_lng = false;
+    bool has_lat = false;
+    while (pos < text.size()) {
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return has_lng && has_lat;
+        }
+        string key;
+        if (!parse_json_string(text, pos, key)) return false;
+        skip_json_ws(text, pos);
+        if (pos >= text.size() || text[pos] != ':') return false;
+        ++pos;
+        if (key == "lng" || key == "lon") {
+            double value = 0;
+            if (!parse_json_number(text, pos, value)) return false;
+            waypoint.lng = value;
+            has_lng = true;
+        } else if (key == "lat") {
+            double value = 0;
+            if (!parse_json_number(text, pos, value)) return false;
+            waypoint.lat = value;
+            has_lat = true;
+        } else {
+            if (!skip_json_value(text, pos)) return false;
+        }
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return has_lng && has_lat;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool parse_waypoints_array(const string& text, size_t& pos, vector<SavedWaypoint>& out) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '[') return false;
+    ++pos;
+    out.clear();
+    while (pos < text.size()) {
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ']') {
+            ++pos;
+            return true;
+        }
+        SavedWaypoint waypoint;
+        if (!parse_waypoint_object(text, pos, waypoint)) return false;
+        out.push_back(waypoint);
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == ']') {
+            ++pos;
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool parse_route_object(const string& text, size_t& pos, SavedRoute& route) {
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '{') return false;
+    ++pos;
+    bool has_name = false;
+    bool has_waypoints = false;
+    while (pos < text.size()) {
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return has_name;
+        }
+        string key;
+        if (!parse_json_string(text, pos, key)) return false;
+        skip_json_ws(text, pos);
+        if (pos >= text.size() || text[pos] != ':') return false;
+        ++pos;
+        if (key == "id") {
+            double value = 0;
+            if (!parse_json_number(text, pos, value)) return false;
+            route.id = static_cast<int>(value);
+        } else if (key == "name") {
+            if (!parse_json_string(text, pos, route.name)) return false;
+            has_name = true;
+        } else if (key == "favorite") {
+            bool value = false;
+            if (!parse_json_bool(text, pos, value)) return false;
+            route.favorite = value;
+            route.has_favorite = true;
+        } else if (key == "waypoints") {
+            if (!parse_waypoints_array(text, pos, route.waypoints)) return false;
+            has_waypoints = true;
+        } else {
+            if (!skip_json_value(text, pos)) return false;
+        }
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return has_name && (has_waypoints || route.id > 0);
+        }
+        return false;
+    }
+    return false;
+}
+
+bool parse_app_data_json(const string& text, AppDataStore& out) {
+    size_t pos = 0;
+    out.routes.clear();
+    skip_json_ws(text, pos);
+    if (pos >= text.size() || text[pos] != '{') return false;
+    ++pos;
+    while (pos < text.size()) {
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return true;
+        }
+        string key;
+        if (!parse_json_string(text, pos, key)) return false;
+        skip_json_ws(text, pos);
+        if (pos >= text.size() || text[pos] != ':') return false;
+        ++pos;
+        if (key == "routes") {
+            skip_json_ws(text, pos);
+            if (pos >= text.size() || text[pos] != '[') return false;
+            ++pos;
+            while (pos < text.size()) {
+                skip_json_ws(text, pos);
+                if (pos < text.size() && text[pos] == ']') {
+                    ++pos;
+                    break;
+                }
+                SavedRoute route;
+                if (!parse_route_object(text, pos, route)) return false;
+                out.routes.push_back(route);
+                skip_json_ws(text, pos);
+                if (pos < text.size() && text[pos] == ',') {
+                    ++pos;
+                    continue;
+                }
+                if (pos < text.size() && text[pos] == ']') {
+                    ++pos;
+                    break;
+                }
+                return false;
+            }
+        } else {
+            if (!skip_json_value(text, pos)) return false;
+        }
+        skip_json_ws(text, pos);
+        if (pos < text.size() && text[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < text.size() && text[pos] == '}') {
+            ++pos;
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+string build_app_data_json(const AppDataStore& app_data) {
+    ostringstream out;
+    out << fixed << setprecision(7);
+    out << "{\n  \"routes\": [";
+    for (size_t i = 0; i < app_data.routes.size(); ++i) {
+        const SavedRoute& route = app_data.routes[i];
+        if (i > 0) out << ",";
+        out << "\n    {\"id\":" << route.id
+            << ",\"name\":\"" << json_escape(route.name) << "\""
+            << ",\"favorite\":" << (route.favorite ? "true" : "false")
+            << ",\"waypoints\":[";
+        for (size_t j = 0; j < route.waypoints.size(); ++j) {
+            const SavedWaypoint& waypoint = route.waypoints[j];
+            if (j > 0) out << ",";
+            out << "{\"lng\":" << waypoint.lng << ",\"lat\":" << waypoint.lat << "}";
+        }
+        out << "]}";
+    }
+    out << "\n  ]\n}\n";
+    return out.str();
+}
+
+bool save_app_data_unlocked() {
+    ofstream outfile(APP_DATA_FILE);
+    if (!outfile.is_open()) {
+        cerr << "[AppData] Error: Cannot write to " << APP_DATA_FILE << endl;
+        return false;
+    }
+    outfile << build_app_data_json(g_app_data);
+    cout << "[AppData] Saved " << g_app_data.routes.size() << " route(s) to " << APP_DATA_FILE << endl;
+    return true;
+}
+
+bool save_app_data() {
+    lock_guard<mutex> lock(g_app_data_mutex);
+    return save_app_data_unlocked();
+}
+
+void load_app_data() {
+    ensure_data_dir();
+    lock_guard<mutex> lock(g_app_data_mutex);
+    if (!file_exists(APP_DATA_FILE) && file_exists(LEGACY_APP_DATA_FILE)) {
+        if (copy_file_contents(LEGACY_APP_DATA_FILE, APP_DATA_FILE)) {
+            cout << "[AppData] Migrated legacy app data to " << APP_DATA_FILE << endl;
+        }
+    }
+    ifstream file(APP_DATA_FILE);
+    if (!file.is_open()) {
+        g_app_data.routes.clear();
+        save_app_data_unlocked();
+        cout << "[AppData] No app data found. Created default " << APP_DATA_FILE << endl;
+        return;
+    }
+
+    string content((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    AppDataStore parsed;
+    if (!parse_app_data_json(content, parsed)) {
+        cerr << "[AppData] Warning: Failed to parse " << APP_DATA_FILE << ". Reset to empty routes." << endl;
+        g_app_data.routes.clear();
+        save_app_data_unlocked();
+        return;
+    }
+
+    g_app_data = parsed;
+    cout << "[AppData] Loaded " << g_app_data.routes.size() << " route(s) from " << APP_DATA_FILE << endl;
+}
+
+int next_route_id_unlocked() {
+    int max_id = 0;
+    for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
+        if (g_app_data.routes[i].id > max_id) max_id = g_app_data.routes[i].id;
+    }
+    return max_id + 1;
+}
+
+string build_routes_message() {
+    lock_guard<mutex> lock(g_app_data_mutex);
+    return "ROUTES_DATA," + build_app_data_json(g_app_data);
+}
+ 
  // === 全局状态 ===
  int g_boat_sock = -1;
  int g_web_client_sock = -1; // 简单起见，暂支持单用户控制
@@ -226,6 +716,193 @@ void load_config() {
      frame.insert(frame.end(), msg.begin(), msg.end());
      send(g_web_client_sock, frame.data(), frame.size(), 0);
  }
+
+void send_routes_data() {
+    send_ws_frame(build_routes_message());
+}
+
+bool save_route_from_payload(const string& payload, string* error_code = NULL) {
+    size_t pos = 0;
+    SavedRoute route;
+    if (!parse_route_object(payload, pos, route)) {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+    if (route.name.empty()) {
+        if (error_code) *error_code = "EMPTY_NAME";
+        return false;
+    }
+    if (route.waypoints.empty()) {
+        if (error_code) *error_code = "EMPTY_ROUTE";
+        return false;
+    }
+
+    lock_guard<mutex> lock(g_app_data_mutex);
+    if (route.id <= 0) route.id = next_route_id_unlocked();
+
+    bool replaced = false;
+    for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
+        if (g_app_data.routes[i].id == route.id) {
+            g_app_data.routes[i].name = route.name;
+            route.favorite = g_app_data.routes[i].favorite;
+            g_app_data.routes[i].waypoints = route.waypoints;
+            g_app_data.routes[i].favorite = route.favorite;
+            replaced = true;
+            break;
+        }
+    }
+    if (!replaced) g_app_data.routes.push_back(route);
+    if (!save_app_data_unlocked()) {
+        if (error_code) *error_code = "WRITE_FAILED";
+        return false;
+    }
+    return true;
+}
+
+bool rename_route_from_payload(const string& payload, string* error_code = NULL) {
+    size_t pos = 0;
+    SavedRoute route;
+    if (!parse_route_object(payload, pos, route)) {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+    if (route.id <= 0) {
+        if (error_code) *error_code = "INVALID_ID";
+        return false;
+    }
+    if (route.name.empty()) {
+        if (error_code) *error_code = "EMPTY_NAME";
+        return false;
+    }
+
+    lock_guard<mutex> lock(g_app_data_mutex);
+    for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
+        if (g_app_data.routes[i].id == route.id) {
+            g_app_data.routes[i].name = route.name;
+            if (!save_app_data_unlocked()) {
+                if (error_code) *error_code = "WRITE_FAILED";
+                return false;
+            }
+            return true;
+        }
+    }
+    if (error_code) *error_code = "ROUTE_NOT_FOUND";
+    return false;
+}
+
+bool update_route_favorite_from_payload(const string& payload, string* error_code = NULL) {
+    size_t pos = 0;
+    skip_json_ws(payload, pos);
+    if (pos >= payload.size() || payload[pos] != '{') {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+    ++pos;
+
+    int route_id = 0;
+    bool favorite = false;
+    bool has_id = false;
+    bool has_favorite = false;
+
+    while (pos < payload.size()) {
+        skip_json_ws(payload, pos);
+        if (pos < payload.size() && payload[pos] == '}') {
+            ++pos;
+            break;
+        }
+        string key;
+        if (!parse_json_string(payload, pos, key)) {
+            if (error_code) *error_code = "INVALID_PAYLOAD";
+            return false;
+        }
+        skip_json_ws(payload, pos);
+        if (pos >= payload.size() || payload[pos] != ':') {
+            if (error_code) *error_code = "INVALID_PAYLOAD";
+            return false;
+        }
+        ++pos;
+
+        if (key == "id") {
+            double value = 0;
+            if (!parse_json_number(payload, pos, value)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+            route_id = static_cast<int>(value);
+            has_id = true;
+        } else if (key == "favorite") {
+            if (!parse_json_bool(payload, pos, favorite)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+            has_favorite = true;
+        } else {
+            if (!skip_json_value(payload, pos)) {
+                if (error_code) *error_code = "INVALID_PAYLOAD";
+                return false;
+            }
+        }
+
+        skip_json_ws(payload, pos);
+        if (pos < payload.size() && payload[pos] == ',') {
+            ++pos;
+            continue;
+        }
+        if (pos < payload.size() && payload[pos] == '}') {
+            ++pos;
+            break;
+        }
+    }
+
+    if (!has_id || route_id <= 0) {
+        if (error_code) *error_code = "INVALID_ID";
+        return false;
+    }
+    if (!has_favorite) {
+        if (error_code) *error_code = "INVALID_PAYLOAD";
+        return false;
+    }
+
+    lock_guard<mutex> lock(g_app_data_mutex);
+    for (size_t i = 0; i < g_app_data.routes.size(); ++i) {
+        if (g_app_data.routes[i].id == route_id) {
+            g_app_data.routes[i].favorite = favorite;
+            if (!save_app_data_unlocked()) {
+                if (error_code) *error_code = "WRITE_FAILED";
+                return false;
+            }
+            return true;
+        }
+    }
+    if (error_code) *error_code = "ROUTE_NOT_FOUND";
+    return false;
+}
+
+bool delete_route_by_id(const string& raw_id, string* error_code = NULL) {
+    int route_id = atoi(raw_id.c_str());
+    if (route_id <= 0) {
+        if (error_code) *error_code = "INVALID_ID";
+        return false;
+    }
+
+    lock_guard<mutex> lock(g_app_data_mutex);
+    size_t before = g_app_data.routes.size();
+    g_app_data.routes.erase(
+        remove_if(g_app_data.routes.begin(), g_app_data.routes.end(), [route_id](const SavedRoute& route) {
+            return route.id == route_id;
+        }),
+        g_app_data.routes.end()
+    );
+    if (g_app_data.routes.size() == before) {
+        if (error_code) *error_code = "ROUTE_NOT_FOUND";
+        return false;
+    }
+    if (!save_app_data_unlocked()) {
+        if (error_code) *error_code = "WRITE_FAILED";
+        return false;
+    }
+    return true;
+}
  
  string get_mime_type(const string& path) {
     string clean = path;
@@ -369,9 +1046,21 @@ void boat_listener_loop() {
                 }
 
                 // 1. 解析 WS 帧 (Masking handling)
-                int payload_len = ws_buf[1] & 0x7F;
+                unsigned long long payload_len = ws_buf[1] & 0x7F;
                 int head_len = 2;
-                if (payload_len == 126) head_len = 4;
+                if (payload_len == 126) {
+                    if (n < 4) continue;
+                    payload_len = (static_cast<unsigned long long>(ws_buf[2]) << 8) |
+                                  static_cast<unsigned long long>(ws_buf[3]);
+                    head_len = 4;
+                } else if (payload_len == 127) {
+                    if (n < 10) continue;
+                    payload_len = 0;
+                    for (int i = 0; i < 8; ++i) {
+                        payload_len = (payload_len << 8) | static_cast<unsigned long long>(ws_buf[2 + i]);
+                    }
+                    head_len = 10;
+                }
                 
                 // 安全检查：防止 buffer 溢出 (简单保护)
                 if (n < head_len + 4) continue; 
@@ -382,8 +1071,9 @@ void boat_listener_loop() {
                 
                 string decoded;
                 // 只有当接收到的数据足够长时才解码
-                if (n >= head_len + payload_len) {
-                    for(int i=0; i<payload_len; i++) {
+                if (payload_len > static_cast<unsigned long long>(sizeof(ws_buf))) continue;
+                if (static_cast<unsigned long long>(n) >= static_cast<unsigned long long>(head_len) + payload_len) {
+                    for(unsigned long long i = 0; i < payload_len; i++) {
                         decoded += (char)(ws_buf[head_len+i] ^ mask[i%4]);
                     }
                 }
@@ -401,6 +1091,10 @@ void boat_listener_loop() {
                             (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style + "," + g_config.heading_mode;
                         send_ws_frame(msg);
                         cout << "[Config] Sent current config to client." << endl;
+                    }
+                    else if (decoded == "CMD,GET_ROUTES") {
+                        send_routes_data();
+                        cout << "[AppData] Sent saved routes to client." << endl;
                     }
                     // [新增] 处理保存配置请求
                     else if (decoded.find("CMD,SET_CONFIG") == 0) {
@@ -446,6 +1140,46 @@ void boat_listener_loop() {
 
                             save_config();
                             cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
+                        }
+                    }
+                    else if (decoded.find("CMD,SAVE_ROUTE,") == 0) {
+                        string payload = decoded.substr(strlen("CMD,SAVE_ROUTE,"));
+                        string error_code;
+                        if (save_route_from_payload(payload, &error_code)) {
+                            send_routes_data();
+                            cout << "[AppData] Saved route." << endl;
+                        } else {
+                            send_ws_frame("ROUTE_ERROR,SAVE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                        }
+                    }
+                    else if (decoded.find("CMD,RENAME_ROUTE,") == 0) {
+                        string payload = decoded.substr(strlen("CMD,RENAME_ROUTE,"));
+                        string error_code;
+                        if (rename_route_from_payload(payload, &error_code)) {
+                            send_routes_data();
+                            cout << "[AppData] Renamed route." << endl;
+                        } else {
+                            send_ws_frame("ROUTE_ERROR,RENAME_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                        }
+                    }
+                    else if (decoded.find("CMD,DELETE_ROUTE,") == 0) {
+                        string raw_id = decoded.substr(strlen("CMD,DELETE_ROUTE,"));
+                        string error_code;
+                        if (delete_route_by_id(raw_id, &error_code)) {
+                            send_routes_data();
+                            cout << "[AppData] Deleted route." << endl;
+                        } else {
+                            send_ws_frame("ROUTE_ERROR,DELETE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                        }
+                    }
+                    else if (decoded.find("CMD,SET_ROUTE_FAVORITE,") == 0) {
+                        string payload = decoded.substr(strlen("CMD,SET_ROUTE_FAVORITE,"));
+                        string error_code;
+                        if (update_route_favorite_from_payload(payload, &error_code)) {
+                            send_routes_data();
+                            cout << "[AppData] Updated route favorite." << endl;
+                        } else {
+                            send_ws_frame("ROUTE_ERROR,FAVORITE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
                         }
                     }
 
@@ -588,6 +1322,7 @@ void boat_listener_loop() {
 
  int main() {
      load_config(); // 加载配置
+     load_app_data();
      
  
      // 启动 Web Server 监听
@@ -610,6 +1345,7 @@ void boat_listener_loop() {
      cout << " Web UI: http://" << get_local_ip() << ":" << g_config.local_web_port << endl;
      cout << " Boat Server: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
      cout << " Config saved in: " << CONFIG_FILE << endl;
+     cout << " App data saved in: " << APP_DATA_FILE << endl;
      cout << "========================================" << endl;
  
      while (g_running) {

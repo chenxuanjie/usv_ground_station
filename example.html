@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人艇地面控制站 V1.1</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://lib.baomitu.com/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://lib.baomitu.com/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://lib.baomitu.com/babel-standalone/7.22.17/babel.min.js"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        
+        /* 航点连线动画效果 */
+        .path-line { stroke-dasharray: 5; animation: dash 20s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -1000; } }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 图标组件扩充 ---
+        const Icons = {
+            Activity: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+            Battery: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="10" x="2" y="7" rx="2" ry="2"/><line x1="22" x2="22" y1="11" y2="13"/></svg>,
+            Settings: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Video: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>,
+            Wifi: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>,
+            Send: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>,
+            Navigation: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>,
+            RefreshCw: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
+            ArrowUp: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>,
+            ArrowDown: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>,
+            ArrowLeft: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>,
+            ArrowRight: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+            // 新增图标
+            Map: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg>,
+            Upload: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Download: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Trash: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+            MapPin: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>,
+            X: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Edit2: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        };
+
+        // --- 主组件 ---
+        function BoatGroundStation() {
+            // 引用
+            const fileInputRef = useRef(null);
+
+            // 状态管理
+            const [serverConfig, setServerConfig] = useState({ ip: '120.77.0.8', port: '6204' });
+            const [isConnecting, setIsConnecting] = useState(false);
+            const [boatStatus, setBoatStatus] = useState({
+                longitude: 113.324560, 
+                latitude: 23.106470,   
+                heading: 45,
+                batteryL: 12.0,
+                batteryR: 12.0,
+                connected: false,
+                lastUpdate: new Date(),
+            });
+            const [logs, setLogs] = useState([]);
+            const [inputCmd, setInputCmd] = useState('');
+            
+            // 控制状态
+            const [streamOn, setStreamOn] = useState(false); 
+            const [recvOn, setRecvOn] = useState(true);      
+            const [controlMode, setControlMode] = useState('@'); 
+            const [cruiseMode, setCruiseMode] = useState('0');   
+
+            // --- 新增：航点状态 ---
+            const [waypoints, setWaypoints] = useState([]);
+            
+            // --- 新增：航线弹窗管理器状态 ---
+            const [showRouteModal, setShowRouteModal] = useState(false);
+            const [editingRouteId, setEditingRouteId] = useState(null);
+            const [editRouteName, setEditRouteName] = useState('');
+            // 模拟内置航线数据库
+            const [savedRoutes, setSavedRoutes] = useState([
+                { id: 1, name: '任务A: 港口巡逻', data: [{ id: 1, lon: 113.3245, lat: 23.1065 }, { id: 2, lon: 113.3255, lat: 23.1062 }] },
+                { id: 2, name: '任务B: 水质采样', data: [{ id: 1, lon: 113.3240, lat: 23.1070 }, { id: 2, lon: 113.3235, lat: 23.1075 }, { id: 3, lon: 113.3230, lat: 23.1080 }] },
+                { id: 3, name: '任务C: 航标检测', data: [{ id: 1, lon: 113.3250, lat: 23.1050 }] },
+            ]);
+
+            // 模拟数据定时器 (船只稍微移动)
+            useEffect(() => {
+                let interval;
+                if (boatStatus.connected) {
+                    interval = setInterval(() => {
+                        const newLon = boatStatus.longitude + (Math.random() - 0.5) * 0.00005;
+                        const newLat = boatStatus.latitude + (Math.random() - 0.5) * 0.00005;
+                        // 模拟船只朝向稍微偏转
+                        const newHeading = (boatStatus.heading + (Math.random() - 0.5) * 2 + 360) % 360;
+                        const newBatL = Math.max(10, boatStatus.batteryL - 0.005);
+                        const newBatR = Math.max(10, boatStatus.batteryR - 0.005);
+
+                        const mockPacket = `R,${newLon.toFixed(6)},${newLat.toFixed(6)},${newHeading.toFixed(1)},${newBatL.toFixed(2)},${newBatR.toFixed(2)},`;
+                        handlePacketReceived(mockPacket);
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [boatStatus.connected, boatStatus.longitude, boatStatus.latitude, boatStatus.heading]);
+
+            // --- 逻辑处理 ---
+
+            const addLog = (direction, message) => {
+                setLogs(prev => [{
+                    id: Date.now(),
+                    timestamp: new Date().toLocaleTimeString(),
+                    direction,
+                    message
+                }, ...prev].slice(0, 50));
+            };
+
+            const handleConnect = () => {
+                setIsConnecting(true);
+                setTimeout(() => {
+                    setBoatStatus(prev => ({ ...prev, connected: !prev.connected }));
+                    setIsConnecting(false);
+                    addLog('SYS', !boatStatus.connected ? `已连接到设备 ${serverConfig.ip}` : '连接已断开');
+                }, 800);
+            };
+
+            const handlePacketReceived = (packet) => {
+                if(Math.random() > 0.8) addLog('RX', packet); // 减少日志刷屏
+                if (packet.startsWith('R')) {
+                    const parts = packet.split(',');
+                    if (parts.length >= 6) {
+                        setBoatStatus(prev => ({
+                            ...prev,
+                            longitude: parseFloat(parts[1]),
+                            latitude: parseFloat(parts[2]),
+                            heading: parseFloat(parts[3]),
+                            batteryL: parseFloat(parts[4]),
+                            batteryR: parseFloat(parts[5]),
+                            lastUpdate: new Date()
+                        }));
+                    }
+                }
+            };
+
+            const sendCommand = (cmd) => {
+                if (!boatStatus.connected) {
+                    alert("请先连接设备");
+                    return;
+                }
+                const finalCmd = cmd.endsWith(',') ? cmd : cmd + ',';
+                addLog('TX', finalCmd);
+            };
+
+            const sendSCommand = () => {
+                const cmd = `S,${streamOn ? '1' : '0'},${recvOn ? '3' : '2'},q,${controlMode},${cruiseMode},`;
+                sendCommand(cmd);
+            };
+
+            const sendKCommand = (w, a, s, d) => {
+                const cmd = `K,${w},${a},${s},${d},`;
+                sendCommand(cmd);
+            };
+
+            // --- 新增：航点相关逻辑 ---
+
+            // 加载内置航线
+            const loadSavedRoute = (route) => {
+                setWaypoints(route.data);
+                addLog('SYS', `已加载预设航线: [${route.name}]，包含 ${route.data.length} 个航点`);
+                setShowRouteModal(false);
+            };
+
+            // 删除内置航线
+            const deleteSavedRoute = (id) => {
+                setSavedRoutes(savedRoutes.filter(r => r.id !== id));
+            };
+
+            // 开始编辑航线名称
+            const startEditingRoute = (route) => {
+                setEditingRouteId(route.id);
+                setEditRouteName(route.name);
+            };
+
+            // 保存编辑后的航线名称
+            const saveEditedRouteName = (id) => {
+                setSavedRoutes(savedRoutes.map(r => r.id === id ? { ...r, name: editRouteName } : r));
+                setEditingRouteId(null);
+            };
+
+            // 生成模拟航点用于测试
+            const generateMockWaypoints = () => {
+                const baseLon = 113.324560;
+                const baseLat = 23.106470;
+                const mockWP = [
+                    { id: 1, lon: baseLon + 0.0005, lat: baseLat + 0.0005 },
+                    { id: 2, lon: baseLon + 0.0010, lat: baseLat + 0.0002 },
+                    { id: 3, lon: baseLon + 0.0008, lat: baseLat - 0.0004 },
+                    { id: 4, lon: baseLon + 0.0002, lat: baseLat - 0.0006 },
+                    { id: 5, lon: baseLon - 0.0003, lat: baseLat - 0.0001 }
+                ];
+                setWaypoints(mockWP);
+                addLog('SYS', `已加载测试航线，包含 ${mockWP.length} 个航点`);
+            };
+
+            // 处理文件上传 (解析 JSON)
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if(Array.isArray(data) && data.length > 0 && data[0].lon && data[0].lat) {
+                            setWaypoints(data);
+                            addLog('SYS', `已从文件加载航线，包含 ${data.length} 个航点`);
+                            setShowRouteModal(false); // 成功加载文件也关闭弹窗
+                        } else {
+                            throw new Error("格式不正确");
+                        }
+                    } catch(err) {
+                        alert("解析失败，请确保上传的是合法的航点 JSON 文件！\n格式示例: [{id:1, lon:113.xxx, lat:23.xxx}]");
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = null; // 重置 input
+            };
+
+            // 导出航点为 JSON 文件
+            const handleFileSave = () => {
+                if (waypoints.length === 0) {
+                    alert("当前没有航点可保存！");
+                    return;
+                }
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(waypoints, null, 2));
+                const dlAnchorElem = document.createElement('a');
+                dlAnchorElem.setAttribute("href", dataStr);
+                dlAnchorElem.setAttribute("download", `waypoints_${new Date().getTime()}.json`);
+                dlAnchorElem.click();
+                addLog('SYS', `航线文件已导出`);
+            };
+
+            // 下发航线给无人艇 (模拟)
+            const sendWaypointsToBoat = () => {
+                if (waypoints.length === 0) return alert("没有可下发的航线");
+                addLog('SYS', `正在下发航线任务...`);
+                // 模拟批量发送 W 报文
+                waypoints.forEach((wp, index) => {
+                    setTimeout(() => {
+                        sendCommand(`W,${wp.id},${wp.lon.toFixed(6)},${wp.lat.toFixed(6)},`);
+                    }, index * 200); // 每200ms发送一个点
+                });
+                setTimeout(() => {
+                    addLog('SYS', `航线下发完毕，切换为自动模式`);
+                    setControlMode('#'); // 自动切换到自动模式
+                    sendCommand(`S,${streamOn ? '1' : '0'},${recvOn ? '3' : '2'},q,#,${cruiseMode},`);
+                }, waypoints.length * 200 + 500);
+            };
+
+            // 计算航点在 SVG 地图上的相对坐标
+            // 假设地图中心是船只当前位置，或者是一个固定的基准点
+            // 为了视觉稳定，我们将地图中心设为一个固定值(或初始船只位置)
+            const mapCenterLon = 113.324560;
+            const mapCenterLat = 23.106470;
+            const mapScale = 150000; // 经纬度放大倍数到像素
+
+            const getMapCoord = (lon, lat) => {
+                // SVG 坐标系：中心点为 (50%, 50%)
+                const dx = (lon - mapCenterLon) * mapScale;
+                const dy = -(lat - mapCenterLat) * mapScale; // Y轴反转
+                return { x: `calc(50% + ${dx}px)`, y: `calc(50% + ${dy}px)` };
+            };
+
+
+            // --- 界面渲染 ---
+            return (
+                <div className="flex flex-col h-screen bg-slate-900 text-cyan-400 font-mono overflow-hidden">
+                    
+                    {/* 顶部状态栏 */}
+                    <header className="h-14 bg-slate-950 border-b border-cyan-900/50 flex items-center px-4 justify-between shrink-0 shadow-md z-20">
+                        <div className="flex items-center gap-2">
+                            <Icons.Activity className="w-5 h-5 text-cyan-400" />
+                            <h1 className="text-lg font-bold tracking-wider text-white">无人艇地面控制站 <span className="text-xs text-cyan-600">v1.1</span></h1>
+                        </div>
+                        
+                        <div className="flex items-center gap-6 text-sm">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${boatStatus.connected ? 'bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]' : 'bg-red-500'}`}></div>
+                                <span className={boatStatus.connected ? 'text-green-400 font-bold' : 'text-red-400'}>
+                                    {boatStatus.connected ? 'ONLINE' : 'OFFLINE'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500">IP:</span>
+                                <input value={serverConfig.ip} onChange={e => setServerConfig({...serverConfig, ip: e.target.value})} className="bg-slate-900 border border-slate-700 px-2 py-1 rounded w-28 text-center text-xs focus:border-cyan-500 outline-none" />
+                                <span className="text-slate-500">PORT:</span>
+                                <input value={serverConfig.port} onChange={e => setServerConfig({...serverConfig, port: e.target.value})} className="bg-slate-900 border border-slate-700 px-2 py-1 rounded w-16 text-center text-xs focus:border-cyan-500 outline-none" />
+                                <button onClick={handleConnect} disabled={isConnecting} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${boatStatus.connected ? 'bg-red-900/30 text-red-500 border border-red-800 hover:bg-red-900/50' : 'bg-cyan-600 text-white border border-cyan-500 hover:bg-cyan-500 shadow-[0_0_10px_rgba(8,145,178,0.5)]'}`}>
+                                    {isConnecting ? '连接中...' : (boatStatus.connected ? '断开连接' : '连接设备')}
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* 主内容区 */}
+                    <div className="flex-1 flex overflow-hidden">
+                        
+                        {/* 左侧：控制与状态 */}
+                        <div className="w-80 bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-4 gap-4 overflow-y-auto z-10">
+                            
+                            {/* 电源系统 */}
+                            <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 relative overflow-hidden">
+                                <h3 className="text-xs text-slate-400 mb-3 flex items-center gap-1"><Icons.Battery size={14} /> 电源系统</h3>
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-1"><span>左路电压</span><span className="text-white">{boatStatus.batteryL.toFixed(2)} V</span></div>
+                                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-cyan-500 transition-all duration-500" style={{width: `${(boatStatus.batteryL/14)*100}%`}}></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-1"><span>右路电压</span><span className="text-white">{boatStatus.batteryR.toFixed(2)} V</span></div>
+                                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-cyan-500 transition-all duration-500" style={{width: `${(boatStatus.batteryR/14)*100}%`}}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* --- 新增：航线任务面板 --- */}
+                            <div className="bg-slate-900/80 p-3 rounded-lg border border-cyan-900/50 shadow-[0_0_15px_rgba(8,145,178,0.1)]">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="text-xs text-cyan-400 font-bold flex items-center gap-1"><Icons.Map size={14} /> 航线任务</h3>
+                                    <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">当前点数: {waypoints.length}</span>
+                                </div>
+                                
+                                {/* 隐藏的文件上传组件 */}
+                                <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={() => setShowRouteModal(true)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-xs flex items-center justify-center gap-1 text-slate-300 transition-colors">
+                                        <Icons.Upload size={14} /> 导入航点
+                                    </button>
+                                    <button onClick={sendWaypointsToBoat} className="p-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded flex items-center justify-center gap-1 transition-colors">
+                                        <Icons.Navigation size={14} /> 加载航线
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 系统配置 S报文 */}
+                            <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                                <h3 className="text-xs text-slate-400 mb-3 flex items-center gap-1"><Icons.Settings size={14} /> 系统配置 (S报文)</h3>
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <button onClick={() => setStreamOn(!streamOn)} className={`py-1.5 rounded border text-xs flex justify-center items-center gap-1 transition-colors ${streamOn ? 'bg-cyan-900/40 border-cyan-500 text-white' : 'border-slate-700 text-slate-500'}`}>
+                                        <Icons.Video size={14} /> {streamOn ? '推流开' : '推流关'}
+                                    </button>
+                                    <button onClick={() => setRecvOn(!recvOn)} className={`py-1.5 rounded border text-xs flex justify-center items-center gap-1 transition-colors ${recvOn ? 'bg-cyan-900/40 border-cyan-500 text-white' : 'border-slate-700 text-slate-500'}`}>
+                                        <Icons.Wifi size={14} /> {recvOn ? '接收开' : '接收关'}
+                                    </button>
+                                </div>
+                                <div className="flex gap-2 mb-3">
+                                    <div className="flex-1 bg-slate-950 rounded p-1 flex text-xs">
+                                        <button onClick={() => setControlMode('#')} className={`flex-1 rounded py-1 ${controlMode === '#' ? 'bg-cyan-700 text-white shadow-sm' : 'text-slate-500'}`}>自动(#)</button>
+                                        <button onClick={() => setControlMode('@')} className={`flex-1 rounded py-1 ${controlMode === '@' ? 'bg-cyan-700 text-white shadow-sm' : 'text-slate-500'}`}>手动(@)</button>
+                                    </div>
+                                    <div className="flex-1 bg-slate-950 rounded p-1 flex text-xs">
+                                        <button onClick={() => setCruiseMode('1')} className={`flex-1 rounded py-1 ${cruiseMode === '1' ? 'bg-cyan-700 text-white shadow-sm' : 'text-slate-500'}`}>循环</button>
+                                        <button onClick={() => setCruiseMode('0')} className={`flex-1 rounded py-1 ${cruiseMode === '0' ? 'bg-cyan-700 text-white shadow-sm' : 'text-slate-500'}`}>单次</button>
+                                    </div>
+                                </div>
+                                <button onClick={sendSCommand} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs py-1.5 rounded flex items-center justify-center gap-2">
+                                    <Icons.Send size={12} /> 更新配置
+                                </button>
+                            </div>
+
+                            {/* 虚拟摇杆 */}
+                            <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col items-center flex-1 justify-end">
+                                <h3 className="text-xs text-slate-400 mb-3 w-full flex items-center gap-1"><Icons.Navigation size={14} /> 手动控制 (K报文)</h3>
+                                <div className="grid grid-cols-3 gap-2 mb-2">
+                                    <div />
+                                    <button onMouseDown={() => sendKCommand(1, 0, 0, 0)} onMouseUp={() => sendKCommand(0, 0, 0, 0)} className="w-14 h-14 bg-slate-800 border-b-4 border-slate-950 rounded-lg hover:bg-cyan-900/50 hover:border-cyan-900 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all">
+                                        <Icons.ArrowUp size={24} />
+                                    </button>
+                                    <div />
+                                    <button onMouseDown={() => sendKCommand(0, 1, 0, 0)} onMouseUp={() => sendKCommand(0, 0, 0, 0)} className="w-14 h-14 bg-slate-800 border-b-4 border-slate-950 rounded-lg hover:bg-cyan-900/50 hover:border-cyan-900 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all">
+                                        <Icons.ArrowLeft size={24} />
+                                    </button>
+                                    <button onMouseDown={() => sendKCommand(0, 0, 1, 0)} onMouseUp={() => sendKCommand(0, 0, 0, 0)} className="w-14 h-14 bg-slate-800 border-b-4 border-slate-950 rounded-lg hover:bg-cyan-900/50 hover:border-cyan-900 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all">
+                                        <Icons.ArrowDown size={24} />
+                                    </button>
+                                    <button onMouseDown={() => sendKCommand(0, 0, 0, 1)} onMouseUp={() => sendKCommand(0, 0, 0, 0)} className="w-14 h-14 bg-slate-800 border-b-4 border-slate-950 rounded-lg hover:bg-cyan-900/50 hover:border-cyan-900 active:border-b-0 active:translate-y-1 flex items-center justify-center transition-all">
+                                        <Icons.ArrowRight size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 中间：视频与地图 */}
+                        <div className="flex-1 flex flex-col min-w-0 bg-black relative">
+                            {/* 视频流 */}
+                            <div className="h-1/2 border-b border-cyan-900/50 relative group bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-black">
+                                <div className="absolute top-4 left-4 z-10 bg-black/60 backdrop-blur px-3 py-1.5 rounded text-xs text-white border border-white/10 flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${streamOn ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`}></div>
+                                    前视摄像头 {streamOn ? '(推流中)' : '(已关闭)'}
+                                </div>
+                                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                    <div className="text-center">
+                                        <Icons.Video size={48} className={`mx-auto mb-2 ${streamOn ? 'opacity-50 text-cyan-400' : 'opacity-20'}`} />
+                                        <p className="text-sm">{streamOn ? '等待视频帧...' : '无信号'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 地图区域 (增强版) */}
+                            <div className="h-1/2 relative overflow-hidden bg-[#0f172a]">
+                                {/* 装饰网格背景 */}
+                                <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(#1e293b 1px, transparent 1px)', backgroundSize: '30px 30px', opacity: 0.5}}></div>
+                                
+                                <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded border border-slate-700 text-xs text-cyan-400 shadow-lg font-bold flex items-center gap-2">
+                                    <Icons.Map size={14} /> 战术态势图
+                                </div>
+
+                                {/* --- 航线 SVG 渲染层 --- */}
+                                <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                    {/* 绘制航线连线 */}
+                                    {waypoints.length > 1 && (
+                                        <path 
+                                            d={`M ${waypoints.map(wp => {
+                                                const pt = getMapCoord(wp.lon, wp.lat);
+                                                return `${pt.x} ${pt.y}`;
+                                            }).join(' L ')}`} 
+                                            fill="none" 
+                                            stroke="#06b6d4" 
+                                            strokeWidth="2" 
+                                            className="path-line opacity-60"
+                                        />
+                                    )}
+                                    {/* 绘制航点 Marker */}
+                                    {waypoints.map((wp, i) => {
+                                        const pt = getMapCoord(wp.lon, wp.lat);
+                                        return (
+                                            <g key={wp.id} style={{transform: `translate(${pt.x}, ${pt.y})`}}>
+                                                <circle cx="0" cy="0" r="4" fill="#06b6d4" />
+                                                <circle cx="0" cy="0" r="12" fill="none" stroke="#06b6d4" strokeWidth="1" opacity="0.4" />
+                                                <text x="8" y="-8" fill="#a5f3fc" fontSize="10" fontFamily="monospace">WP{i+1}</text>
+                                            </g>
+                                        );
+                                    })}
+                                    {/* 船只到目标航点的预测线 (示例：连向第一个航点) */}
+                                    {waypoints.length > 0 && controlMode === '#' && (
+                                        <line 
+                                            x1={getMapCoord(boatStatus.longitude, boatStatus.latitude).x} 
+                                            y1={getMapCoord(boatStatus.longitude, boatStatus.latitude).y}
+                                            x2={getMapCoord(waypoints[0].lon, waypoints[0].lat).x} 
+                                            y2={getMapCoord(waypoints[0].lon, waypoints[0].lat).y}
+                                            stroke="#facc15" strokeWidth="1" strokeDasharray="4 4" opacity="0.5"
+                                        />
+                                    )}
+                                </svg>
+
+                                {/* 无人艇图标实体 */}
+                                {(() => {
+                                    const pt = getMapCoord(boatStatus.longitude, boatStatus.latitude);
+                                    return (
+                                        <div className="absolute transition-all duration-1000 ease-linear z-20" 
+                                             style={{left: pt.x, top: pt.y, transform: `translate(-50%, -50%) rotate(${boatStatus.heading}deg)`}}>
+                                            {/* 船体图标 */}
+                                            <svg width="32" height="32" viewBox="0 0 24 24" fill="#0891b2" stroke="#22d3ee" strokeWidth="1.5" className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">
+                                                <polygon points="12 2 20 20 12 17 4 20" />
+                                            </svg>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* 右下角坐标信息 */}
+                                <div className="absolute bottom-4 right-4 bg-slate-950/90 backdrop-blur border border-slate-800 p-3 rounded-lg text-xs space-y-1.5 shadow-xl z-20 font-mono">
+                                    <div className="flex justify-between gap-6"><span className="text-slate-500">LAT:</span> <span className="text-cyan-400">{boatStatus.latitude.toFixed(6)}</span></div>
+                                    <div className="flex justify-between gap-6"><span className="text-slate-500">LON:</span> <span className="text-cyan-400">{boatStatus.longitude.toFixed(6)}</span></div>
+                                    <div className="flex justify-between gap-6"><span className="text-slate-500">HDG:</span> <span className="text-yellow-400">{boatStatus.heading.toFixed(1)}°</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 右侧：日志与命令行 */}
+                        <div className="w-80 bg-slate-950 border-l border-cyan-900/30 flex flex-col text-xs z-10">
+                            <div className="p-3 border-b border-slate-800 bg-slate-900/50 text-slate-400 font-bold flex justify-between items-center shrink-0">
+                                <span className="flex items-center gap-2"><Icons.Activity size={14}/> 通信日志</span>
+                                <button onClick={() => setLogs([])} className="hover:text-white p-1 rounded bg-slate-800"><Icons.RefreshCw size={12} /></button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-3 space-y-1.5 font-mono">
+                                {logs.length === 0 && <div className="text-slate-600 italic text-center mt-10">等待数据传输...</div>}
+                                {logs.map(log => {
+                                    // 根据日志类型设定颜色
+                                    let colorCls = "text-slate-400";
+                                    let dirCls = "text-slate-500";
+                                    if(log.direction === 'TX') { colorCls = "text-green-300"; dirCls = "text-green-500"; }
+                                    if(log.direction === 'RX') { colorCls = "text-blue-300"; dirCls = "text-blue-500"; }
+                                    if(log.direction === 'SYS') { colorCls = "text-yellow-300"; dirCls = "text-yellow-500"; }
+
+                                    return (
+                                        <div key={log.id} className="flex gap-2 hover:bg-slate-900/50 p-0.5 rounded">
+                                            <span className="text-slate-600 shrink-0">[{log.timestamp}]</span>
+                                            <span className={`${dirCls} font-bold shrink-0`}>{log.direction} &gt;</span>
+                                            <span className={`${colorCls} break-all`}>{log.message}</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            
+                            <div className="p-3 border-t border-slate-800 bg-slate-900 shrink-0">
+                                <div className="flex gap-2 items-center bg-slate-950 p-1.5 rounded border border-slate-800 focus-within:border-cyan-700 transition-colors">
+                                    <span className="text-cyan-500 font-bold ml-1">&gt;</span>
+                                    <input 
+                                        type="text" 
+                                        value={inputCmd}
+                                        onChange={e => setInputCmd(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && (sendCommand(inputCmd), setInputCmd(''))}
+                                        placeholder="输入指令报文..."
+                                        className="flex-1 bg-transparent outline-none text-cyan-300 placeholder-slate-600"
+                                    />
+                                    <button onClick={() => {sendCommand(inputCmd); setInputCmd('')}} className="text-slate-400 hover:text-cyan-400 p-1 bg-slate-800 rounded">
+                                        <Icons.Send size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* --- 新增：预设航线管理器弹窗 --- */}
+                    {showRouteModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                            <div className="bg-slate-900 border border-cyan-800 rounded-lg w-[400px] flex flex-col shadow-[0_0_30px_rgba(8,145,178,0.2)]">
+                                {/* 弹窗头部 */}
+                                <div className="flex justify-between items-center p-3 border-b border-slate-800 bg-slate-950 rounded-t-lg">
+                                    <h2 className="text-cyan-400 font-bold flex items-center gap-2"><Icons.MapPin size={16}/> 预设航线库</h2>
+                                    <button onClick={() => setShowRouteModal(false)} className="text-slate-400 hover:text-white transition-colors">
+                                        <Icons.X size={18}/>
+                                    </button>
+                                </div>
+                                
+                                {/* 航线列表 */}
+                                <div className="p-3 max-h-80 overflow-y-auto space-y-2">
+                                    {savedRoutes.length === 0 ? (
+                                        <div className="text-center text-slate-500 py-4 text-xs">暂无预设航线数据</div>
+                                    ) : (
+                                        savedRoutes.map(route => (
+                                            <div key={route.id} className="bg-slate-800/50 border border-slate-700 p-2 rounded flex justify-between items-center group hover:border-cyan-700 transition-colors">
+                                                {editingRouteId === route.id ? (
+                                                    <div className="flex flex-1 gap-2 mr-2">
+                                                        <input 
+                                                            type="text" 
+                                                            value={editRouteName}
+                                                            onChange={(e) => setEditRouteName(e.target.value)}
+                                                            className="flex-1 bg-slate-950 border border-cyan-600 text-white px-2 py-1 text-xs rounded outline-none"
+                                                            autoFocus
+                                                            onKeyDown={(e) => e.key === 'Enter' && saveEditedRouteName(route.id)}
+                                                        />
+                                                        <button onClick={() => saveEditedRouteName(route.id)} className="text-xs bg-cyan-700 hover:bg-cyan-600 text-white px-2 rounded">保存</button>
+                                                        <button onClick={() => setEditingRouteId(null)} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 rounded">取消</button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex flex-col flex-1 cursor-pointer" onClick={() => loadSavedRoute(route)}>
+                                                            <span className="text-sm font-bold text-slate-200 group-hover:text-cyan-300 transition-colors">{route.name}</span>
+                                                            <span className="text-[10px] text-slate-500">点数: {route.data.length} | ID: {route.id}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => loadSavedRoute(route)} className="p-1.5 text-cyan-500 hover:bg-cyan-900/50 rounded" title="加载航线">
+                                                                <Icons.Upload size={14}/>
+                                                            </button>
+                                                            <button onClick={() => startEditingRoute(route)} className="p-1.5 text-blue-400 hover:bg-blue-900/50 rounded" title="重命名">
+                                                                <Icons.Edit2 size={14}/>
+                                                            </button>
+                                                            <button onClick={() => deleteSavedRoute(route.id)} className="p-1.5 text-red-400 hover:bg-red-900/50 rounded" title="删除">
+                                                                <Icons.Trash size={14}/>
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* 弹窗底部：本地文件上传入口 */}
+                                <div className="p-3 border-t border-slate-800 bg-slate-900/50 rounded-b-lg">
+                                    <button onClick={() => fileInputRef.current.click()} className="w-full py-2 border border-slate-700 border-dashed text-slate-400 hover:text-cyan-400 hover:border-cyan-700 rounded text-xs transition-colors flex items-center justify-center gap-2">
+                                        从本地 JSON 文件导入...
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BoatGroundStation />);
+    </script>
+</body>
+</html>

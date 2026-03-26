@@ -313,6 +313,14 @@
       sendSCommand,
       sendWaypointsCommand,
       sendKCommand,
+      onOpenRouteManager,
+      onOpenSaveRoute,
+      hasSavedRoutes,
+      isRoutePreviewing,
+      routePreviewRouteName,
+      routePreviewGhostWaypoints,
+      onConfirmRoutePreviewLoad,
+      onCancelRoutePreviewLoad,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -364,6 +372,9 @@
     const toastTimerRef = useRef(null);
     const toastIdRef = useRef(null);
     const deployReminderShownRef = useRef(false);
+    const addWpLongPressTimerRef = useRef(null);
+    const addWpLongPressTriggeredRef = useRef(false);
+    const addWpSuppressClickUntilRef = useRef(0);
 
     const clearToastTimer = useCallback(() => {
       if (toastTimerRef.current) {
@@ -371,6 +382,15 @@
         toastTimerRef.current = null;
       }
     }, []);
+
+    const clearAddWpLongPress = useCallback(() => {
+      if (addWpLongPressTimerRef.current) {
+        window.clearTimeout(addWpLongPressTimerRef.current);
+        addWpLongPressTimerRef.current = null;
+      }
+    }, []);
+
+    useEffect(() => clearAddWpLongPress, [clearAddWpLongPress]);
 
     const computeMobileDurationMs = useCallback((durationMs) => {
       if (durationMs === null) return null;
@@ -533,6 +553,13 @@
       else setShowWaypointList(false);
     }, [mapMode]);
 
+    useEffect(() => {
+      if (!isRoutePreviewing) return;
+      setMapMode('pan');
+      setQuickMenuOpen(false);
+      setShowWaypointList(false);
+    }, [isRoutePreviewing]);
+
     const lastCmdRef = useRef({ w: 0, a: 0, s: 0, d: 0 });
     const joystickPosRef = useRef({ x: 0, y: 0, limit: 40 });
     const sendKCommandRef = useRef(sendKCommand);
@@ -645,6 +672,8 @@
           setCruiseMode={setCruiseMode}
           sendSCommand={sendSCommand}
           sendWaypointsCommand={sendWaypointsCommand}
+          onOpenRouteManager={onOpenRouteManager}
+          onOpenSaveRoute={onOpenSaveRoute}
           onOpenSettings={() => setShowSettings(true)}
         />
 
@@ -658,11 +687,11 @@
                   <div className="w-full h-full opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #06b6d4 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
                 )}
                 <div className="absolute inset-0 z-10">
-                  <MapComponent
-                    lng={lng}
-                    lat={lat}
-                    heading={heading}
-                    headingRaw={headingRaw}
+	                  <MapComponent
+	                    lng={lng}
+	                    lat={lat}
+	                    heading={heading}
+	                    headingRaw={headingRaw}
                     waypoints={waypoints}
                     setWaypoints={setWaypoints}
                     cruiseMode={cruiseMode}
@@ -670,30 +699,102 @@
                     showLogs={false}
                     controlledMapMode={mapMode}
                     hideToolbar={true}
+                    disableRouteEditing={isRoutePreviewing}
+                    ghostWaypoints={routePreviewGhostWaypoints}
                     locateNonce={locateNonce}
-                    boatStyle={boatStyle}
-                    waypointStyle={waypointStyle}
-                    uiStyle={uiStyle}
-                  />
+	                    boatStyle={boatStyle}
+	                    waypointStyle={waypointStyle}
+	                    uiStyle={uiStyle}
+	                    onOpenRouteManager={onOpenRouteManager}
+	                    onOpenSaveRoute={onOpenSaveRoute}
+	                  />
                 </div>
               </div>
 
-              {mapMode === 'add' && (
+              {mapMode === 'add' && !isRoutePreviewing && (
+                <>
+                  {hasSavedRoutes && (
+                    <div className="absolute top-20 left-4 z-20 pointer-events-none">
+                      <button
+                        onClick={() => {
+                          setQuickMenuOpen(false);
+                          if (typeof onOpenRouteManager === 'function') onOpenRouteManager();
+                        }}
+                        className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center justify-center min-w-[72px] py-1.5 px-3 rounded-full transition-all active:scale-[0.98] ${
+                          isIos
+                            ? 'bg-white/88 text-[#007AFF] border border-white/70 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)] font-semibold text-[13px]'
+                            : 'bg-slate-900/90 text-cyan-100 border border-cyan-500/35 shadow-[0_0_18px_rgba(6,182,212,0.18)] font-bold text-[11px] tracking-[0.12em]'
+                        }`}
+                      >
+                        {lang === 'zh' ? '加载' : 'LOAD'}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
+                    <button 
+                      onClick={() => setMapMode('pan')}
+                      className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
+                          : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
+                      }`}
+                    >
+                      <Check className="w-5 h-5" />
+                      {t('finish_add')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {isRoutePreviewing && (
                 <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
-                  <button 
-                    onClick={() => setMapMode('pan')}
-                    className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
-                      isIos
-                        ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
-                        : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border-2 border-green-400'
-                    }`}
-                  >
-                    <Check className="w-5 h-5" />
-                    {t('finish_add')}
-                  </button>
+                  <div className="pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (typeof onCancelRoutePreviewLoad === 'function') onCancelRoutePreviewLoad();
+                      }}
+                      className={`flex items-center gap-2 py-2 px-5 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-white/88 text-slate-700 border border-white/70 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)] font-semibold'
+                          : 'bg-slate-900/90 text-slate-100 border border-slate-600 shadow-lg font-bold'
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                      {t('btn_cancel')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (typeof onConfirmRoutePreviewLoad === 'function') onConfirmRoutePreviewLoad();
+                      }}
+                      className={`flex items-center gap-2 py-2 px-5 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-[#34C759] hover:bg-[#30b955] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(52,199,89,0.45)]'
+                          : 'bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg border border-green-400'
+                      }`}
+                    >
+                      <Check className="w-4 h-4" />
+                      {t('btn_load')}
+                    </button>
+                  </div>
                 </div>
               )}
 
+              {isRoutePreviewing && !!routePreviewRouteName && (
+                <div className="absolute top-20 right-4 z-20 pointer-events-none">
+                  <div
+                    className={`px-3 py-1 rounded-full text-[11px] ${
+                      isIos
+                        ? 'bg-white/90 border border-white/70 text-slate-700 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.25)]'
+                        : 'bg-slate-900/92 border border-cyan-500/35 text-cyan-100 shadow-[0_0_18px_rgba(6,182,212,0.18)] font-mono'
+                    }`}
+                  >
+                    {t('load_route')}: {routePreviewRouteName}
+                  </div>
+                </div>
+              )}
+
+              {!isRoutePreviewing && (
               <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-3 pointer-events-none">
                 <div className="pointer-events-auto flex flex-col items-end gap-3">
                   <button
@@ -713,7 +814,44 @@
                   </button>
                       {quickMenuOpen && (
                     <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-4">
-                      <button onClick={() => { setMapMode('add'); setQuickMenuOpen(false); }} className="flex items-center justify-end gap-2 group pointer-events-auto">
+                      <button
+                        onClick={(event) => {
+                          if (Date.now() < addWpSuppressClickUntilRef.current) {
+                            event.preventDefault();
+                            return;
+                          }
+                          setMapMode('add');
+                          setQuickMenuOpen(false);
+                        }}
+                        onTouchStart={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                          addWpLongPressTimerRef.current = window.setTimeout(() => {
+                            addWpLongPressTimerRef.current = null;
+                            addWpLongPressTriggeredRef.current = true;
+                            addWpSuppressClickUntilRef.current = Date.now() + 700;
+                            setQuickMenuOpen(false);
+                            if (typeof onOpenRouteManager === 'function') onOpenRouteManager();
+                          }, 450);
+                        }}
+                        onTouchEnd={(event) => {
+                          clearAddWpLongPress();
+                          if (addWpLongPressTriggeredRef.current) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        onTouchCancel={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        onTouchMove={() => {
+                          clearAddWpLongPress();
+                          addWpLongPressTriggeredRef.current = false;
+                        }}
+                        className="flex items-center justify-end gap-2 group pointer-events-auto"
+                      >
                         <span className={`text-[10px] px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${isIos ? 'font-sans text-slate-700 bg-white/80 backdrop-blur-md border border-white/60 rounded-full shadow-sm' : 'font-mono text-yellow-200 bg-black/60'}`}>{t('add_wp_btn')}</span>
                         <div
                           className={isIos
@@ -765,38 +903,39 @@
                   )}
                 </div>
               </div>
+              )}
 
-              <div className={`absolute bottom-24 left-4 z-20 flex flex-col-reverse gap-2 pointer-events-none ${isIos ? 'w-52' : 'w-44'}`}>
-                <HUDBox className={`p-3 pointer-events-auto ${isIos ? 'rounded-[22px] overflow-hidden' : ''}`} uiStyle={uiStyle}>
-                  <div className="space-y-3">
-                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
-                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
-                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
-                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
-                      </div>
-                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
-                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
-                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
-                      </div>
-                    </div>
-                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="text-center">
-                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('heading')}</div>
-                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(1)}°</div>
-                      </div>
-                      <div className="text-center">
-                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('waypoint')}</div>
-                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
-                      </div>
-                    </div>
-	                      <div className="space-y-1">
-	                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
-	                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
-	                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
-	                        </span>
-	                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V · {batteryPct}%</span>
+	              <div className={`absolute bottom-24 left-4 z-20 flex flex-col-reverse gap-2 pointer-events-none ${isIos ? 'w-52' : 'w-44'}`}>
+	                <HUDBox className={`p-3 pointer-events-auto ${isIos ? 'rounded-[22px] overflow-hidden' : ''}`} uiStyle={uiStyle}>
+	                  <div className="space-y-3">
+	                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
+	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
 	                      </div>
+	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
+	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
+	                      </div>
+	                    </div>
+	                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
+	                    <div className="grid grid-cols-2 gap-2">
+	                      <div className="text-center">
+	                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('heading')}</div>
+	                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-slate-900' : 'text-lg font-mono font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]'}`}>{heading.toFixed(1)}°</div>
+	                      </div>
+	                      <div className="text-center">
+	                        <div className={`${isIos ? 'text-[11px] font-medium tracking-tight text-slate-500 mb-1' : 'text-[9px] text-slate-400 mb-1'}`}>{t('waypoint')}</div>
+	                        <div className={`${isIos ? 'text-[18px] font-sans font-semibold tracking-tight text-yellow-500' : 'text-lg font-mono font-bold text-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,0.45)]'}`}>{Array.isArray(waypoints) ? waypoints.length : 0}</div>
+	                      </div>
+	                    </div>
+		                      <div className="space-y-1">
+		                      <div className={`flex justify-between items-center ${isIos ? 'text-[11px] font-sans' : 'text-[10px]'}`}>
+		                        <span className={`${isIos ? 'text-slate-500 font-medium tracking-tight' : 'text-slate-400'} flex items-center gap-1`}>
+		                          <Zap className={`w-3 h-3 ${isIos ? 'text-[#007AFF]' : ''}`} /> {t('battery')}
+		                        </span>
+		                        <span className={`${isIos ? 'font-mono tabular-nums' : ''} ${batteryPct < 30 ? (isIos ? 'text-[#FF3B30]' : 'text-red-400') : (isIos ? 'text-[#007AFF]' : 'text-cyan-400')}`}>{batteryV ? batteryV.toFixed(2) : '0.00'}V · {batteryPct}%</span>
+		                      </div>
 	                      <div className={`w-full ${isIos ? 'h-1.5' : 'h-1'} rounded-full overflow-hidden ${isIos ? 'bg-slate-200/80' : 'bg-slate-800'}`}>
 	                        <div className={`h-full transition-all duration-500 ${
 	                          batteryPct < 30
@@ -808,7 +947,7 @@
                   </div>
                 </HUDBox>
 
-                {mapMode === 'add' && showWaypointList && (
+                {mapMode === 'add' && showWaypointList && !isRoutePreviewing && (
                   <HUDBox className="pointer-events-auto flex flex-col max-h-40 animate-in slide-in-from-left-4 fade-in" uiStyle={uiStyle}>
                     <style>{`
                       .custom-scrollbar::-webkit-scrollbar { width: 3px; }

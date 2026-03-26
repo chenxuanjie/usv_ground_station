@@ -7,5 +7,6 @@ usv_server
 !config.ini
 node_modules
 dist
+data
 .tools
 .DS_Store

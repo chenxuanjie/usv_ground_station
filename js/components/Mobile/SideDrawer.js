@@ -38,7 +38,9 @@
     cruiseMode,
     setCruiseMode,
     sendSCommand,
-    sendWaypointsCommand
+    sendWaypointsCommand,
+    onOpenRouteManager,
+    onOpenSaveRoute
   }) => {
     const ui = window.MobileUtils && typeof window.MobileUtils.getMobileTheme === 'function'
       ? window.MobileUtils.getMobileTheme(uiStyle)
@@ -483,6 +485,41 @@
             </div>
 
             <div className="h-px bg-cyan-900/30 w-full"></div>
+
+            <div className="pt-4">
+              <button
+                onClick={() => {
+                  if (typeof onClose === 'function') onClose();
+                  if (typeof onOpenRouteManager === 'function') {
+                    window.setTimeout(() => onOpenRouteManager(), 120);
+                  }
+                }}
+                className={`w-full py-3 mb-3 font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
+                  isIos
+                    ? 'bg-white/80 text-[#007AFF] border border-white/70 rounded-[14px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.99]'
+                    : 'bg-slate-900/80 text-cyan-100 border border-cyan-500/25 rounded clip-path-slant hover:border-cyan-400/50 hover:bg-cyan-500/10'
+                }`}
+              >
+                {t.load_route}
+              </button>
+
+              <button
+                onClick={() => {
+                  if (typeof onClose === 'function') onClose();
+                  if (typeof onOpenSaveRoute === 'function') {
+                    window.setTimeout(() => onOpenSaveRoute(), 120);
+                  }
+                }}
+                className={`w-full py-3 font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
+                  isIos
+                    ? 'bg-white/80 text-[#007AFF] border border-white/70 rounded-[14px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.99]'
+                    : 'bg-slate-900/80 text-cyan-100 border border-cyan-500/25 rounded clip-path-slant hover:border-cyan-400/50 hover:bg-cyan-500/10'
+                }`}
+              >
+                <Save className="w-4 h-4" />
+                {t.save_route}
+              </button>
+            </div>
 
             <div className="pt-6 pb-2">
               <div className="pt-4 flex flex-col items-center gap-2">
