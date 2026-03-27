@@ -62,6 +62,14 @@
     const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
     const [waypointGuidance, setWaypointGuidance] = useState('p2p');
     const [waypointController, setWaypointController] = useState('pid');
+    const [autoExecLevel, setAutoExecLevel] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem('mobile_auto_exec_level') : null;
+        return stored === 'mission' ? 'mission' : 'debug';
+      } catch (_) {
+        return 'debug';
+      }
+    });
     const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
     const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
@@ -103,6 +111,12 @@
         }
       }
     }, [open]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem('mobile_auto_exec_level', autoExecLevel);
+      } catch (_) {}
+    }, [autoExecLevel]);
 
     const handleDeployClick = () => {
       if (controlMode === 'W') {
@@ -449,6 +463,88 @@
                   </div>
                 </div>
 
+                {controlMode === '#' && (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
+                      <div className={`relative flex p-1 border w-[150px] ${isIos ? 'bg-white/70 rounded-[12px] border-slate-200/70' : 'bg-[#0d131f] rounded border-[#1e2a3b]'}`}>
+                        <div
+                          className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded transition-all duration-300 ease-out ${
+                            autoExecLevel === 'mission'
+                              ? (isIos
+                                ? 'translate-x-[calc(100%+0px)] bg-cyan-500/18 border border-cyan-500/45'
+                                : 'translate-x-[calc(100%+0px)] bg-cyan-500/20 border border-cyan-500/50')
+                              : (isIos
+                                ? 'translate-x-0 bg-yellow-500/18 border border-yellow-500/45'
+                                : 'translate-x-0 bg-yellow-500/20 border border-yellow-500/50')
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAutoExecLevel('debug')}
+                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                            autoExecLevel === 'debug'
+                              ? (isIos ? 'text-[#B45309]' : 'text-yellow-500')
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          {t.exec_level_debug}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAutoExecLevel('mission')}
+                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                            autoExecLevel === 'mission'
+                              ? (isIos ? 'text-[#0369A1]' : 'text-cyan-400')
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          {t.exec_level_mission}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`grid transition-all duration-500 ease-in-out ${
+                        autoExecLevel === 'mission' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="pb-1">
+                          <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
+                            <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                              <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
+                              <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1">
+                              {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                                <button
+                                  key={algo}
+                                  type="button"
+                                  onClick={() => setActivePathAlgorithm(algo)}
+                                  className={`py-2 text-[10px] font-bold border transition-colors ${
+                                    isIos
+                                      ? (activePathAlgorithm === algo
+                                        ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
+                                        : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
+                                      )
+                                      : (activePathAlgorithm === algo
+                                        ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                                        : 'border-[#1e2a3b] text-gray-500 hover:border-gray-600'
+                                      )
+                                  }`}
+                                >
+                                  {algo}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {controlMode === 'W' && (
                   <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
                     <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.waypoint_mission}</div>
@@ -485,37 +581,6 @@
                           accent="orange"
                         />
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {controlMode === '#' && (
-                  <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
-                    <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
-                      <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
-                      <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1">
-                      {['A*', 'Hybrid A*', 'DWA'].map(algo => (
-                        <button
-                          key={algo}
-                          type="button"
-                          onClick={() => setActivePathAlgorithm(algo)}
-                          className={`py-2 text-[10px] font-bold border transition-all duration-200 ${
-                            isIos
-                              ? (activePathAlgorithm === algo
-                                ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
-                                : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
-                              )
-                              : (activePathAlgorithm === algo
-                                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                                : 'bg-transparent border-slate-700/50 text-slate-500 hover:border-slate-500 hover:text-slate-300'
-                              )
-                          }`}
-                        >
-                          {algo}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 )}
