@@ -9,10 +9,12 @@
   const Link = Icon('Link');
   const Anchor = Icon('Anchor');
   const Waypoints = Icon('Waypoints');
+  const FileText = Icon('FileText');
   const Video = Icon('Video');
   const CloudDownload = Icon('CloudDownload');
   const Repeat = Icon('Repeat');
   const Save = Icon('Save');
+  const Send = Icon('Send');
   const Check = Icon('Check');
 
   const SideDrawer = ({
@@ -294,6 +296,17 @@
           </div>
 
           <div className="flex-1 p-4 space-y-6 overflow-y-auto">
+            <style>{`
+              @keyframes sideDrawerShimmer {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+              @keyframes sideDrawerPulseGlowGreen {
+                0%, 100% { box-shadow: 0 0 8px rgba(16,185,129,0.15); }
+                50% { box-shadow: 0 0 18px rgba(16,185,129,0.4); }
+              }
+            `}</style>
+
             <div>
               <TechHeader icon={Globe} title={t.language} />
               <div className={ui?.drawer?.segment || "flex bg-slate-900 rounded p-1 border border-slate-800"}>
@@ -582,6 +595,66 @@
                         />
                       </div>
                     </div>
+
+                    <div className={`flex w-full ${isIos ? 'mt-4 gap-2' : 'mt-6 gap-2'}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof onClose === 'function') onClose();
+                          if (typeof onOpenRouteManager === 'function') {
+                            window.setTimeout(() => onOpenRouteManager(), 120);
+                          }
+                        }}
+                        className={isIos
+                          ? 'flex-1 py-2.5 flex items-center justify-center gap-2 bg-white/80 border border-white/70 text-[#007AFF] rounded-[12px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.98] active:bg-white/90 transition-all'
+                          : 'flex-1 py-2.5 flex items-center justify-center gap-2 bg-[#162031] border border-[#2a3a50] text-gray-300 rounded-sm active:scale-[0.98] active:bg-[#1c2a41] transition-all'
+                        }
+                      >
+                        <FileText className={`w-3.5 h-3.5 ${isIos ? 'text-[#007AFF]' : 'text-cyan-500'}`} />
+                        <span className={`text-xs font-bold ${isIos ? 'tracking-tight' : ''}`}>{t.load_route}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof onClose === 'function') onClose();
+                          if (typeof onOpenSaveRoute === 'function') {
+                            window.setTimeout(() => onOpenSaveRoute(), 120);
+                          }
+                        }}
+                        className={isIos
+                          ? 'flex-1 py-2.5 flex items-center justify-center gap-2 bg-white/80 border border-white/70 text-[#007AFF] rounded-[12px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.98] active:bg-white/90 transition-all'
+                          : 'flex-1 py-2.5 flex items-center justify-center gap-2 bg-[#162031] border border-[#2a3a50] text-gray-300 rounded-sm active:scale-[0.98] active:bg-[#1c2a41] transition-all'
+                        }
+                      >
+                        <Save className={`w-3.5 h-3.5 ${isIos ? 'text-[#007AFF]' : 'text-cyan-500'}`} />
+                        <span className={`text-xs font-bold ${isIos ? 'tracking-tight' : ''}`}>{t.save_route}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex justify-center mt-4 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof onClose === 'function') onClose();
+                          if (typeof sendWaypointsCommand === 'function') {
+                            window.setTimeout(() => sendWaypointsCommand(), 120);
+                          }
+                        }}
+                        className={isIos
+                          ? 'w-[75%] py-2.5 flex items-center justify-center gap-2 bg-[#34C759]/18 border border-[#34C759]/55 text-[#1d8a46] font-bold rounded-[12px] active:scale-[0.95] active:bg-[#34C759]/30 transition-all duration-200 relative overflow-hidden shadow-[0_10px_30px_-16px_rgba(52,199,89,0.45)]'
+                          : 'w-[75%] py-2.5 flex items-center justify-center gap-2 bg-emerald-600/20 border border-emerald-500/60 text-emerald-400 font-bold tracking-widest active:scale-[0.95] active:bg-emerald-600/40 transition-all duration-200 relative overflow-hidden rounded-sm'
+                        }
+                        style={isIos ? undefined : { animation: 'sideDrawerPulseGlowGreen 2s infinite' }}
+                      >
+                        <div
+                          className={isIos ? 'absolute inset-0 bg-gradient-to-r from-transparent via-[#34C759]/20 to-transparent' : 'absolute inset-0 bg-gradient-to-r from-transparent via-emerald-300/20 to-transparent'}
+                          style={{ animation: 'sideDrawerShimmer 3s infinite linear' }}
+                        />
+                        <Send className={`relative z-10 w-4 h-4 -rotate-12 -translate-y-[1px] ${isIos ? 'text-[#1d8a46]' : ''}`} />
+                        <span className={`relative z-10 ${isIos ? 'text-[13px] tracking-tight' : 'text-sm'}`}>{t.track_route}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -644,41 +717,6 @@
             </div>
 
             <div className="h-px bg-cyan-900/30 w-full"></div>
-
-            <div className="pt-4">
-              <button
-                onClick={() => {
-                  if (typeof onClose === 'function') onClose();
-                  if (typeof onOpenRouteManager === 'function') {
-                    window.setTimeout(() => onOpenRouteManager(), 120);
-                  }
-                }}
-                className={`w-full py-3 mb-3 font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
-                  isIos
-                    ? 'bg-white/80 text-[#007AFF] border border-white/70 rounded-[14px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.99]'
-                    : 'bg-slate-900/80 text-cyan-100 border border-cyan-500/25 rounded clip-path-slant hover:border-cyan-400/50 hover:bg-cyan-500/10'
-                }`}
-              >
-                {t.load_route}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (typeof onClose === 'function') onClose();
-                  if (typeof onOpenSaveRoute === 'function') {
-                    window.setTimeout(() => onOpenSaveRoute(), 120);
-                  }
-                }}
-                className={`w-full py-3 font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
-                  isIos
-                    ? 'bg-white/80 text-[#007AFF] border border-white/70 rounded-[14px] shadow-[0_8px_30px_-16px_rgba(0,0,0,0.2)] active:scale-[0.99]'
-                    : 'bg-slate-900/80 text-cyan-100 border border-cyan-500/25 rounded clip-path-slant hover:border-cyan-400/50 hover:bg-cyan-500/10'
-                }`}
-              >
-                <Save className="w-4 h-4" />
-                {t.save_route}
-              </button>
-            </div>
 
             <div className="pt-6 pb-2">
               <div className="pt-4 flex flex-col items-center gap-2">
