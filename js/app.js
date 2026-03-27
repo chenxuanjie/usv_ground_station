@@ -638,6 +638,13 @@ function BoatGroundStation() {
         showToast({ type: 'success', message: t('toast_waypoints_sent'), durationMs: 2500 });
     };
 
+    const handleConfirmRouteLoadAndTrackPreview = useCallback(() => {
+        const ok = handleConfirmRouteLoadPreview();
+        if (!ok) return false;
+        sendWaypointsCommand();
+        return true;
+    }, [handleConfirmRouteLoadPreview, sendWaypointsCommand]);
+
     const sendSCommand = () => {
         const ok = sendData(`S,${streamOn ? '1':'0'},${recvOn ? '3':'2'},q,${controlMode},${cruiseMode},`);
         if (ok && !devMode) addLog('SYS', t('log_config_updated'), 'info');
@@ -1308,6 +1315,7 @@ function BoatGroundStation() {
                     routePreviewRouteName={routePreviewRouteName}
                     routePreviewGhostWaypoints={isRoutePreviewing ? routeLoadPreview.previousWaypoints : []}
                     onConfirmRoutePreviewLoad={handleConfirmRouteLoadPreview}
+                    onConfirmRoutePreviewLoadAndTrack={handleConfirmRouteLoadAndTrackPreview}
                     onCancelRoutePreviewLoad={handleCancelRouteLoadPreview}
                     t={t}
                 />
@@ -1382,6 +1390,14 @@ function BoatGroundStation() {
                                     >
                                         <Icons.Check className="w-4 h-4" />
                                         <span>{t('btn_load')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirmRouteLoadAndTrackPreview}
+                                        className="pointer-events-auto flex items-center gap-2 px-5 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold shadow-lg border border-cyan-400 transition-all active:scale-95"
+                                    >
+                                        <Icons.Navigation className="w-4 h-4" />
+                                        <span>{t('btn_load_and_track')}</span>
                                     </button>
                                 </div>
                             )}

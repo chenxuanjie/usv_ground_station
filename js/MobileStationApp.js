@@ -320,6 +320,7 @@
       routePreviewRouteName,
       routePreviewGhostWaypoints,
       onConfirmRoutePreviewLoad,
+      onConfirmRoutePreviewLoadAndTrack,
       onCancelRoutePreviewLoad,
       chartDataRef, // [Added]
       chartFps,     // [Added]
@@ -775,6 +776,19 @@
                     >
                       <Check className="w-4 h-4" />
                       {t('btn_load')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (typeof onConfirmRoutePreviewLoadAndTrack === 'function') onConfirmRoutePreviewLoadAndTrack();
+                      }}
+                      className={`flex items-center gap-2 py-2 px-5 rounded-full transition-all active:scale-[0.99] ${
+                        isIos
+                          ? 'bg-[#00A3C4] hover:bg-[#0095b3] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(6,182,212,0.45)]'
+                          : 'bg-cyan-600 hover:bg-cyan-500 text-white font-bold shadow-lg border border-cyan-400'
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                      {t('btn_load_and_track')}
                     </button>
                   </div>
                 </div>
