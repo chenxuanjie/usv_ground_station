@@ -60,6 +60,8 @@
 
     const [keyboardSelectedInternal, setKeyboardSelectedInternal] = useState(false);
     const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
+    const [waypointGuidance, setWaypointGuidance] = useState('p2p');
+    const [waypointController, setWaypointController] = useState('pid');
     const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
     const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
@@ -103,6 +105,13 @@
     }, [open]);
 
     const handleDeployClick = () => {
+      if (controlMode === 'W') {
+        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+          window.SystemToast.show(t.toast_waypoint_no_dispatch, { type: 'info', durationMs: 2800 });
+        }
+        return;
+      }
+
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
         setDeployStatus('dispatched');
@@ -137,12 +146,18 @@
 
     const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan" }) => {
       if (isIos) {
+        const iosActiveTheme = (() => {
+          if (colorClass === 'orange') return 'bg-[#FF9500] text-white border-[#FF9500]/35 shadow-[0_8px_30px_-10px_rgba(255,149,0,0.38)]';
+          if (colorClass === 'purple') return 'bg-[#5856D6] text-white border-[#5856D6]/35 shadow-[0_8px_30px_-10px_rgba(88,86,214,0.38)]';
+          if (colorClass === 'emerald') return 'bg-[#34C759] text-white border-[#34C759]/35 shadow-[0_8px_30px_-10px_rgba(52,199,89,0.38)]';
+          return 'bg-[#007AFF] text-white border-[#007AFF]/30 shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)]';
+        })();
         return (
           <button
             onClick={onClick}
-            className={`relative flex flex-col items-center justify-center py-3 px-2 border transition-all duration-200 rounded-[14px] active:scale-[0.98] ${
+            className={`snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 rounded-[14px] active:scale-[0.98] ${
               active
-                ? 'bg-[#007AFF] text-white border-[#007AFF]/30 shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)]'
+                ? iosActiveTheme
                 : 'bg-white/70 border-white/50 text-slate-600 hover:bg-white/80'
             }`}
           >
@@ -153,18 +168,21 @@
       }
 
       const activeTheme = (() => {
+        if (colorClass === 'orange') return 'bg-amber-500/14 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.22)]';
         if (colorClass === 'purple') return 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         if (colorClass === 'emerald') return 'bg-emerald-500/10 border-emerald-400 text-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         return 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
       })();
 
       const activeOverlay = (() => {
+        if (colorClass === 'orange') return 'bg-amber-400/5';
         if (colorClass === 'purple') return 'bg-purple-400/5';
         if (colorClass === 'emerald') return 'bg-emerald-400/5';
         return 'bg-cyan-400/5';
       })();
 
       const activeCorner = (() => {
+        if (colorClass === 'orange') return 'border-amber-400';
         if (colorClass === 'purple') return 'border-purple-400';
         if (colorClass === 'emerald') return 'border-emerald-400';
         return 'border-cyan-400';
@@ -174,7 +192,7 @@
         <button
           onClick={onClick}
           className={`
-            relative flex flex-col items-center justify-center py-3 border transition-all duration-200 clip-path-slant
+            snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 clip-path-slant
             ${active ? activeTheme : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'}
           `}
         >
@@ -187,6 +205,28 @@
               <div className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r ${activeCorner}`}></div>
             </>
           )}
+        </button>
+      );
+    };
+
+    const CapsuleButton = ({ active, label, onClick, accent = 'orange' }) => {
+      const iosActive = accent === 'orange'
+        ? 'bg-[#FF9500] text-white border-[#FF9500]/35'
+        : 'bg-[#007AFF] text-white border-[#007AFF]/35';
+      const iosInactive = 'bg-white/70 text-slate-600 border-slate-200/70 hover:bg-white/85';
+
+      const cyberActive = accent === 'orange'
+        ? 'bg-amber-500/14 border-amber-400/70 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.24)]'
+        : 'bg-cyan-500/14 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.24)]';
+      const cyberInactive = 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300';
+
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          className={`px-3 py-1.5 text-[11px] font-semibold rounded-full border transition-all ${isIos ? (active ? iosActive : iosInactive) : (active ? cyberActive : cyberInactive)}`}
+        >
+          {label}
         </button>
       );
     };
@@ -364,7 +404,8 @@
               <TechHeader icon={Anchor} title={t.deployment} sub={t.op_mode} />
 
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="overflow-x-auto -mx-1 px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex gap-2 snap-x snap-mandatory">
                   <ModeButton
                     label={lang === 'zh' ? tZh.manual : tEn.manual}
                     sub={lang === 'zh' ? tEn.manual_sub : tZh.manual_sub}
@@ -376,14 +417,14 @@
                     colorClass="cyan"
                   />
                   <ModeButton
-                    label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
-                    sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
-                    active={controlMode === '@' && keyboardSelected}
+                    label={lang === 'zh' ? tZh.waypoint_mission : tEn.waypoint_mission}
+                    sub={lang === 'zh' ? tEn.waypoint_sub : tZh.waypoint_sub}
+                    active={controlMode === 'W'}
                     onClick={() => {
-                      setKeyboardSelected(true);
-                      setControlMode && setControlMode('@');
+                      setKeyboardSelected(false);
+                      setControlMode && setControlMode('W');
                     }}
-                    colorClass="purple"
+                    colorClass="orange"
                   />
                   <ModeButton
                     label={lang === 'zh' ? tZh.auto : tEn.auto}
@@ -395,7 +436,58 @@
                     }}
                     colorClass="emerald"
                   />
+                  <ModeButton
+                    label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
+                    sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
+                    active={controlMode === '@' && keyboardSelected}
+                    onClick={() => {
+                      setKeyboardSelected(true);
+                      setControlMode && setControlMode('@');
+                    }}
+                    colorClass="purple"
+                  />
+                  </div>
                 </div>
+
+                {controlMode === 'W' && (
+                  <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.waypoint_mission}</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.guidance_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={waypointGuidance === 'p2p'}
+                          label={t.guidance_p2p}
+                          onClick={() => setWaypointGuidance('p2p')}
+                          accent="orange"
+                        />
+                        <CapsuleButton
+                          active={waypointGuidance === 'los'}
+                          label={t.guidance_los}
+                          onClick={() => setWaypointGuidance('los')}
+                          accent="orange"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={waypointController === 'pid'}
+                          label={t.controller_pid}
+                          onClick={() => setWaypointController('pid')}
+                          accent="orange"
+                        />
+                        <CapsuleButton
+                          active={waypointController === 'ai_pid'}
+                          label={t.controller_ai_pid}
+                          onClick={() => setWaypointController('ai_pid')}
+                          accent="orange"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
                   <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
