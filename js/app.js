@@ -332,10 +332,12 @@ function BoatGroundStation() {
     const [routeBaselineSignature, setRouteBaselineSignature] = useState(EMPTY_ROUTE_SIGNATURE);
     const [savedRoutes, setSavedRoutes] = useState([]);
     const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false);
-    const [routeModalState, setRouteModalState] = useState({ open: false, mode: 'load' });
+    const [routeModalState, setRouteModalState] = useState({ open: false, mode: 'load', returnToMobileDrawerOnCancel: false });
     const [routeLoadPreview, setRouteLoadPreview] = useState(null);
+    const [mobileDrawerReopenNonce, setMobileDrawerReopenNonce] = useState(0);
     const [logs, setLogs] = useState([]);
     const pendingRouteActionRef = useRef(null);
+    const routeModalStateRef = useRef(routeModalState);
     const wsRef = useRef(null);
     const connectTimeoutRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -393,6 +395,10 @@ function BoatGroundStation() {
         }
         setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, []);
+
+    useEffect(() => {
+        routeModalStateRef.current = routeModalState;
+    }, [routeModalState]);
 
     const updateToast = useCallback((id, patch) => {
         if (window.MobileToast && typeof window.MobileToast.update === 'function') {
@@ -490,8 +496,12 @@ function BoatGroundStation() {
             : 'Frontend is offline. Route library is unavailable.'
     );
 
-    const closeRouteManager = useCallback(() => {
-        setRouteModalState(prev => ({ ...prev, open: false }));
+    const closeRouteManager = useCallback((reason = 'cancel') => {
+        const shouldReopenMobileDrawer = !!routeModalStateRef.current?.returnToMobileDrawerOnCancel && reason === 'cancel';
+        setRouteModalState(prev => ({ ...prev, open: false, returnToMobileDrawerOnCancel: false }));
+        if (shouldReopenMobileDrawer) {
+            setMobileDrawerReopenNonce(prev => prev + 1);
+        }
     }, []);
 
     const requestSavedRoutes = useCallback(() => {
@@ -500,7 +510,7 @@ function BoatGroundStation() {
         return true;
     }, [webConnected]);
 
-    const openRouteManager = useCallback((mode = 'load') => {
+    const openRouteManager = useCallback((mode = 'load', options = {}) => {
         if (routeLoadPreview) {
             setWaypoints(routeLoadPreview.previousWaypoints);
             setRouteBaselineSignature(routeLoadPreview.previousBaselineSignature);
@@ -510,7 +520,11 @@ function BoatGroundStation() {
             showToast({ type: 'error', message: getBridgeUnavailableMessage(), durationMs: 4000 });
             return false;
         }
-        setRouteModalState({ open: true, mode });
+        setRouteModalState({
+            open: true,
+            mode,
+            returnToMobileDrawerOnCancel: !!options.returnToMobileDrawerOnCancel
+        });
         return true;
     }, [requestSavedRoutes, routeLoadPreview, showToast]);
 
@@ -529,7 +543,8 @@ function BoatGroundStation() {
             previewWaypoints: nextWaypoints,
             previewSignature: getWaypointsSignature(nextWaypoints),
             previousWaypoints,
-            previousBaselineSignature: routeBaselineSignature
+            previousBaselineSignature: routeBaselineSignature,
+            returnToMobileDrawerOnCancel: !!routeModalStateRef.current?.returnToMobileDrawerOnCancel
         });
         setWaypoints(nextWaypoints);
         return true;
@@ -550,7 +565,11 @@ function BoatGroundStation() {
         setRouteBaselineSignature(routeLoadPreview.previousBaselineSignature);
         setRouteLoadPreview(null);
         requestSavedRoutes();
-        setRouteModalState({ open: true, mode: 'load' });
+        setRouteModalState({
+            open: true,
+            mode: 'load',
+            returnToMobileDrawerOnCancel: !!routeLoadPreview.returnToMobileDrawerOnCancel
+        });
         return true;
     }, [requestSavedRoutes, routeLoadPreview]);
 
@@ -1308,8 +1327,9 @@ function BoatGroundStation() {
                     devMode={devMode}
                     setDevMode={setDevModeSafe}
                     sendData={sendData}
-                    onOpenRouteManager={() => openRouteManager('load')}
-                    onOpenSaveRoute={() => openRouteManager('save')}
+                    mobileDrawerReopenNonce={mobileDrawerReopenNonce}
+                    onOpenRouteManager={(options) => openRouteManager('load', options)}
+                    onOpenSaveRoute={(options) => openRouteManager('save', options)}
                     hasSavedRoutes={savedRoutesLoaded && savedRoutes.length > 0}
                     isRoutePreviewing={isRoutePreviewing}
                     routePreviewRouteName={routePreviewRouteName}

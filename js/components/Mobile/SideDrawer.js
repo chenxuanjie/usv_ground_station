@@ -595,7 +595,7 @@
                         onClick={() => {
                           if (typeof onClose === 'function') onClose();
                           if (typeof onOpenRouteManager === 'function') {
-                            window.setTimeout(() => onOpenRouteManager(), 120);
+                            window.setTimeout(() => onOpenRouteManager({ returnToMobileDrawerOnCancel: true }), 120);
                           }
                         }}
                         className={isIos
@@ -612,7 +612,7 @@
                         onClick={() => {
                           if (typeof onClose === 'function') onClose();
                           if (typeof onOpenSaveRoute === 'function') {
-                            window.setTimeout(() => onOpenSaveRoute(), 120);
+                            window.setTimeout(() => onOpenSaveRoute({ returnToMobileDrawerOnCancel: true }), 120);
                           }
                         }}
                         className={isIos

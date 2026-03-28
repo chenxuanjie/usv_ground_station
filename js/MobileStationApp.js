@@ -315,6 +315,7 @@
       sendKCommand,
       onOpenRouteManager,
       onOpenSaveRoute,
+      mobileDrawerReopenNonce,
       hasSavedRoutes,
       isRoutePreviewing,
       routePreviewRouteName,
@@ -560,6 +561,12 @@
       setQuickMenuOpen(false);
       setShowWaypointList(false);
     }, [isRoutePreviewing]);
+
+    useEffect(() => {
+      if (!mobileDrawerReopenNonce) return;
+      setQuickMenuOpen(false);
+      setSideDrawerOpen(true);
+    }, [mobileDrawerReopenNonce]);
 
     const lastCmdRef = useRef({ w: 0, a: 0, s: 0, d: 0 });
     const joystickPosRef = useRef({ x: 0, y: 0, limit: 40 });
