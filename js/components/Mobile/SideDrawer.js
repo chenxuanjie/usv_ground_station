@@ -121,13 +121,6 @@
     }, [autoExecLevel]);
 
     const handleDeployClick = () => {
-      if (controlMode === 'W') {
-        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-          window.SystemToast.show(t.toast_waypoint_no_dispatch, { type: 'info', durationMs: 2800 });
-        }
-        return;
-      }
-
       const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
       if (ok) {
         setDeployStatus('dispatched');
