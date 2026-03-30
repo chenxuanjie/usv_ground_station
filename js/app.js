@@ -1063,6 +1063,10 @@ function BoatGroundStation() {
                         }
                     }
                 }
+                else if (msg.startsWith('X,')) {
+                    // Step 2: expose raw boat ACK frames in dev logs first.
+                    addLog('RX', msg, 'debug');
+                }
                 else if (msg.startsWith('R')) {
                     const parts = msg.split(',');
                     if (parts.length >= 6) {
