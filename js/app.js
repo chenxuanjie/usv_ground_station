@@ -129,7 +129,10 @@ const CONTROL_FRAME_CHOICES = Object.freeze({
     ]),
     planner: Object.freeze([
         Object.freeze({ value: '0', labelKey: 'c_planner_none' }),
-        Object.freeze({ value: '1', labelKey: 'c_planner_xxx' })
+        Object.freeze({ value: '1', labelKey: 'c_planner_xxx' }),
+        Object.freeze({ value: '2', labelKey: 'c_planner_astar' }),
+        Object.freeze({ value: '3', labelKey: 'c_planner_hybrid_astar' }),
+        Object.freeze({ value: '4', labelKey: 'c_planner_dwa' })
     ]),
     guidance: Object.freeze([
         Object.freeze({ value: '0', labelKey: 'c_guidance_none' }),
@@ -145,10 +148,30 @@ const CONTROL_FRAME_CHOICES = Object.freeze({
 const CONTROL_FRAME_VALUE_LABEL_KEYS = Object.freeze({
     mode: Object.freeze({ '0': 'c_mode_debug', '1': 'c_mode_task' }),
     task: Object.freeze({ '0': 'c_task_none', '1': 'c_task_waypoint_nav', '2': 'c_task_station_keep' }),
-    planner: Object.freeze({ '0': 'c_planner_none', '1': 'c_planner_xxx' }),
+    planner: Object.freeze({
+        '0': 'c_planner_none',
+        '1': 'c_planner_xxx',
+        '2': 'c_planner_astar',
+        '3': 'c_planner_hybrid_astar',
+        '4': 'c_planner_dwa'
+    }),
     guidance: Object.freeze({ '0': 'c_guidance_none', '1': 'c_guidance_xxx' }),
     controller: Object.freeze({ '0': 'c_controller_none', '1': 'c_controller_heading_angle', '2': 'c_controller_speed' })
 });
+
+const mergeControlFrameState = (baseState, overrideState) => {
+    const merged = { ...(baseState || {}) };
+    if (!overrideState || typeof overrideState !== 'object') return merged;
+
+    Object.keys(CONTROL_FRAME_DEFAULTS).forEach((field) => {
+        if (!Object.prototype.hasOwnProperty.call(overrideState, field)) return;
+        const nextValue = overrideState[field];
+        if (nextValue == null) return;
+        merged[field] = String(nextValue);
+    });
+
+    return merged;
+};
 
 const toControlFrameNumbers = (state) => ({
     src: Number.parseInt(String(state && state.src), 10) || 0,
@@ -723,13 +746,19 @@ function BoatGroundStation() {
         }));
     }, []);
 
-    const sendCCommand = useCallback(() => {
+    const sendCCommand = useCallback((overrideState, options = {}) => {
+        const shouldShowToast = options && options.showToast !== false;
         const nextSeq = controlFrameSeqRef.current + 1;
-        const nextConfig = { ...controlFrameConfig };
+        const nextConfig = {
+            ...mergeControlFrameState(controlFrameConfig, overrideState),
+            src: '0'
+        };
         const command = buildControlFrameCommand(nextSeq, nextConfig);
         const ok = sendData(command);
         if (!ok) {
-            showToast({ type: 'error', message: t('toast_control_switch_send_failed'), durationMs: 4500 });
+            if (shouldShowToast) {
+                showToast({ type: 'error', message: t('toast_control_switch_send_failed'), durationMs: 4500 });
+            }
             return false;
         }
 
@@ -740,7 +769,9 @@ function BoatGroundStation() {
             : `${t('log_control_switch_sent')} #${nextSeq}`;
 
         addLog('SYS', requestMessage, 'info');
-        showToast({ type: 'info', message: `${t('toast_control_switch_sent')} #${nextSeq}`, durationMs: 2500 });
+        if (shouldShowToast) {
+            showToast({ type: 'info', message: `${t('toast_control_switch_sent')} #${nextSeq}`, durationMs: 2500 });
+        }
         return true;
     }, [addLog, controlFrameConfig, sendData, showToast, t]);
 
@@ -1392,9 +1423,7 @@ function BoatGroundStation() {
                     controlMode={controlMode}
                     setControlMode={setControlMode}
                     sendSCommand={sendSCommand}
-                    controlFrameChoices={CONTROL_FRAME_CHOICES}
                     controlFrameConfig={controlFrameConfig}
-                    setControlFrameField={setControlFrameField}
                     sendCCommand={sendCCommand}
                     sendWaypointsCommand={sendWaypointsCommand}
                     sendKCommand={sendKCommand}

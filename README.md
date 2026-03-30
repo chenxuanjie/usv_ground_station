@@ -187,9 +187,14 @@ C,<seq>,<src>,<mode>,<task>,<planner>,<guidance>,<controller>,
 | `src` | 发送方身份。`0=地面站`，`1=无人艇`。当前控制切换通常由地面站发送，故一般填 `0`。 |
 | `mode` | 运行模式。`0=debug`，`1=task`。 |
 | `task` | 任务类型。`0=none`，`1=waypoint_nav`，`2=station_keep`。 |
-| `planner` | 规划器编号。`0=none`，`1=xxx`。 |
+| `planner` | 规划器编号。`0=none`，`1=xxx`，`2=A*`，`3=Hybrid A*`，`4=DWA`。 |
 | `guidance` | Guidance 编号。`0=none`，`1=xxx`。 |
 | `controller` | 控制器编号。`0=none`，`1=heading_angle`，`2=speed`。 |
+
+当前前端实现约定：
+
+- `src` 不提供给用户选择，固定填 `0`。
+- `seq` 不直接展示给用户，发送 `C` 报文时由前端自动递增生成。
 
 示例：切到调试模式，只启用航向角控制器。
 
