@@ -108,6 +108,76 @@ const sanitizeSavedRoutes = (items) => {
         .filter(Boolean);
 };
 
+const CONTROL_FRAME_DEFAULTS = Object.freeze({
+    src: '0',
+    mode: '0',
+    task: '0',
+    planner: '0',
+    guidance: '0',
+    controller: '1'
+});
+
+const CONTROL_FRAME_CHOICES = Object.freeze({
+    mode: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_mode_debug' }),
+        Object.freeze({ value: '1', labelKey: 'c_mode_task' })
+    ]),
+    task: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_task_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_task_waypoint_nav' }),
+        Object.freeze({ value: '2', labelKey: 'c_task_station_keep' })
+    ]),
+    planner: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_planner_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_planner_xxx' })
+    ]),
+    guidance: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_guidance_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_guidance_xxx' })
+    ]),
+    controller: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_controller_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_controller_heading_angle' }),
+        Object.freeze({ value: '2', labelKey: 'c_controller_speed' })
+    ])
+});
+
+const CONTROL_FRAME_VALUE_LABEL_KEYS = Object.freeze({
+    mode: Object.freeze({ '0': 'c_mode_debug', '1': 'c_mode_task' }),
+    task: Object.freeze({ '0': 'c_task_none', '1': 'c_task_waypoint_nav', '2': 'c_task_station_keep' }),
+    planner: Object.freeze({ '0': 'c_planner_none', '1': 'c_planner_xxx' }),
+    guidance: Object.freeze({ '0': 'c_guidance_none', '1': 'c_guidance_xxx' }),
+    controller: Object.freeze({ '0': 'c_controller_none', '1': 'c_controller_heading_angle', '2': 'c_controller_speed' })
+});
+
+const toControlFrameNumbers = (state) => ({
+    src: Number.parseInt(String(state && state.src), 10) || 0,
+    mode: Number.parseInt(String(state && state.mode), 10) || 0,
+    task: Number.parseInt(String(state && state.task), 10) || 0,
+    planner: Number.parseInt(String(state && state.planner), 10) || 0,
+    guidance: Number.parseInt(String(state && state.guidance), 10) || 0,
+    controller: Number.parseInt(String(state && state.controller), 10) || 0
+});
+
+const buildControlFrameCommand = (seq, state) => {
+    const normalized = toControlFrameNumbers(state);
+    return `C,${seq},${normalized.src},${normalized.mode},${normalized.task},${normalized.planner},${normalized.guidance},${normalized.controller},`;
+};
+
+const getControlValueLabel = (t, field, rawValue) => {
+    const value = String(rawValue ?? '');
+    const labelKey = CONTROL_FRAME_VALUE_LABEL_KEYS[field] ? CONTROL_FRAME_VALUE_LABEL_KEYS[field][value] : '';
+    return labelKey ? t(labelKey) : `${field}=${value}`;
+};
+
+const buildControlStateSummary = (t, state) => ([
+    getControlValueLabel(t, 'mode', state && state.mode),
+    getControlValueLabel(t, 'task', state && state.task),
+    getControlValueLabel(t, 'planner', state && state.planner),
+    getControlValueLabel(t, 'guidance', state && state.guidance),
+    getControlValueLabel(t, 'controller', state && state.controller)
+].join(' | '));
+
 const getRouteErrorMessage = (translations, code) => {
     if (!translations) return 'Route operation failed';
     if (code === 'SAVE_FAILED') return translations.route_save_failed;
@@ -347,9 +417,11 @@ function BoatGroundStation() {
     const [recvOn, setRecvOn] = useState(true);
     const [controlMode, setControlMode] = useState('@');
     const [cruiseMode, setCruiseMode] = useState('0');
+    const [controlFrameConfig, setControlFrameConfig] = useState(() => ({ ...CONTROL_FRAME_DEFAULTS }));
     
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
     const keyStateRef = useRef({ w: false, a: false, s: false, d: false });
+    const controlFrameSeqRef = useRef(100);
 
     const [isMobile, setIsMobile] = useState(() => {
         if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches;
@@ -643,6 +715,34 @@ function BoatGroundStation() {
         if (ok && !devMode) addLog('SYS', t('log_config_updated'), 'info');
         return ok;
     };
+
+    const setControlFrameField = useCallback((field, value) => {
+        setControlFrameConfig((prev) => ({
+            ...prev,
+            [field]: String(value ?? '')
+        }));
+    }, []);
+
+    const sendCCommand = useCallback(() => {
+        const nextSeq = controlFrameSeqRef.current + 1;
+        const nextConfig = { ...controlFrameConfig };
+        const command = buildControlFrameCommand(nextSeq, nextConfig);
+        const ok = sendData(command);
+        if (!ok) {
+            showToast({ type: 'error', message: t('toast_control_switch_send_failed'), durationMs: 4500 });
+            return false;
+        }
+
+        controlFrameSeqRef.current = nextSeq;
+        const requestSummary = buildControlStateSummary(t, nextConfig);
+        const requestMessage = requestSummary
+            ? `${t('log_control_switch_sent')} #${nextSeq}: ${requestSummary}`
+            : `${t('log_control_switch_sent')} #${nextSeq}`;
+
+        addLog('SYS', requestMessage, 'info');
+        showToast({ type: 'info', message: `${t('toast_control_switch_sent')} #${nextSeq}`, durationMs: 2500 });
+        return true;
+    }, [addLog, controlFrameConfig, sendData, showToast, t]);
 
     // K command protocol:
     // - New: `K,x,y,` where x/y are normalized in [-1.00, 1.00]
@@ -1009,7 +1109,10 @@ function BoatGroundStation() {
             wsRef.current = ws;
         };
         connectToBridge();
-        return () => { if (wsRef.current) wsRef.current.close(); clearTimeout(connectTimeoutRef.current); };
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+            clearTimeout(connectTimeoutRef.current);
+        };
     }, []); 
 
     useEffect(() => {
@@ -1285,6 +1388,10 @@ function BoatGroundStation() {
                     controlMode={controlMode}
                     setControlMode={setControlMode}
                     sendSCommand={sendSCommand}
+                    controlFrameChoices={CONTROL_FRAME_CHOICES}
+                    controlFrameConfig={controlFrameConfig}
+                    setControlFrameField={setControlFrameField}
+                    sendCCommand={sendCCommand}
                     sendWaypointsCommand={sendWaypointsCommand}
                     sendKCommand={sendKCommand}
                     setShowChart={setShowChart}
@@ -1332,6 +1439,10 @@ function BoatGroundStation() {
                             setConfigState={()=>{}} 
                             keyState={keyState}
                             sendSCommand={sendSCommand}
+                            controlFrameChoices={CONTROL_FRAME_CHOICES}
+                            controlFrameConfig={controlFrameConfig}
+                            setControlFrameField={setControlFrameField}
+                            sendCCommand={sendCCommand}
                             sendKCommand={sendKCommand}
                             sendWaypointsCommand={sendWaypointsCommand}
                             waypointsCount={waypoints.length}

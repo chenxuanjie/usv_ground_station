@@ -311,6 +311,10 @@
       controlMode,
       setControlMode,
       sendSCommand,
+      controlFrameChoices,
+      controlFrameConfig,
+      setControlFrameField,
+      sendCCommand,
       sendWaypointsCommand,
       sendKCommand,
       onOpenRouteManager,
@@ -671,6 +675,10 @@
           cruiseMode={cruiseMode}
           setCruiseMode={setCruiseMode}
           sendSCommand={sendSCommand}
+          controlFrameChoices={controlFrameChoices}
+          controlFrameConfig={controlFrameConfig}
+          setControlFrameField={setControlFrameField}
+          sendCCommand={sendCCommand}
           sendWaypointsCommand={sendWaypointsCommand}
           onOpenRouteManager={onOpenRouteManager}
           onOpenSaveRoute={onOpenSaveRoute}

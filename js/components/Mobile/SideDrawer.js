@@ -38,6 +38,10 @@
     cruiseMode,
     setCruiseMode,
     sendSCommand,
+    controlFrameChoices,
+    controlFrameConfig,
+    setControlFrameField,
+    sendCCommand,
     sendWaypointsCommand,
     onOpenRouteManager,
     onOpenSaveRoute
@@ -229,6 +233,28 @@
     const drawerWidthClass = isIos ? 'w-[82%] max-w-[320px]' : 'w-72';
     const cardRadiusClass = isIos ? 'rounded-[22px]' : 'rounded';
     const cardBase = ui?.drawer?.card || 'bg-slate-900/50 border border-slate-800';
+
+    const renderControlSelect = (field, label, extraClassName = '') => {
+      const options = controlFrameChoices && Array.isArray(controlFrameChoices[field]) ? controlFrameChoices[field] : [];
+      const value = controlFrameConfig && controlFrameConfig[field] != null ? controlFrameConfig[field] : '0';
+
+      return (
+        <label className={`flex flex-col gap-1 ${extraClassName}`}>
+          <span className={`text-[10px] uppercase tracking-wider ${isIos ? 'text-slate-500 font-semibold' : 'text-slate-500 font-bold'}`}>{label}</span>
+          <select
+            value={value}
+            onChange={(e) => setControlFrameField && setControlFrameField(field, e.target.value)}
+            className={`w-full border text-[12px] ${isIos ? 'bg-white/80 border-slate-200/70 text-slate-900 rounded-[12px] px-3 py-2' : 'bg-slate-950 border-slate-700 text-cyan-100 rounded px-2 py-2 font-mono'} focus:outline-none ${isIos ? 'focus:border-[#007AFF]/40' : 'focus:border-cyan-500'}`}
+          >
+            {options.map((option) => (
+              <option key={`${field}_${option.value}`} value={option.value}>
+                {t[option.labelKey] || option.labelKey}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    };
 
     return (
       <>
@@ -448,6 +474,37 @@
                     onChange={() => setCruiseMode && setCruiseMode(cruiseMode === '1' ? '0' : '1')}
                     activeColor="text-yellow-400"
                   />
+                </div>
+
+                <div className={isIos ? `${cardBase} rounded-[22px] p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
+                  <div className="flex items-center justify-between">
+                    <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                      <Anchor className={`w-4 h-4 ${isIos ? 'text-[#34C759]' : 'text-emerald-400'}`} />
+                      <span>{t.control_switch_frame}</span>
+                    </div>
+                    <span className={`text-[10px] ${isIos ? 'text-slate-400 font-semibold' : 'text-slate-600 font-mono'}`}>C</span>
+                  </div>
+                  <div className={`text-[10px] leading-relaxed ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                    {t.control_switch_hint}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {renderControlSelect('mode', t.c_field_mode)}
+                    {renderControlSelect('task', t.c_field_task)}
+                    {renderControlSelect('planner', t.c_field_planner)}
+                    {renderControlSelect('guidance', t.c_field_guidance)}
+                    {renderControlSelect('controller', t.c_field_controller, 'col-span-2')}
+                  </div>
+                  <button
+                    onClick={() => typeof sendCCommand === 'function' && sendCCommand()}
+                    className={`w-full py-3 text-white font-bold text-xs tracking-[0.15em] uppercase flex items-center justify-center gap-2 transition-all ${
+                      isIos
+                        ? 'bg-[#34C759] hover:bg-[#2fd157] rounded-[14px] shadow-[0_10px_36px_-14px_rgba(52,199,89,0.45)] active:scale-[0.99]'
+                        : 'bg-emerald-600/90 hover:bg-emerald-500 clip-path-slant transition-colors shadow-[0_0_18px_rgba(16,185,129,0.35)]'
+                    }`}
+                  >
+                    <Save className="w-4 h-4" />
+                    {t.send_control_switch}
+                  </button>
                 </div>
 
                 <div className="hidden tech-border p-4">
