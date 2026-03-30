@@ -129,10 +129,7 @@ const CONTROL_FRAME_CHOICES = Object.freeze({
     ]),
     planner: Object.freeze([
         Object.freeze({ value: '0', labelKey: 'c_planner_none' }),
-        Object.freeze({ value: '1', labelKey: 'c_planner_xxx' }),
-        Object.freeze({ value: '2', labelKey: 'c_planner_astar' }),
-        Object.freeze({ value: '3', labelKey: 'c_planner_hybrid_astar' }),
-        Object.freeze({ value: '4', labelKey: 'c_planner_dwa' })
+        Object.freeze({ value: '1', labelKey: 'c_planner_xxx' })
     ]),
     guidance: Object.freeze([
         Object.freeze({ value: '0', labelKey: 'c_guidance_none' }),
