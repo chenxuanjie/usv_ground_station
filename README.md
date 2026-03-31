@@ -170,23 +170,23 @@ C,<seq>,<src>,<mode>,<task>,<planner>,<guidance>,<heading_controller>,<speed_con
 | `mode`               | 运行模式。`0=debug`，`1=task`。                                                                                          |
 | `task`               | 任务类型。按地面站抽屉相关任务顺序：`0=none`，`1=航点任务`，`2=自动航行`，`3=定点保持`，`4=摇杆控制`。               |
 | `planner`            | 规划器编号。`0=none`，`1=A*`，`2=Hybrid A*`，`3=DWA`。                                                               |
-| `guidance`           | Guidance 编号。`0=none`，`1=航点跟踪`，`2=LOS`。                                                                       |
+| `guidance`           | 制导律编号。`0=none`，`1=航点跟踪`，`2=LOS`。                                                                       |
 | `heading_controller` | 航向控制器编号。`0=none, 1=pid`，`2=ai-pid`。对应航点任务中的两个按钮。                                                  |
-| `speed_controller`   | 速度控制器编号。当前约定 `0=none`，`1=fix_pwm, 2=pid`，并固定发送 `0`。                                                |
+| `speed_controller`   | 速度控制器编号。当前约定 `0=none`，`1=fix_pwm`，`2=pid`。                                                            |
 
 当前约定：
 
 - `src` 不提供给用户选择，固定填 `0`。
 - `seq` 不直接展示给用户，发送 `C` 报文时由前端自动递增生成。
 - `task` 当前和地面站抽屉任务的对应关系为：`0=none`，`1=航点任务`，`2=自动航行`，`3=定点保持`，`4=摇杆控制`。
-- `guidance` 当前和航点任务中的两个 Guidance 按钮对应：`1=航点跟踪`，`2=LOS`。
-- `speed_controller` 当前固定填 `0`。
-- `heading_controller` 由航点任务中的两个按钮决定：`0=pid`，`1=ai-pid`。
+- `guidance` 当前和航点任务中的两个制导律按钮对应：`1=航点跟踪`，`2=LOS`。
+- `heading_controller` 由航点任务中的两个按钮决定：`1=pid`，`2=ai-pid`。
+- `speed_controller` 由航点任务中的两个按钮决定：`1=fix_pwm`，`2=pid`。
 
-示例：切到任务模式，执行航点任务，规划器选择 `A*`，Guidance 选择航点跟踪，`heading_controller=pid`，`speed_controller=pid`。
+示例：切到任务模式，执行航点任务，规划器选择 `A*`，制导律选择航点跟踪，`heading_controller=pid`，`speed_controller=pid`。
 
 ```text
-C,101,0,1,1,2,1,0,0,
+C,101,0,1,1,1,1,1,2,
 ```
 
 ### `X` 艇端应答帧
@@ -207,7 +207,7 @@ X,<seq>,<src>,<ack_seq>,<ret>,<mode>,<task>,<planner>,<guidance>,<heading_contro
 | `mode`               | 应答返回时艇端当前实际生效的运行模式。`0=debug`，`1=task`。                                        |
 | `task`               | 应答返回时艇端当前实际生效的任务类型。枚举与 `C.task` 一致。                                         |
 | `planner`            | 应答返回时艇端当前实际生效的规划器编号。                                                               |
-| `guidance`           | 应答返回时艇端当前实际生效的 Guidance 编号。枚举与 `C.guidance` 一致。                               |
+| `guidance`           | 应答返回时艇端当前实际生效的制导律编号。枚举与 `C.guidance` 一致。                               |
 | `heading_controller` | 应答返回时艇端当前实际生效的航向控制器编号。                                                           |
 | `speed_controller`   | 应答返回时艇端当前实际生效的速度控制器编号。                                                           |
 

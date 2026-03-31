@@ -6,7 +6,8 @@
     deploymentMode: 'mobile_deployment_mode',
     deploymentKeyboardSelected: 'mobile_deployment_keyboard_selected',
     waypointGuidance: 'mobile_waypoint_guidance',
-    waypointController: 'mobile_waypoint_controller'
+    waypointController: 'mobile_waypoint_controller',
+    waypointSpeedController: 'mobile_waypoint_speed_controller'
   });
   const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
     'A*': '1',
@@ -86,6 +87,14 @@
         return 'pid';
       }
     });
+    const [waypointSpeedController, setWaypointSpeedController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointSpeedController) : null;
+        return stored === 'fix_pwm' ? 'fix_pwm' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
     const [autoExecLevel, setAutoExecLevel] = useState(() => {
       try {
         const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.autoExecLevel) : null;
@@ -137,7 +146,17 @@
 
     useEffect(() => {
       setHasDeployedThisSession(false);
-    }, [activePathAlgorithm, controlMode, cruiseMode, recvOn, streamOn, waypointsCount]);
+    }, [
+      activePathAlgorithm,
+      controlMode,
+      cruiseMode,
+      recvOn,
+      streamOn,
+      waypointController,
+      waypointGuidance,
+      waypointSpeedController,
+      waypointsCount
+    ]);
 
     useEffect(() => {
       if (!open) {
@@ -157,6 +176,7 @@
       const plannerValue = DEPLOY_CONTROL_PLANNER_MAP[activePathAlgorithm] || '0';
       const guidanceValue = waypointGuidance === 'los' ? '2' : '1';
       const headingControllerValue = waypointController === 'ai_pid' ? '2' : '1';
+      const speedControllerValue = waypointSpeedController === 'fix_pwm' ? '1' : '2';
       const modeValue = autoExecLevel === 'mission' ? '1' : '0';
       const taskValue = isWaypointTaskMode ? '1' : (isAutoTaskMode ? '2' : (isJoystickTaskMode ? '4' : '0'));
 
@@ -169,7 +189,7 @@
         planner: isAutoTaskMode ? plannerValue : '0',
         guidance: isWaypointTaskMode ? guidanceValue : '0',
         heading_controller: isWaypointTaskMode ? headingControllerValue : '0',
-        speed_controller: '0'
+        speed_controller: isWaypointTaskMode ? speedControllerValue : '0'
       };
     };
 
@@ -199,6 +219,12 @@
         if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointController, waypointController);
       } catch (_) {}
     }, [waypointController]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointSpeedController, waypointSpeedController);
+      } catch (_) {}
+    }, [waypointSpeedController]);
 
     const handleDeployClick = () => {
       const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
@@ -681,7 +707,7 @@
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.controller_label}</span>
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.heading_controller_label}</span>
                       <div className="flex items-center gap-2">
                         <CapsuleButton
                           active={waypointController === 'pid'}
@@ -693,6 +719,23 @@
                           active={waypointController === 'ai_pid'}
                           label={t.controller_ai_pid}
                           onClick={() => setWaypointController('ai_pid')}
+                          accent="orange"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.speed_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={waypointSpeedController === 'fix_pwm'}
+                          label={t.speed_controller_fix_pwm}
+                          onClick={() => setWaypointSpeedController('fix_pwm')}
+                          accent="orange"
+                        />
+                        <CapsuleButton
+                          active={waypointSpeedController === 'pid'}
+                          label={t.speed_controller_pid}
+                          onClick={() => setWaypointSpeedController('pid')}
                           accent="orange"
                         />
                       </div>
