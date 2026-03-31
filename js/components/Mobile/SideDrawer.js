@@ -14,6 +14,20 @@
     'Hybrid A*': '2',
     'DWA': '3'
   });
+  const MOBILE_DEPLOY_MESSAGE_IDS = Object.freeze({
+    success: 'M-DPL-0001',
+    failure: 'M-DPL-0002'
+  });
+  const MOBILE_DEPLOY_ERROR_CODES = Object.freeze({
+    sSendFailed: '101',
+    cSendFailed: '102',
+    ackTimeout: '201',
+    ackFormatError: '301',
+    ackUnsupported: '302',
+    ackInvalidState: '303',
+    ackExecFail: '304',
+    ackUnknown: '399'
+  });
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
   const Wifi = Icon('Wifi');
@@ -226,6 +240,34 @@
       } catch (_) {}
     }, [waypointSpeedController]);
 
+    const getDeployErrorCode = (result) => {
+      const ret = Number.parseInt(String(result && result.ret), 10);
+      if (!Number.isFinite(ret)) return MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
+      if (ret === 1) return MOBILE_DEPLOY_ERROR_CODES.ackFormatError;
+      if (ret === 2) return MOBILE_DEPLOY_ERROR_CODES.ackUnsupported;
+      if (ret === 3) return MOBILE_DEPLOY_ERROR_CODES.ackInvalidState;
+      if (ret === 4) return MOBILE_DEPLOY_ERROR_CODES.ackExecFail;
+      return MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
+    };
+
+    const buildDeployToastMessage = (isSuccess, errorCode = '') => {
+      const base = isSuccess
+        ? (t.deploy_success_short || t.toast_deploy_success || 'Deploy OK')
+        : (t.deploy_failed_short || t.toast_deploy_failed || 'Deploy failed');
+      const messageId = isSuccess ? MOBILE_DEPLOY_MESSAGE_IDS.success : MOBILE_DEPLOY_MESSAGE_IDS.failure;
+      return isSuccess
+        ? `${base} ${messageId}`
+        : `${base} ${messageId} / ${errorCode || MOBILE_DEPLOY_ERROR_CODES.ackUnknown}`;
+    };
+
+    const showDeployToast = (isSuccess, errorCode = '') => {
+      if (!(window.SystemToast && typeof window.SystemToast.show === 'function')) return;
+      window.SystemToast.show(buildDeployToastMessage(isSuccess, errorCode), {
+        type: isSuccess ? 'success' : 'error',
+        durationMs: isSuccess ? 2500 : 4500
+      });
+    };
+
     const handleDeployClick = () => {
       const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
       const controlOk = typeof sendCCommand === 'function'
@@ -236,17 +278,13 @@
               if (!result || !result.ok) {
                 setDeployStatus('idle');
                 setHasDeployedThisSession(false);
-                if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-                  window.SystemToast.show((result && result.message) || t.toast_control_switch_send_failed, { type: 'error', durationMs: 4500 });
-                }
+                showDeployToast(false, getDeployErrorCode(result));
                 return;
               }
 
               setDeployStatus('dispatched');
               setHasDeployedThisSession(true);
-              if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-                window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
-              }
+              showDeployToast(true);
               if (typeof onClose === 'function') {
                 if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
                 deployCloseTimerRef.current = window.setTimeout(() => {
@@ -258,9 +296,7 @@
             onAckTimeout: (result) => {
               setDeployStatus('idle');
               setHasDeployedThisSession(false);
-              if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-                window.SystemToast.show((result && result.message) || t.toast_control_switch_send_failed, { type: 'error', durationMs: 4500 });
-              }
+              showDeployToast(false, MOBILE_DEPLOY_ERROR_CODES.ackTimeout);
             }
           })
         : false;
@@ -270,12 +306,10 @@
         return;
       }
 
-      if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-        const failedMessage = !configOk && typeof sendSCommand === 'function'
-          ? t.toast_deploy_failed
-          : t.toast_control_switch_send_failed;
-        window.SystemToast.show(failedMessage, { type: 'error', durationMs: 4500 });
-      }
+      const errorCode = !configOk && typeof sendSCommand === 'function'
+        ? MOBILE_DEPLOY_ERROR_CODES.sSendFailed
+        : MOBILE_DEPLOY_ERROR_CODES.cSendFailed;
+      showDeployToast(false, errorCode);
     };
 
     const TechHeader = ({ icon: IconComp, title, sub }) => (
