@@ -1,6 +1,13 @@
 (function() {
   const { useEffect, useState, useRef } = React;
   const { Icon } = window.MobileUtils;
+  const MOBILE_STORAGE_KEYS = Object.freeze({
+    autoExecLevel: 'mobile_auto_exec_level',
+    deploymentMode: 'mobile_deployment_mode',
+    deploymentKeyboardSelected: 'mobile_deployment_keyboard_selected',
+    waypointGuidance: 'mobile_waypoint_guidance',
+    waypointController: 'mobile_waypoint_controller'
+  });
   const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
     'A*': '2',
     'Hybrid A*': '3',
@@ -63,11 +70,25 @@
     const isLocked = tcpStatus === 'ONLINE' || tcpStatus === 'CONNECTING';
     const [keyboardSelectedInternal, setKeyboardSelectedInternal] = useState(false);
     const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
-    const [waypointGuidance, setWaypointGuidance] = useState('p2p');
-    const [waypointController, setWaypointController] = useState('pid');
+    const [waypointGuidance, setWaypointGuidance] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointGuidance) : null;
+        return stored === 'los' ? 'los' : 'p2p';
+      } catch (_) {
+        return 'p2p';
+      }
+    });
+    const [waypointController, setWaypointController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointController) : null;
+        return stored === 'ai_pid' ? 'ai_pid' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
     const [autoExecLevel, setAutoExecLevel] = useState(() => {
       try {
-        const stored = window.localStorage ? window.localStorage.getItem('mobile_auto_exec_level') : null;
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.autoExecLevel) : null;
         return stored === 'mission' ? 'mission' : 'debug';
       } catch (_) {
         return 'debug';
@@ -89,6 +110,19 @@
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
     }, [controlMode, setKeyboardSelected]);
+
+    useEffect(() => {
+      try {
+        if (!window.localStorage) return;
+        const storedMode = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentMode);
+        const storedKeyboard = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected);
+        const nextMode = storedMode === '@' || storedMode === 'W' || storedMode === '#' ? storedMode : '';
+        if (!nextMode) return;
+        const nextKeyboardSelected = nextMode === '@' && (storedKeyboard === '1' || storedKeyboard === 'true');
+        if (typeof setControlMode === 'function') setControlMode(nextMode);
+        setKeyboardSelected(nextKeyboardSelected);
+      } catch (_) {}
+    }, [setControlMode, setKeyboardSelected]);
 
     useEffect(() => {
       const prev = prevTcpStatusRef.current;
@@ -135,9 +169,30 @@
 
     useEffect(() => {
       try {
-        if (window.localStorage) window.localStorage.setItem('mobile_auto_exec_level', autoExecLevel);
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.autoExecLevel, autoExecLevel);
       } catch (_) {}
     }, [autoExecLevel]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) {
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentMode, String(controlMode || '@'));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected, keyboardSelected ? '1' : '0');
+        }
+      } catch (_) {}
+    }, [controlMode, keyboardSelected]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointGuidance, waypointGuidance);
+      } catch (_) {}
+    }, [waypointGuidance]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointController, waypointController);
+      } catch (_) {}
+    }, [waypointController]);
 
     const handleDeployClick = () => {
       const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
