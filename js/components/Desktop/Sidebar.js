@@ -52,8 +52,12 @@ function Sidebar({
 
     // === 新增逻辑：处理点击“部署配置” ===
     const handleDeployClick = () => {
-        const ok = sendSCommand();
-        if (ok) {
+        const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
+        const controlOk = typeof sendCCommand === 'function'
+            ? sendCCommand(undefined, { showToast: false, source: 'desktop_deploy' })
+            : false;
+
+        if (configOk && controlOk) {
             setShowDeployHint(false);
             if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
             if (window.SystemToast && typeof window.SystemToast.show === 'function') {
@@ -63,7 +67,10 @@ function Sidebar({
         }
 
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-            window.SystemToast.show(t('toast_deploy_failed'), { type: 'error', durationMs: 4500 });
+            const failedMessage = !configOk
+                ? t('toast_deploy_failed')
+                : t('toast_control_switch_send_failed');
+            window.SystemToast.show(failedMessage, { type: 'error', durationMs: 4500 });
         }
     };
 
@@ -199,7 +206,8 @@ function Sidebar({
                             {renderControlSelect('task', 'c_field_task')}
                             {renderControlSelect('planner', 'c_field_planner')}
                             {renderControlSelect('guidance', 'c_field_guidance')}
-                            {renderControlSelect('controller', 'c_field_controller', 'col-span-2')}
+                            {renderControlSelect('heading_controller', 'c_field_heading_controller')}
+                            {renderControlSelect('speed_controller', 'c_field_speed_controller')}
                         </div>
                         <button
                             onClick={() => typeof sendCCommand === 'function' && sendCCommand()}

@@ -9,9 +9,9 @@
     waypointController: 'mobile_waypoint_controller'
   });
   const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
-    'A*': '2',
-    'Hybrid A*': '3',
-    'DWA': '4'
+    'A*': '1',
+    'Hybrid A*': '2',
+    'DWA': '3'
   });
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
@@ -153,22 +153,23 @@
       const baseConfig = controlFrameConfig && typeof controlFrameConfig === 'object' ? controlFrameConfig : {};
       const isWaypointTaskMode = controlMode === 'W';
       const isAutoTaskMode = controlMode === '#';
-      const isTaskMode = isWaypointTaskMode || isAutoTaskMode;
-      const hasWaypointTask = Number(waypointsCount) > 0;
+      const isJoystickTaskMode = controlMode === '@' && keyboardSelected;
       const plannerValue = DEPLOY_CONTROL_PLANNER_MAP[activePathAlgorithm] || '0';
       const guidanceValue = waypointGuidance === 'los' ? '2' : '1';
-      const headingControllerValue = waypointController === 'ai_pid' ? '1' : '0';
+      const headingControllerValue = waypointController === 'ai_pid' ? '2' : '1';
+      const modeValue = autoExecLevel === 'mission' ? '1' : '0';
+      const taskValue = isWaypointTaskMode ? '1' : (isAutoTaskMode ? '2' : (isJoystickTaskMode ? '4' : '0'));
 
-      // 移动端先按已有可见状态隐式映射 C 报文，其余字段继续走当前默认值。
+      // 仅对移动端当前可见入口做映射；没有入口的字段统一按 0 发送，不沿用 S/旧状态限制 C。
       return {
         ...baseConfig,
         src: '0',
-        mode: isTaskMode ? '1' : '0',
-        task: isTaskMode && hasWaypointTask ? '1' : '0',
-        planner: isAutoTaskMode && hasWaypointTask ? plannerValue : '0',
-        guidance: isWaypointTaskMode && hasWaypointTask ? guidanceValue : (isTaskMode && hasWaypointTask ? String(baseConfig.guidance ?? '0') : '0'),
-        heading_controller: isWaypointTaskMode && hasWaypointTask ? headingControllerValue : String(baseConfig.heading_controller ?? '0'),
-        speed_controller: String(baseConfig.speed_controller ?? '0')
+        mode: modeValue,
+        task: taskValue,
+        planner: isAutoTaskMode ? plannerValue : '0',
+        guidance: isWaypointTaskMode ? guidanceValue : '0',
+        heading_controller: isWaypointTaskMode ? headingControllerValue : '0',
+        speed_controller: '0'
       };
     };
 
@@ -201,28 +202,53 @@
 
     const handleDeployClick = () => {
       const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
-      const controlOk = configOk && typeof sendCCommand === 'function'
-        ? sendCCommand(buildDeployControlConfig(), { showToast: false })
-        : configOk;
+      const controlOk = typeof sendCCommand === 'function'
+        ? sendCCommand(buildDeployControlConfig(), {
+            showToast: false,
+            source: 'mobile_deploy',
+            onAckResolved: (result) => {
+              if (!result || !result.ok) {
+                setDeployStatus('idle');
+                setHasDeployedThisSession(false);
+                if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+                  window.SystemToast.show((result && result.message) || t.toast_control_switch_send_failed, { type: 'error', durationMs: 4500 });
+                }
+                return;
+              }
 
-      if (configOk && controlOk) {
+              setDeployStatus('dispatched');
+              setHasDeployedThisSession(true);
+              if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+                window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
+              }
+              if (typeof onClose === 'function') {
+                if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
+                deployCloseTimerRef.current = window.setTimeout(() => {
+                  deployCloseTimerRef.current = null;
+                  onClose();
+                }, 160);
+              }
+            },
+            onAckTimeout: (result) => {
+              setDeployStatus('idle');
+              setHasDeployedThisSession(false);
+              if (window.SystemToast && typeof window.SystemToast.show === 'function') {
+                window.SystemToast.show((result && result.message) || t.toast_control_switch_send_failed, { type: 'error', durationMs: 4500 });
+              }
+            }
+          })
+        : false;
+
+      if (controlOk) {
         setDeployStatus('dispatched');
-        setHasDeployedThisSession(true);
-        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-          window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
-        }
-        if (typeof onClose === 'function') {
-          if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
-          deployCloseTimerRef.current = window.setTimeout(() => {
-            deployCloseTimerRef.current = null;
-            onClose();
-          }, 160);
-        }
         return;
       }
 
       if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-        window.SystemToast.show(t.toast_deploy_failed, { type: 'error', durationMs: 4500 });
+        const failedMessage = !configOk && typeof sendSCommand === 'function'
+          ? t.toast_deploy_failed
+          : t.toast_control_switch_send_failed;
+        window.SystemToast.show(failedMessage, { type: 'error', durationMs: 4500 });
       }
     };
 
