@@ -151,9 +151,13 @@
 
     const buildDeployControlConfig = () => {
       const baseConfig = controlFrameConfig && typeof controlFrameConfig === 'object' ? controlFrameConfig : {};
-      const isTaskMode = controlMode === '#';
+      const isWaypointTaskMode = controlMode === 'W';
+      const isAutoTaskMode = controlMode === '#';
+      const isTaskMode = isWaypointTaskMode || isAutoTaskMode;
       const hasWaypointTask = Number(waypointsCount) > 0;
       const plannerValue = DEPLOY_CONTROL_PLANNER_MAP[activePathAlgorithm] || '0';
+      const guidanceValue = waypointGuidance === 'los' ? '2' : '1';
+      const headingControllerValue = waypointController === 'ai_pid' ? '1' : '0';
 
       // 移动端先按已有可见状态隐式映射 C 报文，其余字段继续走当前默认值。
       return {
@@ -161,9 +165,10 @@
         src: '0',
         mode: isTaskMode ? '1' : '0',
         task: isTaskMode && hasWaypointTask ? '1' : '0',
-        planner: isTaskMode && hasWaypointTask ? plannerValue : '0',
-        guidance: isTaskMode && hasWaypointTask ? String(baseConfig.guidance ?? '0') : '0',
-        controller: String(baseConfig.controller ?? '1')
+        planner: isAutoTaskMode && hasWaypointTask ? plannerValue : '0',
+        guidance: isWaypointTaskMode && hasWaypointTask ? guidanceValue : (isTaskMode && hasWaypointTask ? String(baseConfig.guidance ?? '0') : '0'),
+        heading_controller: isWaypointTaskMode && hasWaypointTask ? headingControllerValue : String(baseConfig.heading_controller ?? '0'),
+        speed_controller: String(baseConfig.speed_controller ?? '0')
       };
     };
 
