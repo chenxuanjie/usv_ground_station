@@ -175,7 +175,7 @@ volumes:
 ### `C` 控制切换帧
 
 ```text
-C,<seq>,<src>,<mode>,<task>,<planner>,<guidance>,<controller>,
+C,<seq>,<src>,<mode>,<task>,<planner>,<guidance>,<heading_controller>,<speed_controller>,
 ```
 
 字段说明如下：
@@ -186,26 +186,31 @@ C,<seq>,<src>,<mode>,<task>,<planner>,<guidance>,<controller>,
 | `seq` | 当前控制报文的流水号，由发送端生成，用于后续应答匹配。 |
 | `src` | 发送方身份。`0=地面站`，`1=无人艇`。当前控制切换通常由地面站发送，故一般填 `0`。 |
 | `mode` | 运行模式。`0=debug`，`1=task`。 |
-| `task` | 任务类型。`0=none`，`1=waypoint_nav`，`2=station_keep`。 |
+| `task` | 任务类型。按地面站抽屉相关任务顺序：`0=none`（手动控制），`1=waypoint_nav`（航点任务），`2=station_keep`（定点保持）。 |
 | `planner` | 规划器编号。`0=none`，`1=xxx`，`2=A*`，`3=Hybrid A*`，`4=DWA`。 |
-| `guidance` | Guidance 编号。`0=none`，`1=xxx`。 |
-| `controller` | 控制器编号。`0=none`，`1=heading_angle`，`2=speed`。 |
+| `guidance` | Guidance 编号。`0=none`，`1=航点跟踪`，`2=LOS`。 |
+| `heading_controller` | 航向控制器编号。`0=pid`，`1=ai-pid`。对应航点任务中的两个按钮。 |
+| `speed_controller` | 速度控制器编号。当前约定 `0=pid`，并固定发送 `0`。 |
 
-当前前端实现约定：
+当前约定：
 
 - `src` 不提供给用户选择，固定填 `0`。
 - `seq` 不直接展示给用户，发送 `C` 报文时由前端自动递增生成。
+- `task` 当前和地面站抽屉任务的对应关系为：`0=手动控制`，`1=航点任务`，`2=定点保持`。
+- `guidance` 当前和航点任务中的两个 Guidance 按钮对应：`1=航点跟踪`，`2=LOS`。
+- `speed_controller` 当前固定填 `0`。
+- `heading_controller` 由航点任务中的两个按钮决定：`0=pid`，`1=ai-pid`。
 
-示例：切到调试模式，只启用航向角控制器。
+示例：切到任务模式，执行航点任务，规划器选择 `A*`，Guidance 选择航点跟踪，`heading_controller=pid`，`speed_controller=pid`。
 
 ```text
-C,101,0,0,0,0,0,1,
+C,101,0,1,1,2,1,0,0,
 ```
 
 ### `X` 艇端应答帧
 
 ```text
-X,<seq>,<src>,<ack_seq>,<ret>,<mode>,<task>,<planner>,<guidance>,<controller>,
+X,<seq>,<src>,<ack_seq>,<ret>,<mode>,<task>,<planner>,<guidance>,<heading_controller>,<speed_controller>,
 ```
 
 字段说明如下：
@@ -218,10 +223,11 @@ X,<seq>,<src>,<ack_seq>,<ret>,<mode>,<task>,<planner>,<guidance>,<controller>,
 | `ack_seq` | 被应答的原始报文流水号，对应 `C` 报文中的 `seq`。 |
 | `ret` | 处理结果。`0=success`，`1=format_error`，`2=unsupported`，`3=invalid_state`，`4=exec_fail`。 |
 | `mode` | 应答返回时艇端当前实际生效的运行模式。`0=debug`，`1=task`。 |
-| `task` | 应答返回时艇端当前实际生效的任务类型。 |
+| `task` | 应答返回时艇端当前实际生效的任务类型。枚举与 `C.task` 一致。 |
 | `planner` | 应答返回时艇端当前实际生效的规划器编号。 |
-| `guidance` | 应答返回时艇端当前实际生效的 Guidance 编号。 |
-| `controller` | 应答返回时艇端当前实际生效的控制器编号。 |
+| `guidance` | 应答返回时艇端当前实际生效的 Guidance 编号。枚举与 `C.guidance` 一致。 |
+| `heading_controller` | 应答返回时艇端当前实际生效的航向控制器编号。 |
+| `speed_controller` | 应答返回时艇端当前实际生效的速度控制器编号。 |
 
 应答语义约定如下：
 
@@ -248,7 +254,7 @@ X,<seq>,<src>,<ack_seq>,<ret>,<mode>,<task>,<planner>,<guidance>,<controller>,
 示例：艇端成功执行 `seq=101` 的切换命令后返回当前生效状态。
 
 ```text
-X,501,1,101,0,0,0,0,0,1,
+X,501,1,101,0,1,1,2,1,0,0,
 ```
 
 ## 🛠️ 开发指南
