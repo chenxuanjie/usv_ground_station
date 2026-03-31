@@ -14,10 +14,6 @@
     'Hybrid A*': '2',
     'DWA': '3'
   });
-  const MOBILE_DEPLOY_MESSAGE_IDS = Object.freeze({
-    success: 'M-DPL-0001',
-    failure: 'M-DPL-0002'
-  });
   const MOBILE_DEPLOY_ERROR_CODES = Object.freeze({
     sSendFailed: '101',
     cSendFailed: '102',
@@ -254,10 +250,10 @@
       const base = isSuccess
         ? (t.deploy_success_short || t.toast_deploy_success || 'Deploy OK')
         : (t.deploy_failed_short || t.toast_deploy_failed || 'Deploy failed');
-      const messageId = isSuccess ? MOBILE_DEPLOY_MESSAGE_IDS.success : MOBILE_DEPLOY_MESSAGE_IDS.failure;
+      const code = errorCode || MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
       return isSuccess
-        ? `${base} ${messageId}`
-        : `${base} ${messageId} / ${errorCode || MOBILE_DEPLOY_ERROR_CODES.ackUnknown}`;
+        ? base
+        : (lang === 'zh' ? `${base}。错误码：${code}` : `${base}. Code: ${code}`);
     };
 
     const showDeployToast = (isSuccess, errorCode = '') => {
