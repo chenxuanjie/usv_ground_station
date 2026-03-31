@@ -37,7 +37,7 @@ function RouteManagerModal({
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (event) => {
-            if (event.key === 'Escape') onClose();
+            if (event.key === 'Escape') onClose('cancel');
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
@@ -89,7 +89,7 @@ function RouteManagerModal({
                 }
                 setDraftName('');
                 setIsSubmitting(false);
-                onClose();
+                onClose('saved');
             })
             .catch((error) => {
                 setIsSubmitting(false);
@@ -176,7 +176,7 @@ function RouteManagerModal({
                         return;
                     }
                     setIsSubmitting(false);
-                    onClose();
+                    onClose('loaded');
                 })
                 .catch((error) => {
                     setIsSubmitting(false);
@@ -214,7 +214,7 @@ function RouteManagerModal({
                         <Icons.MapPin className={`w-5 h-5 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
                         <h3 className={`${isIos ? 'text-[17px] font-semibold text-slate-900' : 'font-mono font-bold text-cyan-100 text-sm tracking-wider'}`}>{title}</h3>
                     </div>
-                    <button onClick={onClose} className={`${isIos ? 'w-8 h-8 rounded-full hover:bg-slate-200/60 text-slate-500' : 'text-cyan-500 hover:text-white transition-colors'} flex items-center justify-center`}>
+                    <button onClick={() => onClose('cancel')} className={`${isIos ? 'w-8 h-8 rounded-full hover:bg-slate-200/60 text-slate-500' : 'text-cyan-500 hover:text-white transition-colors'} flex items-center justify-center`}>
                         <Icons.X className="w-5 h-5" />
                     </button>
                 </div>

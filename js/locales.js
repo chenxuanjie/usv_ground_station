@@ -198,6 +198,7 @@ const AppTranslations = {
         toast_route_favorited: "已置顶常用航线",
         toast_route_unfavorited: "已取消常用置顶",
         toast_route_renamed: "航线名称已更新",
+        btn_load_and_track: "加载并跟踪",
     },
     en: {
         title: "USV CONTROL TERMINAL",
@@ -397,6 +398,7 @@ const AppTranslations = {
         toast_route_favorited: "Route pinned",
         toast_route_unfavorited: "Route unpinned",
         toast_route_renamed: "Route renamed",
+        btn_load_and_track: "LOAD & TRACK",
     }
 };
 
