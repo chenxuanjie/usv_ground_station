@@ -114,6 +114,8 @@ const CONTROL_FRAME_DEFAULTS = Object.freeze({
     task: '0',
     planner: '0',
     guidance: '0',
+    heading_controller: '0',
+    speed_controller: '0',
     controller: '1'
 });
 
@@ -176,12 +178,13 @@ const toControlFrameNumbers = (state) => ({
     task: Number.parseInt(String(state && state.task), 10) || 0,
     planner: Number.parseInt(String(state && state.planner), 10) || 0,
     guidance: Number.parseInt(String(state && state.guidance), 10) || 0,
-    controller: Number.parseInt(String(state && state.controller), 10) || 0
+    heading_controller: Number.parseInt(String(state && state.heading_controller), 10) || 0,
+    speed_controller: Number.parseInt(String(state && state.speed_controller), 10) || 0
 });
 
 const buildControlFrameCommand = (seq, state) => {
     const normalized = toControlFrameNumbers(state);
-    return `C,${seq},${normalized.src},${normalized.mode},${normalized.task},${normalized.planner},${normalized.guidance},${normalized.controller},`;
+    return `C,${seq},${normalized.src},${normalized.mode},${normalized.task},${normalized.planner},${normalized.guidance},${normalized.heading_controller},${normalized.speed_controller},`;
 };
 
 const getControlValueLabel = (t, field, rawValue) => {
@@ -190,13 +193,17 @@ const getControlValueLabel = (t, field, rawValue) => {
     return labelKey ? t(labelKey) : `${field}=${value}`;
 };
 
-const buildControlStateSummary = (t, state) => ([
-    getControlValueLabel(t, 'mode', state && state.mode),
-    getControlValueLabel(t, 'task', state && state.task),
-    getControlValueLabel(t, 'planner', state && state.planner),
-    getControlValueLabel(t, 'guidance', state && state.guidance),
-    getControlValueLabel(t, 'controller', state && state.controller)
-].join(' | '));
+const buildControlStateSummary = (t, state) => {
+    const normalized = toControlFrameNumbers(state);
+    return [
+        getControlValueLabel(t, 'mode', state && state.mode),
+        getControlValueLabel(t, 'task', state && state.task),
+        getControlValueLabel(t, 'planner', state && state.planner),
+        getControlValueLabel(t, 'guidance', state && state.guidance),
+        `heading_controller=${normalized.heading_controller}`,
+        `speed_controller=${normalized.speed_controller}`
+    ].join(' | ');
+};
 
 const getRouteErrorMessage = (translations, code) => {
     if (!translations) return 'Route operation failed';
