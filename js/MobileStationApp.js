@@ -1,5 +1,7 @@
 (function () {
   const { useCallback, useEffect, useMemo, useRef, useState } = React;
+  const COORDINATE_DECIMAL_PLACES = 8;
+  const ZERO_COORDINATE_TEXT = `0.${'0'.repeat(COORDINATE_DECIMAL_PLACES)}`;
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
@@ -325,6 +327,7 @@
       onConfirmRoutePreviewLoad,
       onConfirmRoutePreviewLoadAndTrack,
       onCancelRoutePreviewLoad,
+      onPersistWaypointCache,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -745,7 +748,10 @@
 
                   <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
                     <button 
-                      onClick={() => setMapMode('pan')}
+                      onClick={() => {
+                        if (typeof onPersistWaypointCache === 'function') onPersistWaypointCache(waypoints);
+                        setMapMode('pan');
+                      }}
                       className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
                         isIos
                           ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
@@ -936,11 +942,11 @@
 	                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
 	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
 	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
-	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(COORDINATE_DECIMAL_PLACES) : ZERO_COORDINATE_TEXT}</span>
 	                      </div>
 	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
 	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
-	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(COORDINATE_DECIMAL_PLACES) : ZERO_COORDINATE_TEXT}</span>
 	                      </div>
 	                    </div>
 	                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>

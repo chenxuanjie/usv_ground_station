@@ -67,28 +67,52 @@ const convertBoatHeadingForDisplay = (rawHeading, mode) => {
 };
 
 const normalizeRouteName = (value) => String(value || '').trim();
+const COORDINATE_DECIMAL_PLACES = 8;
+
+const normalizeCoordinateValue = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Number(num.toFixed(COORDINATE_DECIMAL_PLACES));
+};
 
 const sanitizeWaypoints = (items) => {
     if (!Array.isArray(items)) return [];
     return items
         .map((item) => {
-            const lng = Number(item && (item.lng ?? item.lon));
-            const lat = Number(item && item.lat);
-            if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+            const lng = normalizeCoordinateValue(item && (item.lng ?? item.lon));
+            const lat = normalizeCoordinateValue(item && item.lat);
+            if (lng == null || lat == null) return null;
             return { lng, lat };
         })
         .filter(Boolean);
 };
 
+const WAYPOINT_CACHE_STORAGE_KEY = 'usv_waypoints_cache_v1';
+
+const normalizeWaypointCacheItems = (items) => sanitizeWaypoints(items);
+
+const loadCachedWaypoints = () => {
+    if (typeof window === 'undefined' || !window.localStorage) return [];
+    try {
+        const raw = window.localStorage.getItem(WAYPOINT_CACHE_STORAGE_KEY);
+        if (!raw) return [];
+        const normalized = normalizeWaypointCacheItems(JSON.parse(raw));
+        if (!normalized.length) {
+            window.localStorage.removeItem(WAYPOINT_CACHE_STORAGE_KEY);
+            return [];
+        }
+        return normalized;
+    } catch (_) {
+        try {
+            window.localStorage.removeItem(WAYPOINT_CACHE_STORAGE_KEY);
+        } catch (__unused) {}
+        return [];
+    }
+};
+
 const EMPTY_ROUTE_SIGNATURE = '[]';
 
-const getWaypointsSignature = (items) => {
-    const normalized = sanitizeWaypoints(items).map((item) => ({
-        lng: Number(item.lng.toFixed(7)),
-        lat: Number(item.lat.toFixed(7))
-    }));
-    return JSON.stringify(normalized);
-};
+const getWaypointsSignature = (items) => JSON.stringify(sanitizeWaypoints(items));
 
 const sanitizeSavedRoutes = (items) => {
     if (!Array.isArray(items)) return [];
@@ -528,13 +552,16 @@ function BoatGroundStation() {
         headingModeRef.current = headingMode;
     }, [headingMode]);
 
+    const [initialCachedWaypoints] = useState(() => loadCachedWaypoints());
+    const waypointCacheEnabledRef = useRef(initialCachedWaypoints.length > 0);
+
     const [boatStatus, setBoatStatus] = useState({
         longitude: 0, latitude: 0, heading: 0, headingRaw: 0,
         batteryL: 0, batteryR: 0,
         lastUpdate: null,
     });
     
-    const [waypoints, setWaypoints] = useState([]);
+    const [waypoints, setWaypoints] = useState(initialCachedWaypoints);
     const [routeBaselineSignature, setRouteBaselineSignature] = useState(EMPTY_ROUTE_SIGNATURE);
     const [savedRoutes, setSavedRoutes] = useState([]);
     const [savedRoutesLoaded, setSavedRoutesLoaded] = useState(false);
@@ -599,6 +626,55 @@ function BoatGroundStation() {
 
     const [notifications, setNotifications] = useState([]);
     const toastTimersRef = useRef(new Map());
+
+    const persistWaypointsToCache = useCallback((items) => {
+        if (typeof window === 'undefined' || !window.localStorage) return;
+        const normalized = normalizeWaypointCacheItems(items);
+        try {
+            if (!normalized.length) {
+                window.localStorage.removeItem(WAYPOINT_CACHE_STORAGE_KEY);
+                return;
+            }
+            window.localStorage.setItem(WAYPOINT_CACHE_STORAGE_KEY, JSON.stringify(normalized));
+        } catch (_) {}
+    }, []);
+
+    const clearWaypointCache = useCallback(() => {
+        if (typeof window === 'undefined' || !window.localStorage) return;
+        try {
+            window.localStorage.removeItem(WAYPOINT_CACHE_STORAGE_KEY);
+        } catch (_) {}
+    }, []);
+
+    const handlePersistWaypointCache = useCallback((items = waypoints) => {
+        const normalized = normalizeWaypointCacheItems(items);
+        if (!normalized.length) {
+            waypointCacheEnabledRef.current = false;
+            clearWaypointCache();
+            return false;
+        }
+        waypointCacheEnabledRef.current = true;
+        persistWaypointsToCache(normalized);
+        return true;
+    }, [clearWaypointCache, persistWaypointsToCache, waypoints]);
+
+    const setMobileWaypoints = useCallback((nextValueOrUpdater) => {
+        setWaypoints((prev) => {
+            const prevNormalized = normalizeWaypointCacheItems(prev);
+            const nextResolved = typeof nextValueOrUpdater === 'function'
+                ? nextValueOrUpdater(prevNormalized)
+                : nextValueOrUpdater;
+            const nextNormalized = normalizeWaypointCacheItems(nextResolved);
+
+            if (waypointCacheEnabledRef.current && nextNormalized.length < prevNormalized.length) {
+                waypointCacheEnabledRef.current = nextNormalized.length > 0;
+                if (!nextNormalized.length) clearWaypointCache();
+                else persistWaypointsToCache(nextNormalized);
+            }
+
+            return nextNormalized;
+        });
+    }, [clearWaypointCache, persistWaypointsToCache]);
 
     const dismissToast = useCallback((id) => {
         const t = toastTimersRef.current.get(id);
@@ -861,7 +937,7 @@ function BoatGroundStation() {
         }
         let cmd = "P";
         waypoints.forEach(wp => {
-            cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
+            cmd += `,${wp.lng.toFixed(COORDINATE_DECIMAL_PLACES)},${wp.lat.toFixed(COORDINATE_DECIMAL_PLACES)}`;
         });
         cmd += ",";
         const ok = sendData(cmd);
@@ -1342,8 +1418,8 @@ function BoatGroundStation() {
                         const now = Date.now();
                         if (now - lastUiUpdateRef.current > 100) {
                             setBoatStatus({
-                                longitude: parseFloat(parts[1]) || 0,
-                                latitude: parseFloat(parts[2]) || 0,
+                                longitude: normalizeCoordinateValue(parts[1]) ?? 0,
+                                latitude: normalizeCoordinateValue(parts[2]) ?? 0,
                                 heading: displayHeading,
                                 headingRaw: normalizeHeadingDegrees(rawHeading),
                                 batteryL: bL,
@@ -1631,7 +1707,7 @@ function BoatGroundStation() {
                     toggleConnection={toggleConnection}
                     boatStatus={boatStatus}
                     waypoints={waypoints}
-                    setWaypoints={setWaypoints}
+                    setWaypoints={setMobileWaypoints}
                     cruiseMode={cruiseMode}
                     setCruiseMode={setCruiseMode}
                     streamOn={streamOn}
@@ -1669,6 +1745,7 @@ function BoatGroundStation() {
                     onConfirmRoutePreviewLoad={handleConfirmRouteLoadPreview}
                     onConfirmRoutePreviewLoadAndTrack={handleConfirmRouteLoadAndTrackPreview}
                     onCancelRoutePreviewLoad={handleCancelRouteLoadPreview}
+                    onPersistWaypointCache={handlePersistWaypointCache}
                     t={t}
                 />
             ) : (
