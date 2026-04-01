@@ -4,10 +4,12 @@
   const MOBILE_STORAGE_KEYS = Object.freeze({
     autoExecLevel: 'mobile_auto_exec_level',
     deploymentMode: 'mobile_deployment_mode',
+    deploymentTaskType: 'mobile_deployment_task_type',
     deploymentKeyboardSelected: 'mobile_deployment_keyboard_selected',
     waypointGuidance: 'mobile_waypoint_guidance',
     waypointController: 'mobile_waypoint_controller',
-    waypointSpeedController: 'mobile_waypoint_speed_controller'
+    waypointSpeedController: 'mobile_waypoint_speed_controller',
+    stationKeepHeadingController: 'mobile_station_keep_heading_controller'
   });
   const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
     'A*': '1',
@@ -80,6 +82,14 @@
     const isConnected = tcpStatus === 'ONLINE';
     const isLocked = tcpStatus === 'ONLINE' || tcpStatus === 'CONNECTING';
     const [keyboardSelectedInternal, setKeyboardSelectedInternal] = useState(false);
+    const [deploymentTaskType, setDeploymentTaskType] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentTaskType) : null;
+        return ['manual', 'waypoint', 'auto', 'station_keep', 'joystick'].includes(stored) ? stored : 'manual';
+      } catch (_) {
+        return 'manual';
+      }
+    });
     const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
     const [waypointGuidance, setWaypointGuidance] = useState(() => {
       try {
@@ -105,6 +115,14 @@
         return 'pid';
       }
     });
+    const [stationKeepHeadingController, setStationKeepHeadingController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.stationKeepHeadingController) : null;
+        return stored === 'ai_pid' ? 'ai_pid' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
     const [autoExecLevel, setAutoExecLevel] = useState(() => {
       try {
         const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.autoExecLevel) : null;
@@ -115,6 +133,12 @@
     });
     const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
     const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
+    const selectedDeploymentTaskType = (() => {
+      if (controlMode === 'W') return 'waypoint';
+      if (controlMode === '@') return keyboardSelected ? 'joystick' : 'manual';
+      if (controlMode === '#') return deploymentTaskType === 'station_keep' ? 'station_keep' : 'auto';
+      return deploymentTaskType;
+    })();
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
     const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
@@ -134,12 +158,24 @@
       try {
         if (!window.localStorage) return;
         const storedMode = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentMode);
+        const storedTaskType = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentTaskType);
         const storedKeyboard = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected);
         const nextMode = storedMode === '@' || storedMode === 'W' || storedMode === '#' ? storedMode : '';
         if (!nextMode) return;
+        const taskTypeFromStorage = ['manual', 'waypoint', 'auto', 'station_keep', 'joystick'].includes(storedTaskType)
+          ? storedTaskType
+          : '';
         const nextKeyboardSelected = nextMode === '@' && (storedKeyboard === '1' || storedKeyboard === 'true');
+        const inferredTaskType = taskTypeFromStorage || (
+          nextMode === 'W'
+            ? 'waypoint'
+            : (nextMode === '#'
+              ? 'auto'
+              : (nextKeyboardSelected ? 'joystick' : 'manual'))
+        );
         if (typeof setControlMode === 'function') setControlMode(nextMode);
         setKeyboardSelected(nextKeyboardSelected);
+        setDeploymentTaskType(inferredTaskType);
       } catch (_) {}
     }, [setControlMode, setKeyboardSelected]);
 
@@ -160,7 +196,9 @@
       activePathAlgorithm,
       controlMode,
       cruiseMode,
+      deploymentTaskType,
       recvOn,
+      stationKeepHeadingController,
       streamOn,
       waypointController,
       waypointGuidance,
@@ -180,15 +218,23 @@
 
     const buildDeployControlConfig = () => {
       const baseConfig = controlFrameConfig && typeof controlFrameConfig === 'object' ? controlFrameConfig : {};
-      const isWaypointTaskMode = controlMode === 'W';
-      const isAutoTaskMode = controlMode === '#';
-      const isJoystickTaskMode = controlMode === '@' && keyboardSelected;
+      const isWaypointTaskMode = selectedDeploymentTaskType === 'waypoint';
+      const isAutoTaskMode = selectedDeploymentTaskType === 'auto';
+      const isStationKeepTaskMode = selectedDeploymentTaskType === 'station_keep';
+      const isJoystickTaskMode = selectedDeploymentTaskType === 'joystick';
       const plannerValue = DEPLOY_CONTROL_PLANNER_MAP[activePathAlgorithm] || '0';
       const guidanceValue = waypointGuidance === 'los' ? '2' : '1';
       const headingControllerValue = waypointController === 'ai_pid' ? '2' : '1';
       const speedControllerValue = waypointSpeedController === 'fix_pwm' ? '1' : '2';
+      const stationKeepHeadingControllerValue = stationKeepHeadingController === 'ai_pid' ? '2' : '1';
       const modeValue = autoExecLevel === 'mission' ? '1' : '0';
-      const taskValue = isWaypointTaskMode ? '1' : (isAutoTaskMode ? '2' : (isJoystickTaskMode ? '4' : '0'));
+      const taskValue = isWaypointTaskMode
+        ? '1'
+        : (isAutoTaskMode
+          ? '2'
+          : (isStationKeepTaskMode
+            ? '3'
+            : (isJoystickTaskMode ? '4' : '0')));
 
       // 仅对移动端当前可见入口做映射；没有入口的字段统一按 0 发送，不沿用 S/旧状态限制 C。
       return {
@@ -198,8 +244,12 @@
         task: taskValue,
         planner: isAutoTaskMode ? plannerValue : '0',
         guidance: isWaypointTaskMode ? guidanceValue : '0',
-        heading_controller: isWaypointTaskMode ? headingControllerValue : '0',
-        speed_controller: isWaypointTaskMode ? speedControllerValue : '0'
+        heading_controller: isWaypointTaskMode
+          ? headingControllerValue
+          : (isStationKeepTaskMode ? stationKeepHeadingControllerValue : '0'),
+        speed_controller: isWaypointTaskMode
+          ? speedControllerValue
+          : (isStationKeepTaskMode ? '2' : '0')
       };
     };
 
@@ -213,10 +263,11 @@
       try {
         if (window.localStorage) {
           window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentMode, String(controlMode || '@'));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentTaskType, String(selectedDeploymentTaskType || 'manual'));
           window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected, keyboardSelected ? '1' : '0');
         }
       } catch (_) {}
-    }, [controlMode, keyboardSelected]);
+    }, [controlMode, keyboardSelected, selectedDeploymentTaskType]);
 
     useEffect(() => {
       try {
@@ -235,6 +286,12 @@
         if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointSpeedController, waypointSpeedController);
       } catch (_) {}
     }, [waypointSpeedController]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.stationKeepHeadingController, stationKeepHeadingController);
+      } catch (_) {}
+    }, [stationKeepHeadingController]);
 
     const getDeployErrorCode = (result) => {
       const ret = Number.parseInt(String(result && result.ret), 10);
@@ -322,6 +379,7 @@
       if (isIos) {
         const iosActiveTheme = (() => {
           if (colorClass === 'orange') return 'bg-[#FF9500] text-white border-[#FF9500]/35 shadow-[0_8px_30px_-10px_rgba(255,149,0,0.38)]';
+          if (colorClass === 'rose') return 'bg-[#FF375F] text-white border-[#FF375F]/35 shadow-[0_8px_30px_-10px_rgba(255,55,95,0.38)]';
           if (colorClass === 'purple') return 'bg-[#5856D6] text-white border-[#5856D6]/35 shadow-[0_8px_30px_-10px_rgba(88,86,214,0.38)]';
           if (colorClass === 'emerald') return 'bg-[#34C759] text-white border-[#34C759]/35 shadow-[0_8px_30px_-10px_rgba(52,199,89,0.38)]';
           return 'bg-[#007AFF] text-white border-[#007AFF]/30 shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)]';
@@ -343,6 +401,7 @@
 
       const activeTheme = (() => {
         if (colorClass === 'orange') return 'bg-amber-500/14 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.22)]';
+        if (colorClass === 'rose') return 'bg-rose-500/12 border-rose-400 text-rose-300 shadow-[0_0_15px_rgba(251,113,133,0.22)]';
         if (colorClass === 'purple') return 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         if (colorClass === 'emerald') return 'bg-emerald-500/10 border-emerald-400 text-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         return 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
@@ -350,6 +409,7 @@
 
       const activeOverlay = (() => {
         if (colorClass === 'orange') return 'bg-amber-400/5';
+        if (colorClass === 'rose') return 'bg-rose-400/5';
         if (colorClass === 'purple') return 'bg-purple-400/5';
         if (colorClass === 'emerald') return 'bg-emerald-400/5';
         return 'bg-cyan-400/5';
@@ -357,6 +417,7 @@
 
       const activeCorner = (() => {
         if (colorClass === 'orange') return 'border-amber-400';
+        if (colorClass === 'rose') return 'border-rose-400';
         if (colorClass === 'purple') return 'border-purple-400';
         if (colorClass === 'emerald') return 'border-emerald-400';
         return 'border-cyan-400';
@@ -386,12 +447,16 @@
     const CapsuleButton = ({ active, label, onClick, accent = 'orange' }) => {
       const iosActive = accent === 'orange'
         ? 'bg-[#FF9500] text-white border-[#FF9500]/35'
-        : 'bg-[#007AFF] text-white border-[#007AFF]/35';
+        : (accent === 'rose'
+          ? 'bg-[#FF375F] text-white border-[#FF375F]/35'
+          : 'bg-[#007AFF] text-white border-[#007AFF]/35');
       const iosInactive = 'bg-white/70 text-slate-600 border-slate-200/70 hover:bg-white/85';
 
       const cyberActive = accent === 'orange'
         ? 'bg-amber-500/14 border-amber-400/70 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.24)]'
-        : 'bg-cyan-500/14 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.24)]';
+        : (accent === 'rose'
+          ? 'bg-rose-500/14 border-rose-400/70 text-rose-200 shadow-[0_0_12px_rgba(251,113,133,0.24)]'
+          : 'bg-cyan-500/14 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.24)]');
       const cyberInactive = 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300';
 
       return (
@@ -594,9 +659,10 @@
                   <ModeButton
                     label={lang === 'zh' ? tZh.manual : tEn.manual}
                     sub={lang === 'zh' ? tEn.manual_sub : tZh.manual_sub}
-                    active={controlMode === '@' && !keyboardSelected}
+                    active={selectedDeploymentTaskType === 'manual'}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('manual');
                       setControlMode && setControlMode('@');
                     }}
                     colorClass="cyan"
@@ -604,9 +670,10 @@
                   <ModeButton
                     label={lang === 'zh' ? tZh.waypoint_mission : tEn.waypoint_mission}
                     sub={lang === 'zh' ? tEn.waypoint_sub : tZh.waypoint_sub}
-                    active={controlMode === 'W'}
+                    active={selectedDeploymentTaskType === 'waypoint'}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('waypoint');
                       setControlMode && setControlMode('W');
                     }}
                     colorClass="orange"
@@ -614,19 +681,32 @@
                   <ModeButton
                     label={lang === 'zh' ? tZh.auto : tEn.auto}
                     sub={lang === 'zh' ? tEn.auto_sub : tZh.auto_sub}
-                    active={controlMode === '#'}
+                    active={selectedDeploymentTaskType === 'auto'}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('auto');
                       setControlMode && setControlMode('#');
                     }}
                     colorClass="emerald"
                   />
                   <ModeButton
+                    label={lang === 'zh' ? tZh.station_keep : tEn.station_keep}
+                    sub={lang === 'zh' ? tEn.station_keep_sub : tZh.station_keep_sub}
+                    active={selectedDeploymentTaskType === 'station_keep'}
+                    onClick={() => {
+                      setKeyboardSelected(false);
+                      setDeploymentTaskType('station_keep');
+                      setControlMode && setControlMode('#');
+                    }}
+                    colorClass="rose"
+                  />
+                  <ModeButton
                     label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
                     sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
-                    active={controlMode === '@' && keyboardSelected}
+                    active={selectedDeploymentTaskType === 'joystick'}
                     onClick={() => {
                       setKeyboardSelected(true);
+                      setDeploymentTaskType('joystick');
                       setControlMode && setControlMode('@');
                     }}
                     colorClass="purple"
@@ -634,7 +714,7 @@
                   </div>
                 </div>
 
-                {controlMode === '#' && (
+                {selectedDeploymentTaskType === 'auto' && (
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
@@ -716,7 +796,7 @@
                   </>
                 )}
 
-                {controlMode === 'W' && (
+                {selectedDeploymentTaskType === 'waypoint' && (
                   <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
                     <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.waypoint_mission}</div>
                     <div className="flex items-center justify-between gap-3">
@@ -829,6 +909,40 @@
                         <Send className={`relative z-10 w-4 h-4 -rotate-12 -translate-y-[1px] ${isIos ? 'text-[#1d8a46]' : ''}`} />
                         <span className={`relative z-10 ${isIos ? 'text-[13px] tracking-tight' : 'text-sm'}`}>{t.track_route}</span>
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedDeploymentTaskType === 'station_keep' && (
+                  <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.station_keep}</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.heading_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={stationKeepHeadingController === 'pid'}
+                          label={t.controller_pid}
+                          onClick={() => setStationKeepHeadingController('pid')}
+                          accent="rose"
+                        />
+                        <CapsuleButton
+                          active={stationKeepHeadingController === 'ai_pid'}
+                          label={t.controller_ai_pid}
+                          onClick={() => setStationKeepHeadingController('ai_pid')}
+                          accent="rose"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.speed_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={true}
+                          label={t.speed_controller_pid}
+                          onClick={() => {}}
+                          accent="rose"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
