@@ -323,6 +323,7 @@
       onConfirmRoutePreviewLoad,
       onConfirmRoutePreviewLoadAndTrack,
       onCancelRoutePreviewLoad,
+      onPersistWaypointCache,
       chartDataRef, // [Added]
       chartFps,     // [Added]
       embeddedChannelExpanded,
@@ -741,7 +742,10 @@
 
                   <div className="absolute top-20 left-0 w-full z-20 flex justify-center pointer-events-none">
                     <button 
-                      onClick={() => setMapMode('pan')}
+                      onClick={() => {
+                        if (typeof onPersistWaypointCache === 'function') onPersistWaypointCache(waypoints);
+                        setMapMode('pan');
+                      }}
                       className={`pointer-events-auto animate-in fade-in zoom-in duration-300 flex items-center gap-2 py-2 px-6 rounded-full transition-all active:scale-[0.99] ${
                         isIos
                           ? 'bg-[#007AFF] hover:bg-[#1b86ff] text-white font-semibold shadow-[0_10px_30px_-12px_rgba(0,122,255,0.45)]'
