@@ -846,12 +846,13 @@ function BoatGroundStation() {
 
     const handleConfirmRouteLoadPreview = useCallback(() => {
         if (!routeLoadPreview) return false;
+        handlePersistWaypointCache(routeLoadPreview.previewWaypoints);
         setRouteBaselineSignature(routeLoadPreview.previewSignature);
         setRouteLoadPreview(null);
         addLog('SYS', `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, 'info');
         showToast({ type: 'success', message: `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, durationMs: 2500 });
         return true;
-    }, [addLog, routeLoadPreview, showToast, t]);
+    }, [addLog, handlePersistWaypointCache, routeLoadPreview, showToast, t]);
 
     const handleCancelRouteLoadPreview = useCallback(() => {
         if (!routeLoadPreview) return false;
