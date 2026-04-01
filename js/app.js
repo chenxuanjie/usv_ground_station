@@ -67,14 +67,21 @@ const convertBoatHeadingForDisplay = (rawHeading, mode) => {
 };
 
 const normalizeRouteName = (value) => String(value || '').trim();
+const COORDINATE_DECIMAL_PLACES = 8;
+
+const normalizeCoordinateValue = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Number(num.toFixed(COORDINATE_DECIMAL_PLACES));
+};
 
 const sanitizeWaypoints = (items) => {
     if (!Array.isArray(items)) return [];
     return items
         .map((item) => {
-            const lng = Number(item && (item.lng ?? item.lon));
-            const lat = Number(item && item.lat);
-            if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+            const lng = normalizeCoordinateValue(item && (item.lng ?? item.lon));
+            const lat = normalizeCoordinateValue(item && item.lat);
+            if (lng == null || lat == null) return null;
             return { lng, lat };
         })
         .filter(Boolean);
@@ -82,10 +89,7 @@ const sanitizeWaypoints = (items) => {
 
 const WAYPOINT_CACHE_STORAGE_KEY = 'usv_waypoints_cache_v1';
 
-const normalizeWaypointCacheItems = (items) => sanitizeWaypoints(items).map((item) => ({
-    lng: Number(item.lng.toFixed(7)),
-    lat: Number(item.lat.toFixed(7))
-}));
+const normalizeWaypointCacheItems = (items) => sanitizeWaypoints(items);
 
 const loadCachedWaypoints = () => {
     if (typeof window === 'undefined' || !window.localStorage) return [];
@@ -108,13 +112,7 @@ const loadCachedWaypoints = () => {
 
 const EMPTY_ROUTE_SIGNATURE = '[]';
 
-const getWaypointsSignature = (items) => {
-    const normalized = sanitizeWaypoints(items).map((item) => ({
-        lng: Number(item.lng.toFixed(7)),
-        lat: Number(item.lat.toFixed(7))
-    }));
-    return JSON.stringify(normalized);
-};
+const getWaypointsSignature = (items) => JSON.stringify(sanitizeWaypoints(items));
 
 const sanitizeSavedRoutes = (items) => {
     if (!Array.isArray(items)) return [];
@@ -721,7 +719,7 @@ function BoatGroundStation() {
         }
         let cmd = "P";
         waypoints.forEach(wp => {
-            cmd += `,${wp.lng.toFixed(7)},${wp.lat.toFixed(7)}`;
+            cmd += `,${wp.lng.toFixed(COORDINATE_DECIMAL_PLACES)},${wp.lat.toFixed(COORDINATE_DECIMAL_PLACES)}`;
         });
         cmd += ",";
         const ok = sendData(cmd);
@@ -1093,8 +1091,8 @@ function BoatGroundStation() {
                         const now = Date.now();
                         if (now - lastUiUpdateRef.current > 100) {
                             setBoatStatus({
-                                longitude: parseFloat(parts[1]) || 0,
-                                latitude: parseFloat(parts[2]) || 0,
+                                longitude: normalizeCoordinateValue(parts[1]) ?? 0,
+                                latitude: normalizeCoordinateValue(parts[2]) ?? 0,
                                 heading: displayHeading,
                                 headingRaw: normalizeHeadingDegrees(rawHeading),
                                 batteryL: bL,

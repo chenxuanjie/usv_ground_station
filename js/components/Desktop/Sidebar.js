@@ -1,6 +1,7 @@
 // js/components/Sidebar.js
 // 注意：这里引入了 useEffect, useState, useRef
 var { useEffect, useState, useRef } = React;
+const COORDINATE_DECIMAL_PLACES = 8;
 
 function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
@@ -98,11 +99,11 @@ function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyStat
                 <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs font-mono bg-slate-950/50 p-1.5 sm:p-2 rounded border border-slate-800 mb-3 sm:mb-4">
                     <div className="flex flex-col">
                         <span className="text-[9px] sm:text-[10px] text-slate-500 mb-1">{t('latitude')}</span>
-                        <span className="text-cyan-100 font-bold">{boatStatus.latitude.toFixed(6)}</span>
+                        <span className="text-cyan-100 font-bold">{boatStatus.latitude.toFixed(COORDINATE_DECIMAL_PLACES)}</span>
                     </div>
                     <div className="flex flex-col text-right">
                         <span className="text-[9px] sm:text-[10px] text-slate-500 mb-1">{t('longitude')}</span>
-                        <span className="text-cyan-100 font-bold">{boatStatus.longitude.toFixed(6)}</span>
+                        <span className="text-cyan-100 font-bold">{boatStatus.longitude.toFixed(COORDINATE_DECIMAL_PLACES)}</span>
                     </div>
                 </div>
 

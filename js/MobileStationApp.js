@@ -1,5 +1,7 @@
 (function () {
   const { useCallback, useEffect, useMemo, useRef, useState } = React;
+  const COORDINATE_DECIMAL_PLACES = 8;
+  const ZERO_COORDINATE_TEXT = `0.${'0'.repeat(COORDINATE_DECIMAL_PLACES)}`;
 
   // Import helpers and components
   const { Icon } = window.MobileUtils;
@@ -936,11 +938,11 @@
 	                    <div className={`space-y-1 ${isIos ? 'font-sans' : 'font-mono'}`}>
 	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
 	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('latitude')}</span>
-	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(6) : '0.000000'}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lat ? lat.toFixed(COORDINATE_DECIMAL_PLACES) : ZERO_COORDINATE_TEXT}</span>
 	                      </div>
 	                      <div className={`flex justify-between ${isIos ? 'text-[11px] text-slate-500' : 'text-[10px] text-cyan-600'}`}>
 	                        <span className={isIos ? 'font-medium tracking-tight' : ''}>{t('longitude')}</span>
-	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(6) : '0.000000'}</span>
+	                        <span className={isIos ? 'font-mono tabular-nums text-slate-900' : 'text-cyan-100'}>{lng ? lng.toFixed(COORDINATE_DECIMAL_PLACES) : ZERO_COORDINATE_TEXT}</span>
 	                      </div>
 	                    </div>
 	                    <div className={`h-px w-full ${isIos ? 'bg-slate-200/60' : 'bg-cyan-900/50'}`}></div>
