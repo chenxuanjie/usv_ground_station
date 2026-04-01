@@ -133,7 +133,9 @@
     });
     const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
     const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
+    const isTaskExecMode = autoExecLevel === 'mission';
     const selectedDeploymentTaskType = (() => {
+      if (!isTaskExecMode) return 'manual';
       if (controlMode === 'W') return 'waypoint';
       if (controlMode === '@') return keyboardSelected ? 'joystick' : 'manual';
       if (controlMode === '#') return deploymentTaskType === 'station_keep' ? 'station_keep' : 'auto';
@@ -191,8 +193,16 @@
     }, [tcpStatus]);
 
     useEffect(() => {
+      if (isTaskExecMode) return;
+      if (controlMode === '@' && !keyboardSelected) return;
+      setKeyboardSelected(false);
+      if (typeof setControlMode === 'function') setControlMode('@');
+    }, [controlMode, isTaskExecMode, keyboardSelected, setControlMode, setKeyboardSelected]);
+
+    useEffect(() => {
       setHasDeployedThisSession(false);
     }, [
+      autoExecLevel,
       activePathAlgorithm,
       controlMode,
       cruiseMode,
@@ -375,7 +385,7 @@
       </div>
     );
 
-    const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan" }) => {
+    const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan", disabled = false }) => {
       if (isIos) {
         const iosActiveTheme = (() => {
           if (colorClass === 'orange') return 'bg-[#FF9500] text-white border-[#FF9500]/35 shadow-[0_8px_30px_-10px_rgba(255,149,0,0.38)]';
@@ -387,10 +397,13 @@
         return (
           <button
             onClick={onClick}
-            className={`snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 rounded-[14px] active:scale-[0.98] ${
-              active
-                ? iosActiveTheme
-                : 'bg-white/70 border-white/50 text-slate-600 hover:bg-white/80'
+            disabled={disabled}
+            className={`snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 rounded-[14px] ${
+              disabled
+                ? 'bg-slate-100/70 border-slate-200/70 text-slate-300 opacity-65 cursor-not-allowed'
+                : (active
+                  ? `${iosActiveTheme} active:scale-[0.98]`
+                  : 'bg-white/70 border-white/50 text-slate-600 hover:bg-white/80 active:scale-[0.98]')
             }`}
           >
             <span className="text-sm font-semibold z-10">{label}</span>
@@ -426,15 +439,18 @@
       return (
         <button
           onClick={onClick}
+          disabled={disabled}
           className={`
             snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 clip-path-slant
-            ${active ? activeTheme : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'}
+            ${disabled
+              ? 'bg-transparent border-slate-800 text-slate-600 opacity-55 cursor-not-allowed'
+              : (active ? activeTheme : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300')}
           `}
         >
-          {active && <div className={`absolute inset-0 ${activeOverlay} animate-pulse`}></div>}
+          {active && !disabled && <div className={`absolute inset-0 ${activeOverlay} animate-pulse`}></div>}
           <span className="text-sm font-bold z-10">{label}</span>
           <span className="text-[9px] font-mono opacity-70 z-10">{sub}</span>
-          {active && (
+          {active && !disabled && (
             <>
               <div className={`absolute top-0 left-0 w-1.5 h-1.5 border-t border-l ${activeCorner}`}></div>
               <div className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r ${activeCorner}`}></div>
@@ -654,6 +670,49 @@
               <TechHeader icon={Anchor} title={t.deployment} sub={t.op_mode} />
 
               <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
+                  <div className={`relative flex p-1 border w-[150px] ${isIos ? 'bg-white/70 rounded-[12px] border-slate-200/70' : 'bg-[#0d131f] rounded border-[#1e2a3b]'}`}>
+                    <div
+                      className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded transition-all duration-300 ease-out ${
+                        isTaskExecMode
+                          ? (isIos
+                            ? 'translate-x-[calc(100%+0px)] bg-cyan-500/18 border border-cyan-500/45'
+                            : 'translate-x-[calc(100%+0px)] bg-cyan-500/20 border border-cyan-500/50')
+                          : (isIos
+                            ? 'translate-x-0 bg-yellow-500/18 border border-yellow-500/45'
+                            : 'translate-x-0 bg-yellow-500/20 border border-yellow-500/50')
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoExecLevel('debug');
+                        setKeyboardSelected(false);
+                        if (typeof setControlMode === 'function') setControlMode('@');
+                      }}
+                      className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                        !isTaskExecMode
+                          ? (isIos ? 'text-[#B45309]' : 'text-yellow-500')
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t.exec_level_debug}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutoExecLevel('mission')}
+                      className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                        isTaskExecMode
+                          ? (isIos ? 'text-[#0369A1]' : 'text-cyan-400')
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t.exec_level_mission}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto -mx-1 px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="flex gap-2 snap-x snap-mandatory">
                   <ModeButton
@@ -671,6 +730,7 @@
                     label={lang === 'zh' ? tZh.waypoint_mission : tEn.waypoint_mission}
                     sub={lang === 'zh' ? tEn.waypoint_sub : tZh.waypoint_sub}
                     active={selectedDeploymentTaskType === 'waypoint'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(false);
                       setDeploymentTaskType('waypoint');
@@ -682,6 +742,7 @@
                     label={lang === 'zh' ? tZh.auto : tEn.auto}
                     sub={lang === 'zh' ? tEn.auto_sub : tZh.auto_sub}
                     active={selectedDeploymentTaskType === 'auto'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(false);
                       setDeploymentTaskType('auto');
@@ -693,6 +754,7 @@
                     label={lang === 'zh' ? tZh.station_keep : tEn.station_keep}
                     sub={lang === 'zh' ? tEn.station_keep_sub : tZh.station_keep_sub}
                     active={selectedDeploymentTaskType === 'station_keep'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(false);
                       setDeploymentTaskType('station_keep');
@@ -704,6 +766,7 @@
                     label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
                     sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
                     active={selectedDeploymentTaskType === 'joystick'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(true);
                       setDeploymentTaskType('joystick');
@@ -715,85 +778,36 @@
                 </div>
 
                 {selectedDeploymentTaskType === 'auto' && (
-                  <>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
-                      <div className={`relative flex p-1 border w-[150px] ${isIos ? 'bg-white/70 rounded-[12px] border-slate-200/70' : 'bg-[#0d131f] rounded border-[#1e2a3b]'}`}>
-                        <div
-                          className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded transition-all duration-300 ease-out ${
-                            autoExecLevel === 'mission'
-                              ? (isIos
-                                ? 'translate-x-[calc(100%+0px)] bg-cyan-500/18 border border-cyan-500/45'
-                                : 'translate-x-[calc(100%+0px)] bg-cyan-500/20 border border-cyan-500/50')
-                              : (isIos
-                                ? 'translate-x-0 bg-yellow-500/18 border border-yellow-500/45'
-                                : 'translate-x-0 bg-yellow-500/20 border border-yellow-500/50')
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setAutoExecLevel('debug')}
-                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
-                            autoExecLevel === 'debug'
-                              ? (isIos ? 'text-[#B45309]' : 'text-yellow-500')
-                              : 'text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {t.exec_level_debug}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAutoExecLevel('mission')}
-                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
-                            autoExecLevel === 'mission'
-                              ? (isIos ? 'text-[#0369A1]' : 'text-cyan-400')
-                              : 'text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {t.exec_level_mission}
-                        </button>
+                  <div className="pb-1">
+                    <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
+                      <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                        <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
+                        <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                          <button
+                            key={algo}
+                            type="button"
+                            onClick={() => setActivePathAlgorithm(algo)}
+                            className={`py-2 text-[10px] font-bold border transition-colors ${
+                              isIos
+                                ? (activePathAlgorithm === algo
+                                  ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
+                                  : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
+                                )
+                                : (activePathAlgorithm === algo
+                                  ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                                  : 'border-[#1e2a3b] text-gray-500 hover:border-gray-600'
+                                )
+                            }`}
+                          >
+                            {algo}
+                          </button>
+                        ))}
                       </div>
                     </div>
-
-                    <div
-                      className={`grid transition-all duration-500 ease-in-out ${
-                        autoExecLevel === 'mission' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                      }`}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="pb-1">
-                          <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
-                            <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
-                              <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
-                              <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1">
-                              {['A*', 'Hybrid A*', 'DWA'].map(algo => (
-                                <button
-                                  key={algo}
-                                  type="button"
-                                  onClick={() => setActivePathAlgorithm(algo)}
-                                  className={`py-2 text-[10px] font-bold border transition-colors ${
-                                    isIos
-                                      ? (activePathAlgorithm === algo
-                                        ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
-                                        : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
-                                      )
-                                      : (activePathAlgorithm === algo
-                                        ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
-                                        : 'border-[#1e2a3b] text-gray-500 hover:border-gray-600'
-                                      )
-                                  }`}
-                                >
-                                  {algo}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
                 {selectedDeploymentTaskType === 'waypoint' && (
