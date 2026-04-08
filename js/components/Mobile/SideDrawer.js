@@ -9,6 +9,7 @@
     waypointGuidance: 'mobile_waypoint_guidance',
     waypointController: 'mobile_waypoint_controller',
     waypointSpeedController: 'mobile_waypoint_speed_controller',
+    waypointTerminalHoldEnabled: 'mobile_waypoint_terminal_hold_enabled',
     stationKeepHeadingController: 'mobile_station_keep_heading_controller'
   });
   const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
@@ -113,6 +114,14 @@
         return stored === 'fix_pwm' ? 'fix_pwm' : 'pid';
       } catch (_) {
         return 'pid';
+      }
+    });
+    const [waypointTerminalHoldEnabled, setWaypointTerminalHoldEnabled] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointTerminalHoldEnabled) : null;
+        return stored === '1' || stored === 'true';
+      } catch (_) {
+        return false;
       }
     });
     const [stationKeepHeadingController, setStationKeepHeadingController] = useState(() => {
@@ -315,6 +324,12 @@
         if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointSpeedController, waypointSpeedController);
       } catch (_) {}
     }, [waypointSpeedController]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointTerminalHoldEnabled, waypointTerminalHoldEnabled ? '1' : '0');
+      } catch (_) {}
+    }, [waypointTerminalHoldEnabled]);
 
     useEffect(() => {
       try {
@@ -881,6 +896,44 @@
                           onClick={() => setWaypointSpeedController('pid')}
                           accent="orange"
                         />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.terminal_hold_label}</span>
+                      <div className={`relative flex p-1 border w-[128px] ${isIos ? 'bg-white/70 rounded-full border-slate-200/70' : 'bg-slate-900/60 rounded-full border-slate-700'}`}>
+                        <div
+                          className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full transition-all duration-300 ease-out ${
+                            waypointTerminalHoldEnabled
+                              ? (isIos
+                                ? 'translate-x-0 bg-amber-500/18 border border-amber-500/45'
+                                : 'translate-x-0 bg-amber-500/14 border border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.24)]')
+                              : (isIos
+                                ? 'translate-x-[calc(100%+0px)] bg-slate-400/14 border border-slate-400/20'
+                                : 'translate-x-[calc(100%+0px)] bg-slate-900/60 border border-slate-700')
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setWaypointTerminalHoldEnabled(true)}
+                          className={`flex-1 relative z-10 text-[11px] py-1.5 font-semibold transition-colors ${
+                            waypointTerminalHoldEnabled
+                              ? (isIos ? 'text-[#B45309]' : 'text-amber-200')
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          {t.toggle_on}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaypointTerminalHoldEnabled(false)}
+                          className={`flex-1 relative z-10 text-[11px] py-1.5 font-semibold transition-colors ${
+                            !waypointTerminalHoldEnabled
+                              ? (isIos ? 'text-slate-700' : 'text-slate-300')
+                              : 'text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          {t.toggle_off}
+                        </button>
                       </div>
                     </div>
 
