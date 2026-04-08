@@ -1,6 +1,31 @@
 (function() {
   const { useEffect, useState, useRef } = React;
   const { Icon } = window.MobileUtils;
+  const MOBILE_STORAGE_KEYS = Object.freeze({
+    autoExecLevel: 'mobile_auto_exec_level',
+    deploymentMode: 'mobile_deployment_mode',
+    deploymentTaskType: 'mobile_deployment_task_type',
+    deploymentKeyboardSelected: 'mobile_deployment_keyboard_selected',
+    waypointGuidance: 'mobile_waypoint_guidance',
+    waypointController: 'mobile_waypoint_controller',
+    waypointSpeedController: 'mobile_waypoint_speed_controller',
+    stationKeepHeadingController: 'mobile_station_keep_heading_controller'
+  });
+  const DEPLOY_CONTROL_PLANNER_MAP = Object.freeze({
+    'A*': '1',
+    'Hybrid A*': '2',
+    'DWA': '3'
+  });
+  const MOBILE_DEPLOY_ERROR_CODES = Object.freeze({
+    sSendFailed: '101',
+    cSendFailed: '102',
+    ackTimeout: '201',
+    ackFormatError: '301',
+    ackUnsupported: '302',
+    ackInvalidState: '303',
+    ackExecFail: '304',
+    ackUnknown: '399'
+  });
   const Ship = Icon('Ship');
   const Globe = Icon('Globe');
   const Wifi = Icon('Wifi');
@@ -39,8 +64,10 @@
     setKeyboardSelected: setKeyboardSelectedProp,
     cruiseMode,
     setCruiseMode,
+    waypointsCount,
     sendSCommand,
-    sendWaypointsCommand,
+    controlFrameConfig,
+    sendCCommand,
     onOpenRouteManager,
     onOpenSaveRoute
   }) => {
@@ -54,19 +81,51 @@
     const tEn = window.MobileTranslations && window.MobileTranslations.en ? window.MobileTranslations.en : {};
     const isConnected = tcpStatus === 'ONLINE';
     const isLocked = tcpStatus === 'ONLINE' || tcpStatus === 'CONNECTING';
-    const deployTrans = (() => {
-      const curLang = lang === 'zh' ? 'zh' : 'en';
-      if (typeof AppTranslations !== 'undefined' && AppTranslations && AppTranslations[curLang]) return AppTranslations[curLang];
-      return null;
-    })();
-
     const [keyboardSelectedInternal, setKeyboardSelectedInternal] = useState(false);
+    const [deploymentTaskType, setDeploymentTaskType] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentTaskType) : null;
+        return ['manual', 'waypoint', 'auto', 'station_keep', 'joystick'].includes(stored) ? stored : 'manual';
+      } catch (_) {
+        return 'manual';
+      }
+    });
     const [activePathAlgorithm, setActivePathAlgorithm] = useState('A*');
-    const [waypointGuidance, setWaypointGuidance] = useState('p2p');
-    const [waypointController, setWaypointController] = useState('pid');
+    const [waypointGuidance, setWaypointGuidance] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointGuidance) : null;
+        return stored === 'los' ? 'los' : 'p2p';
+      } catch (_) {
+        return 'p2p';
+      }
+    });
+    const [waypointController, setWaypointController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointController) : null;
+        return stored === 'ai_pid' ? 'ai_pid' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
+    const [waypointSpeedController, setWaypointSpeedController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.waypointSpeedController) : null;
+        return stored === 'fix_pwm' ? 'fix_pwm' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
+    const [stationKeepHeadingController, setStationKeepHeadingController] = useState(() => {
+      try {
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.stationKeepHeadingController) : null;
+        return stored === 'ai_pid' ? 'ai_pid' : 'pid';
+      } catch (_) {
+        return 'pid';
+      }
+    });
     const [autoExecLevel, setAutoExecLevel] = useState(() => {
       try {
-        const stored = window.localStorage ? window.localStorage.getItem('mobile_auto_exec_level') : null;
+        const stored = window.localStorage ? window.localStorage.getItem(MOBILE_STORAGE_KEYS.autoExecLevel) : null;
         return stored === 'mission' ? 'mission' : 'debug';
       } catch (_) {
         return 'debug';
@@ -74,10 +133,27 @@
     });
     const keyboardSelected = typeof keyboardSelectedProp === 'boolean' ? keyboardSelectedProp : keyboardSelectedInternal;
     const setKeyboardSelected = typeof setKeyboardSelectedProp === 'function' ? setKeyboardSelectedProp : setKeyboardSelectedInternal;
+    const isTaskExecMode = autoExecLevel === 'mission';
+    const selectedDeploymentTaskType = (() => {
+      if (!isTaskExecMode) return 'manual';
+      if (controlMode === 'W') return 'waypoint';
+      if (controlMode === '@') return keyboardSelected ? 'joystick' : 'manual';
+      if (controlMode === '#') return deploymentTaskType === 'station_keep' ? 'station_keep' : 'auto';
+      return deploymentTaskType;
+    })();
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
     const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
+    const prevAutoExecLevelRef = useRef(autoExecLevel);
     const deployCloseTimerRef = useRef(null);
+
+    const getTaskSelectionSnapshot = (taskType) => {
+      if (taskType === 'waypoint') return { mode: 'W', keyboard: false };
+      if (taskType === 'auto') return { mode: '#', keyboard: false };
+      if (taskType === 'station_keep') return { mode: '#', keyboard: false };
+      if (taskType === 'joystick') return { mode: '@', keyboard: true };
+      return { mode: '@', keyboard: false };
+    };
 
     useEffect(() => {
       return () => {
@@ -88,6 +164,31 @@
     useEffect(() => {
       if (controlMode !== '@') setKeyboardSelected(false);
     }, [controlMode, setKeyboardSelected]);
+
+    useEffect(() => {
+      try {
+        if (!window.localStorage) return;
+        const storedMode = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentMode);
+        const storedTaskType = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentTaskType);
+        const storedKeyboard = window.localStorage.getItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected);
+        const nextMode = storedMode === '@' || storedMode === 'W' || storedMode === '#' ? storedMode : '';
+        if (!nextMode) return;
+        const taskTypeFromStorage = ['manual', 'waypoint', 'auto', 'station_keep', 'joystick'].includes(storedTaskType)
+          ? storedTaskType
+          : '';
+        const nextKeyboardSelected = nextMode === '@' && (storedKeyboard === '1' || storedKeyboard === 'true');
+        const inferredTaskType = taskTypeFromStorage || (
+          nextMode === 'W'
+            ? 'waypoint'
+            : (nextMode === '#'
+              ? 'auto'
+              : (nextKeyboardSelected ? 'joystick' : 'manual'))
+        );
+        if (typeof setControlMode === 'function') setControlMode(nextMode);
+        setKeyboardSelected(nextKeyboardSelected);
+        setDeploymentTaskType(inferredTaskType);
+      } catch (_) {}
+    }, [setControlMode, setKeyboardSelected]);
 
     useEffect(() => {
       const prev = prevTcpStatusRef.current;
@@ -101,8 +202,37 @@
     }, [tcpStatus]);
 
     useEffect(() => {
+      if (isTaskExecMode) return;
+      if (controlMode === '@' && !keyboardSelected) return;
+      setKeyboardSelected(false);
+      if (typeof setControlMode === 'function') setControlMode('@');
+    }, [controlMode, isTaskExecMode, keyboardSelected, setControlMode, setKeyboardSelected]);
+
+    useEffect(() => {
+      const prevAutoExecLevel = prevAutoExecLevelRef.current;
+      prevAutoExecLevelRef.current = autoExecLevel;
+      if (prevAutoExecLevel !== 'debug' || autoExecLevel !== 'mission') return;
+      const nextSelection = getTaskSelectionSnapshot(deploymentTaskType);
+      setKeyboardSelected(!!nextSelection.keyboard);
+      if (typeof setControlMode === 'function') setControlMode(nextSelection.mode);
+    }, [autoExecLevel, deploymentTaskType, setControlMode, setKeyboardSelected]);
+
+    useEffect(() => {
       setHasDeployedThisSession(false);
-    }, [streamOn, recvOn, controlMode, cruiseMode]);
+    }, [
+      autoExecLevel,
+      activePathAlgorithm,
+      controlMode,
+      cruiseMode,
+      deploymentTaskType,
+      recvOn,
+      stationKeepHeadingController,
+      streamOn,
+      waypointController,
+      waypointGuidance,
+      waypointSpeedController,
+      waypointsCount
+    ]);
 
     useEffect(() => {
       if (!open) {
@@ -114,33 +244,154 @@
       }
     }, [open]);
 
+    const buildDeployControlConfig = () => {
+      const baseConfig = controlFrameConfig && typeof controlFrameConfig === 'object' ? controlFrameConfig : {};
+      const isWaypointTaskMode = selectedDeploymentTaskType === 'waypoint';
+      const isAutoTaskMode = selectedDeploymentTaskType === 'auto';
+      const isStationKeepTaskMode = selectedDeploymentTaskType === 'station_keep';
+      const isJoystickTaskMode = selectedDeploymentTaskType === 'joystick';
+      const plannerValue = DEPLOY_CONTROL_PLANNER_MAP[activePathAlgorithm] || '0';
+      const guidanceValue = waypointGuidance === 'los' ? '2' : '1';
+      const headingControllerValue = waypointController === 'ai_pid' ? '2' : '1';
+      const speedControllerValue = waypointSpeedController === 'fix_pwm' ? '1' : '2';
+      const stationKeepHeadingControllerValue = stationKeepHeadingController === 'ai_pid' ? '2' : '1';
+      const modeValue = autoExecLevel === 'mission' ? '1' : '0';
+      const taskValue = isWaypointTaskMode
+        ? '1'
+        : (isAutoTaskMode
+          ? '2'
+          : (isStationKeepTaskMode
+            ? '3'
+            : (isJoystickTaskMode ? '4' : '0')));
+
+      // 仅对移动端当前可见入口做映射；没有入口的字段统一按 0 发送，不沿用 S/旧状态限制 C。
+      return {
+        ...baseConfig,
+        src: '0',
+        mode: modeValue,
+        task: taskValue,
+        planner: isAutoTaskMode ? plannerValue : '0',
+        guidance: isWaypointTaskMode ? guidanceValue : '0',
+        heading_controller: isWaypointTaskMode
+          ? headingControllerValue
+          : (isStationKeepTaskMode ? stationKeepHeadingControllerValue : '0'),
+        speed_controller: isWaypointTaskMode
+          ? speedControllerValue
+          : (isStationKeepTaskMode ? '2' : '0')
+      };
+    };
+
     useEffect(() => {
       try {
-        if (window.localStorage) window.localStorage.setItem('mobile_auto_exec_level', autoExecLevel);
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.autoExecLevel, autoExecLevel);
       } catch (_) {}
     }, [autoExecLevel]);
 
+    useEffect(() => {
+      try {
+        if (window.localStorage) {
+          const persistedSelection = getTaskSelectionSnapshot(deploymentTaskType);
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentMode, String(persistedSelection.mode));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentTaskType, String(deploymentTaskType || 'manual'));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected, persistedSelection.keyboard ? '1' : '0');
+        }
+      } catch (_) {}
+    }, [deploymentTaskType]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointGuidance, waypointGuidance);
+      } catch (_) {}
+    }, [waypointGuidance]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointController, waypointController);
+      } catch (_) {}
+    }, [waypointController]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.waypointSpeedController, waypointSpeedController);
+      } catch (_) {}
+    }, [waypointSpeedController]);
+
+    useEffect(() => {
+      try {
+        if (window.localStorage) window.localStorage.setItem(MOBILE_STORAGE_KEYS.stationKeepHeadingController, stationKeepHeadingController);
+      } catch (_) {}
+    }, [stationKeepHeadingController]);
+
+    const getDeployErrorCode = (result) => {
+      const ret = Number.parseInt(String(result && result.ret), 10);
+      if (!Number.isFinite(ret)) return MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
+      if (ret === 1) return MOBILE_DEPLOY_ERROR_CODES.ackFormatError;
+      if (ret === 2) return MOBILE_DEPLOY_ERROR_CODES.ackUnsupported;
+      if (ret === 3) return MOBILE_DEPLOY_ERROR_CODES.ackInvalidState;
+      if (ret === 4) return MOBILE_DEPLOY_ERROR_CODES.ackExecFail;
+      return MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
+    };
+
+    const buildDeployToastMessage = (isSuccess, errorCode = '') => {
+      const base = isSuccess
+        ? (t.deploy_success_short || t.toast_deploy_success || 'Deploy OK')
+        : (t.deploy_failed_short || t.toast_deploy_failed || 'Deploy failed');
+      const code = errorCode || MOBILE_DEPLOY_ERROR_CODES.ackUnknown;
+      return isSuccess
+        ? base
+        : (lang === 'zh' ? `${base}。错误码：${code}` : `${base}. Code: ${code}`);
+    };
+
+    const showDeployToast = (isSuccess, errorCode = '') => {
+      if (!(window.SystemToast && typeof window.SystemToast.show === 'function')) return;
+      window.SystemToast.show(buildDeployToastMessage(isSuccess, errorCode), {
+        type: isSuccess ? 'success' : 'error',
+        durationMs: isSuccess ? 2500 : 4500
+      });
+    };
+
     const handleDeployClick = () => {
-      const ok = typeof sendSCommand === 'function' ? sendSCommand() : false;
-      if (ok) {
+      const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
+      const controlOk = typeof sendCCommand === 'function'
+        ? sendCCommand(buildDeployControlConfig(), {
+            showToast: false,
+            source: 'mobile_deploy',
+            onAckResolved: (result) => {
+              if (!result || !result.ok) {
+                setDeployStatus('idle');
+                setHasDeployedThisSession(false);
+                showDeployToast(false, getDeployErrorCode(result));
+                return;
+              }
+
+              setDeployStatus('dispatched');
+              setHasDeployedThisSession(true);
+              showDeployToast(true);
+              if (typeof onClose === 'function') {
+                if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
+                deployCloseTimerRef.current = window.setTimeout(() => {
+                  deployCloseTimerRef.current = null;
+                  onClose();
+                }, 160);
+              }
+            },
+            onAckTimeout: (result) => {
+              setDeployStatus('idle');
+              setHasDeployedThisSession(false);
+              showDeployToast(false, MOBILE_DEPLOY_ERROR_CODES.ackTimeout);
+            }
+          })
+        : false;
+
+      if (controlOk) {
         setDeployStatus('dispatched');
-        setHasDeployedThisSession(true);
-        if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-          window.SystemToast.show(t.toast_deploy_success, { type: 'success', durationMs: 2500 });
-        }
-        if (typeof onClose === 'function') {
-          if (deployCloseTimerRef.current) window.clearTimeout(deployCloseTimerRef.current);
-          deployCloseTimerRef.current = window.setTimeout(() => {
-            deployCloseTimerRef.current = null;
-            onClose();
-          }, 160);
-        }
         return;
       }
 
-      if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-        window.SystemToast.show(t.toast_deploy_failed, { type: 'error', durationMs: 4500 });
-      }
+      const errorCode = !configOk && typeof sendSCommand === 'function'
+        ? MOBILE_DEPLOY_ERROR_CODES.sSendFailed
+        : MOBILE_DEPLOY_ERROR_CODES.cSendFailed;
+      showDeployToast(false, errorCode);
     };
 
     const TechHeader = ({ icon: IconComp, title, sub }) => (
@@ -153,10 +404,11 @@
       </div>
     );
 
-    const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan" }) => {
+    const ModeButton = ({ active, label, sub, onClick, colorClass = "cyan", disabled = false }) => {
       if (isIos) {
         const iosActiveTheme = (() => {
           if (colorClass === 'orange') return 'bg-[#FF9500] text-white border-[#FF9500]/35 shadow-[0_8px_30px_-10px_rgba(255,149,0,0.38)]';
+          if (colorClass === 'rose') return 'bg-[#FF375F] text-white border-[#FF375F]/35 shadow-[0_8px_30px_-10px_rgba(255,55,95,0.38)]';
           if (colorClass === 'purple') return 'bg-[#5856D6] text-white border-[#5856D6]/35 shadow-[0_8px_30px_-10px_rgba(88,86,214,0.38)]';
           if (colorClass === 'emerald') return 'bg-[#34C759] text-white border-[#34C759]/35 shadow-[0_8px_30px_-10px_rgba(52,199,89,0.38)]';
           return 'bg-[#007AFF] text-white border-[#007AFF]/30 shadow-[0_8px_30px_-10px_rgba(0,122,255,0.35)]';
@@ -164,10 +416,13 @@
         return (
           <button
             onClick={onClick}
-            className={`snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 rounded-[14px] active:scale-[0.98] ${
-              active
-                ? iosActiveTheme
-                : 'bg-white/70 border-white/50 text-slate-600 hover:bg-white/80'
+            disabled={disabled}
+            className={`snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 rounded-[14px] ${
+              disabled
+                ? 'bg-slate-100/70 border-slate-200/70 text-slate-300 opacity-65 cursor-not-allowed'
+                : (active
+                  ? `${iosActiveTheme} active:scale-[0.98]`
+                  : 'bg-white/70 border-white/50 text-slate-600 hover:bg-white/80 active:scale-[0.98]')
             }`}
           >
             <span className="text-sm font-semibold z-10">{label}</span>
@@ -178,6 +433,7 @@
 
       const activeTheme = (() => {
         if (colorClass === 'orange') return 'bg-amber-500/14 border-amber-400 text-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.22)]';
+        if (colorClass === 'rose') return 'bg-rose-500/12 border-rose-400 text-rose-300 shadow-[0_0_15px_rgba(251,113,133,0.22)]';
         if (colorClass === 'purple') return 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         if (colorClass === 'emerald') return 'bg-emerald-500/10 border-emerald-400 text-emerald-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
         return 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]';
@@ -185,6 +441,7 @@
 
       const activeOverlay = (() => {
         if (colorClass === 'orange') return 'bg-amber-400/5';
+        if (colorClass === 'rose') return 'bg-rose-400/5';
         if (colorClass === 'purple') return 'bg-purple-400/5';
         if (colorClass === 'emerald') return 'bg-emerald-400/5';
         return 'bg-cyan-400/5';
@@ -192,6 +449,7 @@
 
       const activeCorner = (() => {
         if (colorClass === 'orange') return 'border-amber-400';
+        if (colorClass === 'rose') return 'border-rose-400';
         if (colorClass === 'purple') return 'border-purple-400';
         if (colorClass === 'emerald') return 'border-emerald-400';
         return 'border-cyan-400';
@@ -200,15 +458,18 @@
       return (
         <button
           onClick={onClick}
+          disabled={disabled}
           className={`
             snap-start shrink-0 min-w-[86px] relative flex flex-col items-center justify-center py-3 px-3 border transition-all duration-200 clip-path-slant
-            ${active ? activeTheme : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'}
+            ${disabled
+              ? 'bg-transparent border-slate-800 text-slate-600 opacity-55 cursor-not-allowed'
+              : (active ? activeTheme : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300')}
           `}
         >
-          {active && <div className={`absolute inset-0 ${activeOverlay} animate-pulse`}></div>}
+          {active && !disabled && <div className={`absolute inset-0 ${activeOverlay} animate-pulse`}></div>}
           <span className="text-sm font-bold z-10">{label}</span>
           <span className="text-[9px] font-mono opacity-70 z-10">{sub}</span>
-          {active && (
+          {active && !disabled && (
             <>
               <div className={`absolute top-0 left-0 w-1.5 h-1.5 border-t border-l ${activeCorner}`}></div>
               <div className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r ${activeCorner}`}></div>
@@ -221,12 +482,16 @@
     const CapsuleButton = ({ active, label, onClick, accent = 'orange' }) => {
       const iosActive = accent === 'orange'
         ? 'bg-[#FF9500] text-white border-[#FF9500]/35'
-        : 'bg-[#007AFF] text-white border-[#007AFF]/35';
+        : (accent === 'rose'
+          ? 'bg-[#FF375F] text-white border-[#FF375F]/35'
+          : 'bg-[#007AFF] text-white border-[#007AFF]/35');
       const iosInactive = 'bg-white/70 text-slate-600 border-slate-200/70 hover:bg-white/85';
 
       const cyberActive = accent === 'orange'
         ? 'bg-amber-500/14 border-amber-400/70 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.24)]'
-        : 'bg-cyan-500/14 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.24)]';
+        : (accent === 'rose'
+          ? 'bg-rose-500/14 border-rose-400/70 text-rose-200 shadow-[0_0_12px_rgba(251,113,133,0.24)]'
+          : 'bg-cyan-500/14 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.24)]');
       const cyberInactive = 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300';
 
       return (
@@ -424,14 +689,58 @@
               <TechHeader icon={Anchor} title={t.deployment} sub={t.op_mode} />
 
               <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
+                  <div className={`relative flex p-1 border w-[150px] ${isIos ? 'bg-white/70 rounded-[12px] border-slate-200/70' : 'bg-[#0d131f] rounded border-[#1e2a3b]'}`}>
+                    <div
+                      className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded transition-all duration-300 ease-out ${
+                        isTaskExecMode
+                          ? (isIos
+                            ? 'translate-x-[calc(100%+0px)] bg-cyan-500/18 border border-cyan-500/45'
+                            : 'translate-x-[calc(100%+0px)] bg-cyan-500/20 border border-cyan-500/50')
+                          : (isIos
+                            ? 'translate-x-0 bg-yellow-500/18 border border-yellow-500/45'
+                            : 'translate-x-0 bg-yellow-500/20 border border-yellow-500/50')
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutoExecLevel('debug');
+                        setKeyboardSelected(false);
+                        if (typeof setControlMode === 'function') setControlMode('@');
+                      }}
+                      className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                        !isTaskExecMode
+                          ? (isIos ? 'text-[#B45309]' : 'text-yellow-500')
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t.exec_level_debug}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutoExecLevel('mission')}
+                      className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
+                        isTaskExecMode
+                          ? (isIos ? 'text-[#0369A1]' : 'text-cyan-400')
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t.exec_level_mission}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto -mx-1 px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="flex gap-2 snap-x snap-mandatory">
                   <ModeButton
                     label={lang === 'zh' ? tZh.manual : tEn.manual}
                     sub={lang === 'zh' ? tEn.manual_sub : tZh.manual_sub}
-                    active={controlMode === '@' && !keyboardSelected}
+                    active={selectedDeploymentTaskType === 'manual'}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('manual');
                       setControlMode && setControlMode('@');
                     }}
                     colorClass="cyan"
@@ -439,9 +748,11 @@
                   <ModeButton
                     label={lang === 'zh' ? tZh.waypoint_mission : tEn.waypoint_mission}
                     sub={lang === 'zh' ? tEn.waypoint_sub : tZh.waypoint_sub}
-                    active={controlMode === 'W'}
+                    active={selectedDeploymentTaskType === 'waypoint'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('waypoint');
                       setControlMode && setControlMode('W');
                     }}
                     colorClass="orange"
@@ -449,19 +760,35 @@
                   <ModeButton
                     label={lang === 'zh' ? tZh.auto : tEn.auto}
                     sub={lang === 'zh' ? tEn.auto_sub : tZh.auto_sub}
-                    active={controlMode === '#'}
+                    active={selectedDeploymentTaskType === 'auto'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(false);
+                      setDeploymentTaskType('auto');
                       setControlMode && setControlMode('#');
                     }}
                     colorClass="emerald"
                   />
                   <ModeButton
+                    label={lang === 'zh' ? tZh.station_keep : tEn.station_keep}
+                    sub={lang === 'zh' ? tEn.station_keep_sub : tZh.station_keep_sub}
+                    active={selectedDeploymentTaskType === 'station_keep'}
+                    disabled={!isTaskExecMode}
+                    onClick={() => {
+                      setKeyboardSelected(false);
+                      setDeploymentTaskType('station_keep');
+                      setControlMode && setControlMode('#');
+                    }}
+                    colorClass="rose"
+                  />
+                  <ModeButton
                     label={lang === 'zh' ? tZh.keyboard : tEn.keyboard}
                     sub={lang === 'zh' ? tEn.keyboard_sub : tZh.keyboard_sub}
-                    active={controlMode === '@' && keyboardSelected}
+                    active={selectedDeploymentTaskType === 'joystick'}
+                    disabled={!isTaskExecMode}
                     onClick={() => {
                       setKeyboardSelected(true);
+                      setDeploymentTaskType('joystick');
                       setControlMode && setControlMode('@');
                     }}
                     colorClass="purple"
@@ -469,89 +796,40 @@
                   </div>
                 </div>
 
-                {controlMode === '#' && (
-                  <>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`${isIos ? 'text-[11px] text-slate-500 font-semibold tracking-wider' : 'text-[10px] text-slate-500 font-bold tracking-wider'}`}>{t.exec_level_label}</span>
-                      <div className={`relative flex p-1 border w-[150px] ${isIos ? 'bg-white/70 rounded-[12px] border-slate-200/70' : 'bg-[#0d131f] rounded border-[#1e2a3b]'}`}>
-                        <div
-                          className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded transition-all duration-300 ease-out ${
-                            autoExecLevel === 'mission'
-                              ? (isIos
-                                ? 'translate-x-[calc(100%+0px)] bg-cyan-500/18 border border-cyan-500/45'
-                                : 'translate-x-[calc(100%+0px)] bg-cyan-500/20 border border-cyan-500/50')
-                              : (isIos
-                                ? 'translate-x-0 bg-yellow-500/18 border border-yellow-500/45'
-                                : 'translate-x-0 bg-yellow-500/20 border border-yellow-500/50')
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setAutoExecLevel('debug')}
-                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
-                            autoExecLevel === 'debug'
-                              ? (isIos ? 'text-[#B45309]' : 'text-yellow-500')
-                              : 'text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {t.exec_level_debug}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAutoExecLevel('mission')}
-                          className={`flex-1 relative z-10 text-xs py-1.5 font-bold transition-colors ${
-                            autoExecLevel === 'mission'
-                              ? (isIos ? 'text-[#0369A1]' : 'text-cyan-400')
-                              : 'text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          {t.exec_level_mission}
-                        </button>
+                {selectedDeploymentTaskType === 'auto' && (
+                  <div className="pb-1">
+                    <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
+                      <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
+                        <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
+                        <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {['A*', 'Hybrid A*', 'DWA'].map(algo => (
+                          <button
+                            key={algo}
+                            type="button"
+                            onClick={() => setActivePathAlgorithm(algo)}
+                            className={`py-2 text-[10px] font-bold border transition-colors ${
+                              isIos
+                                ? (activePathAlgorithm === algo
+                                  ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
+                                  : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
+                                )
+                                : (activePathAlgorithm === algo
+                                  ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
+                                  : 'border-[#1e2a3b] text-gray-500 hover:border-gray-600'
+                                )
+                            }`}
+                          >
+                            {algo}
+                          </button>
+                        ))}
                       </div>
                     </div>
-
-                    <div
-                      className={`grid transition-all duration-500 ease-in-out ${
-                        autoExecLevel === 'mission' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                      }`}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="pb-1">
-                          <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3` : 'tech-border p-3'}>
-                            <div className={`text-[10px] font-bold uppercase mb-2 tracking-wider flex items-center gap-2 ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>
-                              <Waypoints className={`w-4 h-4 ${isIos ? 'text-[#007AFF]' : 'text-cyan-400'}`} />
-                              <span>{lang === 'zh' ? `${tZh.path_planning} (${tEn.path_planning})` : `${tEn.path_planning} (${tZh.path_planning})`}</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1">
-                              {['A*', 'Hybrid A*', 'DWA'].map(algo => (
-                                <button
-                                  key={algo}
-                                  type="button"
-                                  onClick={() => setActivePathAlgorithm(algo)}
-                                  className={`py-2 text-[10px] font-bold border transition-colors ${
-                                    isIos
-                                      ? (activePathAlgorithm === algo
-                                        ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-slate-900 rounded-[12px] shadow-[0_6px_16px_-10px_rgba(0,122,255,0.35)]'
-                                        : 'bg-white/60 border-slate-200/60 text-slate-500 rounded-[12px] hover:bg-white/80'
-                                      )
-                                      : (activePathAlgorithm === algo
-                                        ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
-                                        : 'border-[#1e2a3b] text-gray-500 hover:border-gray-600'
-                                      )
-                                  }`}
-                                >
-                                  {algo}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
-                {controlMode === 'W' && (
+                {selectedDeploymentTaskType === 'waypoint' && (
                   <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
                     <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.waypoint_mission}</div>
                     <div className="flex items-center justify-between gap-3">
@@ -572,7 +850,7 @@
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.controller_label}</span>
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.heading_controller_label}</span>
                       <div className="flex items-center gap-2">
                         <CapsuleButton
                           active={waypointController === 'pid'}
@@ -584,6 +862,23 @@
                           active={waypointController === 'ai_pid'}
                           label={t.controller_ai_pid}
                           onClick={() => setWaypointController('ai_pid')}
+                          accent="orange"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.speed_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={waypointSpeedController === 'fix_pwm'}
+                          label={t.speed_controller_fix_pwm}
+                          onClick={() => setWaypointSpeedController('fix_pwm')}
+                          accent="orange"
+                        />
+                        <CapsuleButton
+                          active={waypointSpeedController === 'pid'}
+                          label={t.speed_controller_pid}
+                          onClick={() => setWaypointSpeedController('pid')}
                           accent="orange"
                         />
                       </div>
@@ -647,6 +942,40 @@
                         <Send className={`relative z-10 w-4 h-4 -rotate-12 -translate-y-[1px] ${isIos ? 'text-[#1d8a46]' : ''}`} />
                         <span className={`relative z-10 ${isIos ? 'text-[13px] tracking-tight' : 'text-sm'}`}>{t.track_route}</span>
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedDeploymentTaskType === 'station_keep' && (
+                  <div className={isIos ? `${cardBase} ${cardRadiusClass} p-3 space-y-3` : 'tech-border p-3 space-y-3'}>
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${isIos ? 'text-slate-500' : 'text-slate-500'}`}>{t.station_keep}</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.heading_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={stationKeepHeadingController === 'pid'}
+                          label={t.controller_pid}
+                          onClick={() => setStationKeepHeadingController('pid')}
+                          accent="rose"
+                        />
+                        <CapsuleButton
+                          active={stationKeepHeadingController === 'ai_pid'}
+                          label={t.controller_ai_pid}
+                          onClick={() => setStationKeepHeadingController('ai_pid')}
+                          accent="rose"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`${isIos ? 'text-[12px] text-slate-600 font-semibold' : 'text-[10px] text-slate-400 font-bold uppercase tracking-wider'}`}>{t.speed_controller_label}</span>
+                      <div className="flex items-center gap-2">
+                        <CapsuleButton
+                          active={true}
+                          label={t.speed_controller_pid}
+                          onClick={() => {}}
+                          accent="rose"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

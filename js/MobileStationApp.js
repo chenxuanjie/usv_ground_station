@@ -313,6 +313,8 @@
       controlMode,
       setControlMode,
       sendSCommand,
+      controlFrameConfig,
+      sendCCommand,
       sendWaypointsCommand,
       sendKCommand,
       onOpenRouteManager,
@@ -681,8 +683,10 @@
           setKeyboardSelected={setKeyboardSelected}
           cruiseMode={cruiseMode}
           setCruiseMode={setCruiseMode}
+          waypointsCount={Array.isArray(waypoints) ? waypoints.length : 0}
           sendSCommand={sendSCommand}
-          sendWaypointsCommand={sendWaypointsCommand}
+          controlFrameConfig={controlFrameConfig}
+          sendCCommand={sendCCommand}
           onOpenRouteManager={onOpenRouteManager}
           onOpenSaveRoute={onOpenSaveRoute}
           onOpenSettings={() => setShowSettings(true)}

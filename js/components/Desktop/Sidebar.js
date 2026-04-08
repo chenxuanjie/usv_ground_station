@@ -3,7 +3,23 @@
 var { useEffect, useState, useRef } = React;
 const COORDINATE_DECIMAL_PLACES = 8;
 
-function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyState, sendSCommand, sendKCommand, sendWaypointsCommand, waypointsCount, t, tcpStatus }) {
+function Sidebar({
+    boatStatus,
+    headingMode,
+    configState,
+    setConfigState,
+    keyState,
+    sendSCommand,
+    controlFrameChoices,
+    controlFrameConfig,
+    setControlFrameField,
+    sendCCommand,
+    sendKCommand,
+    sendWaypointsCommand,
+    waypointsCount,
+    t,
+    tcpStatus
+}) {
     const { streamOn, setStreamOn, recvOn, setRecvOn, controlMode, setControlMode, cruiseMode, setCruiseMode } = configState;
 
     // === 新增状态：控制提示框显示 ===
@@ -37,8 +53,12 @@ function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyStat
 
     // === 新增逻辑：处理点击“部署配置” ===
     const handleDeployClick = () => {
-        const ok = sendSCommand();
-        if (ok) {
+        const configOk = typeof sendSCommand === 'function' ? sendSCommand() : false;
+        const controlOk = typeof sendCCommand === 'function'
+            ? sendCCommand(undefined, { showToast: false, source: 'desktop_deploy' })
+            : false;
+
+        if (configOk && controlOk) {
             setShowDeployHint(false);
             if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
             if (window.SystemToast && typeof window.SystemToast.show === 'function') {
@@ -48,7 +68,10 @@ function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyStat
         }
 
         if (window.SystemToast && typeof window.SystemToast.show === 'function') {
-            window.SystemToast.show(t('toast_deploy_failed'), { type: 'error', durationMs: 4500 });
+            const failedMessage = !configOk
+                ? t('toast_deploy_failed')
+                : t('toast_control_switch_send_failed');
+            window.SystemToast.show(failedMessage, { type: 'error', durationMs: 4500 });
         }
     };
 
@@ -60,6 +83,26 @@ function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyStat
     const compassRotation = isDataActive
         ? (normalizedHeadingMode === 'east_ccw' ? (45 - boatStatus.heading) : (boatStatus.heading - 45))
         : 0;
+
+    const renderControlSelect = (field, labelKey, extraClassName = '') => {
+        const options = controlFrameChoices && Array.isArray(controlFrameChoices[field]) ? controlFrameChoices[field] : [];
+        return (
+            <label className={`flex flex-col gap-1 ${extraClassName}`}>
+                <span className="text-[9px] text-slate-500 uppercase tracking-wider">{t(labelKey)}</span>
+                <select
+                    value={controlFrameConfig && controlFrameConfig[field] != null ? controlFrameConfig[field] : '0'}
+                    onChange={(e) => setControlFrameField && setControlFrameField(field, e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-[11px] text-cyan-100 font-mono focus:outline-none focus:border-cyan-500"
+                >
+                    {options.map((option) => (
+                        <option key={`${field}_${option.value}`} value={option.value}>
+                            {t(option.labelKey)}
+                        </option>
+                    ))}
+                </select>
+            </label>
+        );
+    };
 
     return (
         <div className="flex-none w-72 max-w-[85vw] sm:w-80 sm:max-w-none bg-slate-950/80 border-r border-cyan-900/30 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 overflow-y-auto backdrop-blur-sm scrollbar-hide z-10">
@@ -146,6 +189,33 @@ function Sidebar({ boatStatus, headingMode, configState, setConfigState, keyStat
                     <div className="grid grid-cols-2 gap-2">
                         <button onClick={() => setCruiseMode('1')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='1'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_on')}</button>
                         <button onClick={() => setCruiseMode('0')} className={`p-1.5 rounded border text-[10px] font-bold transition-all ${cruiseMode==='0'?'bg-cyan-500/20 border-cyan-500 text-cyan-300':'border-slate-700 text-slate-500 hover:border-slate-500'}`}>{t('loop_off')}</button>
+                    </div>
+
+                    <div className="pt-2 mt-1 border-t border-slate-800/50">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                <Icons.Activity size={12} className="text-emerald-400" />
+                                <span>{t('control_switch_frame')}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-600 font-mono">C</span>
+                        </div>
+                        <div className="text-[9px] text-slate-500 leading-relaxed mb-2">
+                            {t('control_switch_hint')}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            {renderControlSelect('mode', 'c_field_mode')}
+                            {renderControlSelect('task', 'c_field_task')}
+                            {renderControlSelect('planner', 'c_field_planner')}
+                            {renderControlSelect('guidance', 'c_field_guidance')}
+                            {renderControlSelect('heading_controller', 'c_field_heading_controller')}
+                            {renderControlSelect('speed_controller', 'c_field_speed_controller')}
+                        </div>
+                        <button
+                            onClick={() => typeof sendCCommand === 'function' && sendCCommand()}
+                            className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs py-2 rounded font-bold shadow-lg tracking-wide"
+                        >
+                            {t('send_control_switch')}
+                        </button>
                     </div>
 
                     {/* Path Planning */}

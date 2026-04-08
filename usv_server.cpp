@@ -701,6 +701,67 @@ string build_routes_message() {
  }
  
  // === HTTP & WebSocket 逻辑 ===
+
+bool try_extract_ws_frame(vector<unsigned char>& pending, int& opcode, string& decoded) {
+    opcode = -1;
+    decoded.clear();
+
+    if (pending.size() < 2) return false;
+
+    opcode = pending[0] & 0x0F;
+    bool masked = (pending[1] & 0x80) != 0;
+    unsigned long long payload_len = pending[1] & 0x7F;
+    size_t head_len = 2;
+
+    if (payload_len == 126) {
+        if (pending.size() < 4) return false;
+        payload_len = (static_cast<unsigned long long>(pending[2]) << 8) |
+                      static_cast<unsigned long long>(pending[3]);
+        head_len = 4;
+    } else if (payload_len == 127) {
+        if (pending.size() < 10) return false;
+        payload_len = 0;
+        for (int i = 0; i < 8; ++i) {
+            payload_len = (payload_len << 8) | static_cast<unsigned long long>(pending[2 + i]);
+        }
+        head_len = 10;
+    }
+
+    if (!masked) {
+        cout << "[Web] Received unmasked client frame, closing connection." << endl;
+        pending.clear();
+        opcode = 0x8;
+        return true;
+    }
+
+    const unsigned long long max_payload_len = 1024 * 1024;
+    if (payload_len > max_payload_len) {
+        cout << "[Web] Received oversized client frame, closing connection." << endl;
+        pending.clear();
+        opcode = 0x8;
+        return true;
+    }
+
+    unsigned long long frame_len = static_cast<unsigned long long>(head_len) + 4 + payload_len;
+    if (pending.size() < frame_len) return false;
+
+    unsigned char mask[4];
+    memcpy(mask, pending.data() + head_len, 4);
+    size_t payload_offset = head_len + 4;
+
+    if (opcode == 0x1) {
+        decoded.reserve(static_cast<size_t>(payload_len));
+        for (unsigned long long i = 0; i < payload_len; ++i) {
+            decoded += static_cast<char>(pending[payload_offset + static_cast<size_t>(i)] ^ mask[i % 4]);
+        }
+    }
+
+    pending.erase(
+        pending.begin(),
+        pending.begin() + static_cast<vector<unsigned char>::difference_type>(frame_len)
+    );
+    return true;
+}
  
  void send_ws_frame(string msg) {
      if (g_web_client_sock < 0) return;
@@ -1030,236 +1091,214 @@ void boat_listener_loop() {
             
             cout << "[Web] WebSocket Client Connected." << endl;
             
-            // 进入 WS 读取循环
+            // 进入 WS 读取循环。这里不能假设“一次 recv() 恰好对应一个 WS 帧”：
+            // 浏览器连续发送 S/C 等小帧时，可能在同一个 TCP 包里一起到达；
+            // 也可能单个 WS 帧被拆成多个 TCP 包。因此需要累积后按帧拆包。
             unsigned char ws_buf[4096];
+            vector<unsigned char> ws_pending;
+            bool client_requested_close = false;
 
-            while (true) {
+            while (!client_requested_close) {
                 int n = recv(client_sock, ws_buf, sizeof(ws_buf), 0);
                 if (n <= 0) break;
-                
-                // === 修复点 2: 检查 Opcode，防止乱码 ===
-                // WebSocket 协议中，第一个字节的低4位是 Opcode。0x8 代表关闭连接。
-                int opcode = ws_buf[0] & 0x0F;
-                if (opcode == 0x8) {
-                    cout << "[Web] Client sent Close Frame." << endl;
-                    break; // 优雅退出循环
-                }
+                ws_pending.insert(ws_pending.end(), ws_buf, ws_buf + n);
 
-                // 1. 解析 WS 帧 (Masking handling)
-                unsigned long long payload_len = ws_buf[1] & 0x7F;
-                int head_len = 2;
-                if (payload_len == 126) {
-                    if (n < 4) continue;
-                    payload_len = (static_cast<unsigned long long>(ws_buf[2]) << 8) |
-                                  static_cast<unsigned long long>(ws_buf[3]);
-                    head_len = 4;
-                } else if (payload_len == 127) {
-                    if (n < 10) continue;
-                    payload_len = 0;
-                    for (int i = 0; i < 8; ++i) {
-                        payload_len = (payload_len << 8) | static_cast<unsigned long long>(ws_buf[2 + i]);
-                    }
-                    head_len = 10;
-                }
-                
-                // 安全检查：防止 buffer 溢出 (简单保护)
-                if (n < head_len + 4) continue; 
+                while (!client_requested_close) {
+                    int opcode = -1;
+                    string decoded;
+                    if (!try_extract_ws_frame(ws_pending, opcode, decoded)) break;
 
-                unsigned char mask[4];
-                memcpy(mask, ws_buf + head_len, 4);
-                head_len += 4;
-                
-                string decoded;
-                // 只有当接收到的数据足够长时才解码
-                if (payload_len > static_cast<unsigned long long>(sizeof(ws_buf))) continue;
-                if (static_cast<unsigned long long>(n) >= static_cast<unsigned long long>(head_len) + payload_len) {
-                    for(unsigned long long i = 0; i < payload_len; i++) {
-                        decoded += (char)(ws_buf[head_len+i] ^ mask[i%4]);
+                    if (opcode == 0x8) {
+                        cout << "[Web] Client sent Close Frame." << endl;
+                        client_requested_close = true;
+                        break;
                     }
-                }
-                
-                // 2. 逻辑处理核心
-                if (!decoded.empty()) {
+
+                    if (opcode != 0x1) continue;
+
+                    // 2. 逻辑处理核心
+                    if (!decoded.empty()) {
                     
-                    // [新增] 处理获取配置请求 (前端初始化时调用)
-                    if (decoded == "GET_CONFIG") {
-                        string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," +
-                            (g_config.auto_reconnect ? "1" : "0") + "," + g_config.boat_style + "," + g_config.waypoint_style + "," +
-                            (g_config.embedded_channel_expanded ? "1" : "0") + "," +
-                            (g_config.embedded_heading_enabled ? "1" : "0") + "," +
-                            (g_config.embedded_bat_l_enabled ? "1" : "0") + "," +
-                            (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style + "," + g_config.heading_mode;
-                        send_ws_frame(msg);
-                        cout << "[Config] Sent current config to client." << endl;
-                    }
-                    else if (decoded == "CMD,GET_ROUTES") {
-                        send_routes_data();
-                        cout << "[AppData] Sent saved routes to client." << endl;
-                    }
-                    // [新增] 处理保存配置请求
-                    else if (decoded.find("CMD,SET_CONFIG") == 0) {
-                        vector<string> parts;
-                        {
-                            string token;
-                            stringstream ss(decoded);
-                            while (getline(ss, token, ',')) parts.push_back(token);
+                        // [新增] 处理获取配置请求 (前端初始化时调用)
+                        if (decoded == "GET_CONFIG") {
+                            string msg = "CURRENT_CONFIG," + g_config.boat_ip + "," + to_string(g_config.boat_port) + "," +
+                                (g_config.auto_reconnect ? "1" : "0") + "," + g_config.boat_style + "," + g_config.waypoint_style + "," +
+                                (g_config.embedded_channel_expanded ? "1" : "0") + "," +
+                                (g_config.embedded_heading_enabled ? "1" : "0") + "," +
+                                (g_config.embedded_bat_l_enabled ? "1" : "0") + "," +
+                                (g_config.embedded_bat_r_enabled ? "1" : "0") + "," + g_config.ui_style + "," + g_config.heading_mode;
+                            send_ws_frame(msg);
+                            cout << "[Config] Sent current config to client." << endl;
                         }
-
-                        if (parts.size() >= 4) {
-                            g_config.boat_ip = parts[2];
-                            g_config.boat_port = stoi(parts[3]);
-                            if (parts.size() >= 5) {
-                                string v = parts[4];
-                                transform(v.begin(), v.end(), v.begin(), ::tolower);
-                                g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
-                            }
-                            if (parts.size() >= 6) g_config.boat_style = parts[5];
-                            if (parts.size() >= 7) g_config.waypoint_style = parts[6];
-                            if (parts.size() >= 8) {
-                                string v = parts[7];
-                                transform(v.begin(), v.end(), v.begin(), ::tolower);
-                                g_config.embedded_channel_expanded = (v == "1" || v == "true" || v == "yes" || v == "on");
-                            }
-                            if (parts.size() >= 9) {
-                                string v = parts[8];
-                                transform(v.begin(), v.end(), v.begin(), ::tolower);
-                                g_config.embedded_heading_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
-                            }
-                            if (parts.size() >= 10) {
-                                string v = parts[9];
-                                transform(v.begin(), v.end(), v.begin(), ::tolower);
-                                g_config.embedded_bat_l_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
-                            }
-                            if (parts.size() >= 11) {
-                                string v = parts[10];
-                                transform(v.begin(), v.end(), v.begin(), ::tolower);
-                                g_config.embedded_bat_r_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
-                            }
-                            if (parts.size() >= 12) g_config.ui_style = parts[11];
-                            if (parts.size() >= 13) g_config.heading_mode = normalize_heading_mode(parts[12]);
-
-                            save_config();
-                            cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
-                        }
-                    }
-                    else if (decoded.find("CMD,SAVE_ROUTE,") == 0) {
-                        string payload = decoded.substr(strlen("CMD,SAVE_ROUTE,"));
-                        string error_code;
-                        if (save_route_from_payload(payload, &error_code)) {
+                        else if (decoded == "CMD,GET_ROUTES") {
                             send_routes_data();
-                            cout << "[AppData] Saved route." << endl;
-                        } else {
-                            send_ws_frame("ROUTE_ERROR,SAVE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                            cout << "[AppData] Sent saved routes to client." << endl;
                         }
-                    }
-                    else if (decoded.find("CMD,RENAME_ROUTE,") == 0) {
-                        string payload = decoded.substr(strlen("CMD,RENAME_ROUTE,"));
-                        string error_code;
-                        if (rename_route_from_payload(payload, &error_code)) {
-                            send_routes_data();
-                            cout << "[AppData] Renamed route." << endl;
-                        } else {
-                            send_ws_frame("ROUTE_ERROR,RENAME_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
-                        }
-                    }
-                    else if (decoded.find("CMD,DELETE_ROUTE,") == 0) {
-                        string raw_id = decoded.substr(strlen("CMD,DELETE_ROUTE,"));
-                        string error_code;
-                        if (delete_route_by_id(raw_id, &error_code)) {
-                            send_routes_data();
-                            cout << "[AppData] Deleted route." << endl;
-                        } else {
-                            send_ws_frame("ROUTE_ERROR,DELETE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
-                        }
-                    }
-                    else if (decoded.find("CMD,SET_ROUTE_FAVORITE,") == 0) {
-                        string payload = decoded.substr(strlen("CMD,SET_ROUTE_FAVORITE,"));
-                        string error_code;
-                        if (update_route_favorite_from_payload(payload, &error_code)) {
-                            send_routes_data();
-                            cout << "[AppData] Updated route favorite." << endl;
-                        } else {
-                            send_ws_frame("ROUTE_ERROR,FAVORITE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
-                        }
-                    }
+                        // [新增] 处理保存配置请求
+                        else if (decoded.find("CMD,SET_CONFIG") == 0) {
+                            vector<string> parts;
+                            {
+                                string token;
+                                stringstream ss(decoded);
+                                while (getline(ss, token, ',')) parts.push_back(token);
+                            }
 
-                    // --- 情况 A: 收到连接指令 ---
-                    else if (decoded.find("CMD,CONNECT") == 0) {
-                        // 格式: CMD,CONNECT,IP,PORT
-                        string ip_str, port_str;
-                        size_t p1 = decoded.find(',');
-                        size_t p2 = decoded.find(',', p1 + 1);
-                        size_t p3 = decoded.find(',', p2 + 1);
-                        
-                        if (p2 != string::npos && p3 != string::npos) {
-                            ip_str = decoded.substr(p2 + 1, p3 - p2 - 1);
-                            port_str = decoded.substr(p3 + 1);
-                        } else {
-                            ip_str = g_config.boat_ip;
-                            port_str = to_string(g_config.boat_port);
+                            if (parts.size() >= 4) {
+                                g_config.boat_ip = parts[2];
+                                g_config.boat_port = stoi(parts[3]);
+                                if (parts.size() >= 5) {
+                                    string v = parts[4];
+                                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                    g_config.auto_reconnect = (v == "1" || v == "true" || v == "yes" || v == "on");
+                                }
+                                if (parts.size() >= 6) g_config.boat_style = parts[5];
+                                if (parts.size() >= 7) g_config.waypoint_style = parts[6];
+                                if (parts.size() >= 8) {
+                                    string v = parts[7];
+                                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                    g_config.embedded_channel_expanded = (v == "1" || v == "true" || v == "yes" || v == "on");
+                                }
+                                if (parts.size() >= 9) {
+                                    string v = parts[8];
+                                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                    g_config.embedded_heading_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                                }
+                                if (parts.size() >= 10) {
+                                    string v = parts[9];
+                                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                    g_config.embedded_bat_l_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                                }
+                                if (parts.size() >= 11) {
+                                    string v = parts[10];
+                                    transform(v.begin(), v.end(), v.begin(), ::tolower);
+                                    g_config.embedded_bat_r_enabled = (v == "1" || v == "true" || v == "yes" || v == "on");
+                                }
+                                if (parts.size() >= 12) g_config.ui_style = parts[11];
+                                if (parts.size() >= 13) g_config.heading_mode = normalize_heading_mode(parts[12]);
+
+                                save_config();
+                                cout << "[Config] Updated: " << g_config.boat_ip << ":" << g_config.boat_port << endl;
+                            }
                         }
-
-                        cout << "[Cmd] Connecting to " << ip_str << ":" << port_str << "..." << endl;
-
-                        // 先关闭可能存在的旧连接
-                        {
-                            lock_guard<mutex> lock(g_boat_mutex);
-                            if (g_boat_sock != -1) {
-                                close(g_boat_sock);
-                                g_boat_sock = -1;
+                        else if (decoded.find("CMD,SAVE_ROUTE,") == 0) {
+                            string payload = decoded.substr(strlen("CMD,SAVE_ROUTE,"));
+                            string error_code;
+                            if (save_route_from_payload(payload, &error_code)) {
+                                send_routes_data();
+                                cout << "[AppData] Saved route." << endl;
+                            } else {
+                                send_ws_frame("ROUTE_ERROR,SAVE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                            }
+                        }
+                        else if (decoded.find("CMD,RENAME_ROUTE,") == 0) {
+                            string payload = decoded.substr(strlen("CMD,RENAME_ROUTE,"));
+                            string error_code;
+                            if (rename_route_from_payload(payload, &error_code)) {
+                                send_routes_data();
+                                cout << "[AppData] Renamed route." << endl;
+                            } else {
+                                send_ws_frame("ROUTE_ERROR,RENAME_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                            }
+                        }
+                        else if (decoded.find("CMD,DELETE_ROUTE,") == 0) {
+                            string raw_id = decoded.substr(strlen("CMD,DELETE_ROUTE,"));
+                            string error_code;
+                            if (delete_route_by_id(raw_id, &error_code)) {
+                                send_routes_data();
+                                cout << "[AppData] Deleted route." << endl;
+                            } else {
+                                send_ws_frame("ROUTE_ERROR,DELETE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
+                            }
+                        }
+                        else if (decoded.find("CMD,SET_ROUTE_FAVORITE,") == 0) {
+                            string payload = decoded.substr(strlen("CMD,SET_ROUTE_FAVORITE,"));
+                            string error_code;
+                            if (update_route_favorite_from_payload(payload, &error_code)) {
+                                send_routes_data();
+                                cout << "[AppData] Updated route favorite." << endl;
+                            } else {
+                                send_ws_frame("ROUTE_ERROR,FAVORITE_FAILED," + (error_code.empty() ? string("UNKNOWN") : error_code));
                             }
                         }
 
-                        // 发起新连接
-                        struct sockaddr_in boat_addr;
-                        boat_addr.sin_family = AF_INET;
-                        boat_addr.sin_port = htons(stoi(port_str));
-                        inet_pton(AF_INET, ip_str.c_str(), &boat_addr.sin_addr);
+                        // --- 情况 A: 收到连接指令 ---
+                        else if (decoded.find("CMD,CONNECT") == 0) {
+                            // 格式: CMD,CONNECT,IP,PORT
+                            string ip_str, port_str;
+                            size_t p1 = decoded.find(',');
+                            size_t p2 = decoded.find(',', p1 + 1);
+                            size_t p3 = decoded.find(',', p2 + 1);
+                            
+                            if (p2 != string::npos && p3 != string::npos) {
+                                ip_str = decoded.substr(p2 + 1, p3 - p2 - 1);
+                                port_str = decoded.substr(p3 + 1);
+                            } else {
+                                ip_str = g_config.boat_ip;
+                                port_str = to_string(g_config.boat_port);
+                            }
 
-                        int new_sock = socket(AF_INET, SOCK_STREAM, 0);
-                        
-                        struct timeval timeout;      
-                        timeout.tv_sec = 3; timeout.tv_usec = 0;
-                        setsockopt(new_sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+                            cout << "[Cmd] Connecting to " << ip_str << ":" << port_str << "..." << endl;
 
-                        if (connect(new_sock, (struct sockaddr*)&boat_addr, sizeof(boat_addr)) == 0) {
+                            // 先关闭可能存在的旧连接
                             {
                                 lock_guard<mutex> lock(g_boat_mutex);
-                                g_boat_sock = new_sock;
+                                if (g_boat_sock != -1) {
+                                    close(g_boat_sock);
+                                    g_boat_sock = -1;
+                                }
                             }
-                            cout << "[Boat] Connect Success!" << endl;
-                            send_ws_frame("TCP_STATUS,ONLINE"); 
-                            thread(boat_listener_loop).detach();
-                        } else {
-                            perror("[Boat] Connect Failed");
-                            close(new_sock);
-                            send_ws_frame("TCP_STATUS,FAILED"); 
+
+                            // 发起新连接
+                            struct sockaddr_in boat_addr;
+                            boat_addr.sin_family = AF_INET;
+                            boat_addr.sin_port = htons(stoi(port_str));
+                            inet_pton(AF_INET, ip_str.c_str(), &boat_addr.sin_addr);
+
+                            int new_sock = socket(AF_INET, SOCK_STREAM, 0);
+                            
+                            struct timeval timeout;      
+                            timeout.tv_sec = 3; timeout.tv_usec = 0;
+                            setsockopt(new_sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+                            if (connect(new_sock, (struct sockaddr*)&boat_addr, sizeof(boat_addr)) == 0) {
+                                {
+                                    lock_guard<mutex> lock(g_boat_mutex);
+                                    g_boat_sock = new_sock;
+                                }
+                                cout << "[Boat] Connect Success!" << endl;
+                                send_ws_frame("TCP_STATUS,ONLINE"); 
+                                thread(boat_listener_loop).detach();
+                            } else {
+                                perror("[Boat] Connect Failed");
+                                close(new_sock);
+                                send_ws_frame("TCP_STATUS,FAILED"); 
+                            }
                         }
-                    }
-                    
-                    else if (decoded == "CMD,QUERY_STATUS") {
-                       lock_guard<mutex> lock(g_boat_mutex);
-                       if (g_boat_sock != -1) {
-                           send_ws_frame("TCP_STATUS,ONLINE"); 
-                       } else {
-                           send_ws_frame("TCP_STATUS,OFFLINE"); 
+                        
+                        else if (decoded == "CMD,QUERY_STATUS") {
+                           lock_guard<mutex> lock(g_boat_mutex);
+                           if (g_boat_sock != -1) {
+                               send_ws_frame("TCP_STATUS,ONLINE"); 
+                           } else {
+                               send_ws_frame("TCP_STATUS,OFFLINE"); 
+                           }
                        }
-                   }
-                    // --- 情况 B: 收到断开指令 ---
-                    else if (decoded.find("CMD,DISCONNECT") == 0) {
-                        lock_guard<mutex> lock(g_boat_mutex);
-                        if (g_boat_sock != -1) {
-                            close(g_boat_sock); 
-                            g_boat_sock = -1;
+                        // --- 情况 B: 收到断开指令 ---
+                        else if (decoded.find("CMD,DISCONNECT") == 0) {
+                            lock_guard<mutex> lock(g_boat_mutex);
+                            if (g_boat_sock != -1) {
+                                close(g_boat_sock); 
+                                g_boat_sock = -1;
+                            }
+                            send_ws_frame("TCP_STATUS,OFFLINE");
+                            cout << "[Cmd] Manually disconnected." << endl;
                         }
-                        send_ws_frame("TCP_STATUS,OFFLINE");
-                        cout << "[Cmd] Manually disconnected." << endl;
-                    }
-                    // --- 情况 C: 普通指令 ---
-                    else {
-                        cout << "[Web -> Boat] " << decoded << endl;
-                        lock_guard<mutex> lock(g_boat_mutex);
-                        if (g_boat_sock != -1) send(g_boat_sock, decoded.c_str(), decoded.length(), 0);
+                        // --- 情况 C: 普通指令 ---
+                        else {
+                            cout << "[Web -> Boat] " << decoded << endl;
+                            lock_guard<mutex> lock(g_boat_mutex);
+                            if (g_boat_sock != -1) send(g_boat_sock, decoded.c_str(), decoded.length(), 0);
+                        }
                     }
                 }
             }

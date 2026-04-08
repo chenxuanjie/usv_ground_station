@@ -132,6 +132,212 @@ const sanitizeSavedRoutes = (items) => {
         .filter(Boolean);
 };
 
+const CONTROL_FRAME_DEFAULTS = Object.freeze({
+    src: '0',
+    mode: '0',
+    task: '0',
+    planner: '0',
+    guidance: '0',
+    heading_controller: '0',
+    speed_controller: '0'
+});
+
+const CONTROL_FRAME_CHOICES = Object.freeze({
+    mode: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_mode_debug' }),
+        Object.freeze({ value: '1', labelKey: 'c_mode_task' })
+    ]),
+    task: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_task_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_task_waypoint_nav' }),
+        Object.freeze({ value: '2', labelKey: 'c_task_auto_nav' }),
+        Object.freeze({ value: '3', labelKey: 'c_task_station_keep' }),
+        Object.freeze({ value: '4', labelKey: 'c_task_joystick_control' })
+    ]),
+    planner: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_planner_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_planner_astar' }),
+        Object.freeze({ value: '2', labelKey: 'c_planner_hybrid_astar' }),
+        Object.freeze({ value: '3', labelKey: 'c_planner_dwa' })
+    ]),
+    guidance: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_guidance_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_guidance_waypoint_tracking' }),
+        Object.freeze({ value: '2', labelKey: 'c_guidance_los' })
+    ]),
+    heading_controller: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_heading_controller_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_heading_controller_pid' }),
+        Object.freeze({ value: '2', labelKey: 'c_heading_controller_ai_pid' })
+    ]),
+    speed_controller: Object.freeze([
+        Object.freeze({ value: '0', labelKey: 'c_speed_controller_none' }),
+        Object.freeze({ value: '1', labelKey: 'c_speed_controller_fix_pwm' }),
+        Object.freeze({ value: '2', labelKey: 'c_speed_controller_pid' })
+    ])
+});
+
+const CONTROL_FRAME_VALUE_LABEL_KEYS = Object.freeze({
+    mode: Object.freeze({ '0': 'c_mode_debug', '1': 'c_mode_task' }),
+    task: Object.freeze({
+        '0': 'c_task_none',
+        '1': 'c_task_waypoint_nav',
+        '2': 'c_task_auto_nav',
+        '3': 'c_task_station_keep',
+        '4': 'c_task_joystick_control'
+    }),
+    planner: Object.freeze({
+        '0': 'c_planner_none',
+        '1': 'c_planner_astar',
+        '2': 'c_planner_hybrid_astar',
+        '3': 'c_planner_dwa'
+    }),
+    guidance: Object.freeze({
+        '0': 'c_guidance_none',
+        '1': 'c_guidance_waypoint_tracking',
+        '2': 'c_guidance_los'
+    }),
+    heading_controller: Object.freeze({
+        '0': 'c_heading_controller_none',
+        '1': 'c_heading_controller_pid',
+        '2': 'c_heading_controller_ai_pid'
+    }),
+    speed_controller: Object.freeze({
+        '0': 'c_speed_controller_none',
+        '1': 'c_speed_controller_fix_pwm',
+        '2': 'c_speed_controller_pid'
+    })
+});
+
+const mergeControlFrameState = (baseState, overrideState) => {
+    const merged = { ...(baseState || {}) };
+    if (!overrideState || typeof overrideState !== 'object') return merged;
+
+    Object.keys(CONTROL_FRAME_DEFAULTS).forEach((field) => {
+        if (!Object.prototype.hasOwnProperty.call(overrideState, field)) return;
+        const nextValue = overrideState[field];
+        if (nextValue == null) return;
+        merged[field] = String(nextValue);
+    });
+
+    return merged;
+};
+
+const toControlFrameNumbers = (state) => ({
+    src: Number.parseInt(String(state && state.src), 10) || 0,
+    mode: Number.parseInt(String(state && state.mode), 10) || 0,
+    task: Number.parseInt(String(state && state.task), 10) || 0,
+    planner: Number.parseInt(String(state && state.planner), 10) || 0,
+    guidance: Number.parseInt(String(state && state.guidance), 10) || 0,
+    heading_controller: Number.parseInt(String(state && state.heading_controller), 10) || 0,
+    speed_controller: Number.parseInt(String(state && state.speed_controller), 10) || 0
+});
+
+const buildControlFrameCommand = (seq, state) => {
+    const normalized = toControlFrameNumbers(state);
+    return `C,${seq},${normalized.src},${normalized.mode},${normalized.task},${normalized.planner},${normalized.guidance},${normalized.heading_controller},${normalized.speed_controller},`;
+};
+
+const getControlValueLabel = (t, field, rawValue) => {
+    const value = String(rawValue ?? '');
+    const labelKey = CONTROL_FRAME_VALUE_LABEL_KEYS[field] ? CONTROL_FRAME_VALUE_LABEL_KEYS[field][value] : '';
+    return labelKey ? t(labelKey) : `${field}=${value}`;
+};
+
+const buildControlStateSummary = (t, state) => {
+    return [
+        getControlValueLabel(t, 'mode', state && state.mode),
+        getControlValueLabel(t, 'task', state && state.task),
+        getControlValueLabel(t, 'planner', state && state.planner),
+        getControlValueLabel(t, 'guidance', state && state.guidance),
+        getControlValueLabel(t, 'heading_controller', state && state.heading_controller),
+        getControlValueLabel(t, 'speed_controller', state && state.speed_controller)
+    ].join(' | ');
+};
+
+const CONTROL_SWITCH_ACK_TIMEOUT_MS = 3000;
+
+const CONTROL_SWITCH_RET_TEXT = Object.freeze({
+    zh: Object.freeze({
+        0: 'success',
+        1: 'format_error',
+        2: 'unsupported',
+        3: 'invalid_state',
+        4: 'exec_fail'
+    }),
+    en: Object.freeze({
+        0: 'success',
+        1: 'format_error',
+        2: 'unsupported',
+        3: 'invalid_state',
+        4: 'exec_fail'
+    })
+});
+
+const getControlSwitchRetText = (lang, ret) => {
+    const langKey = lang === 'zh' ? 'zh' : 'en';
+    const table = CONTROL_SWITCH_RET_TEXT[langKey] || CONTROL_SWITCH_RET_TEXT.en;
+    return Object.prototype.hasOwnProperty.call(table, ret) ? table[ret] : `ret=${ret}`;
+};
+
+const buildControlSwitchAckMessage = (lang, ackSeq, ret, summary) => {
+    const suffix = summary ? `: ${summary}` : '';
+    if (ret === 0) {
+        return lang === 'zh'
+            ? `控制切换已确认 #${ackSeq}${suffix}`
+            : `Control switch acknowledged #${ackSeq}${suffix}`;
+    }
+    const retText = getControlSwitchRetText(lang, ret);
+    return lang === 'zh'
+        ? `控制切换失败 #${ackSeq}: ${retText}${suffix ? ` | ${summary}` : ''}`
+        : `Control switch failed #${ackSeq}: ${retText}${suffix ? ` | ${summary}` : ''}`;
+};
+
+const buildControlSwitchTimeoutMessage = (lang, seq) => (
+    lang === 'zh'
+        ? `控制切换超时 #${seq}`
+        : `Control switch timeout #${seq}`
+);
+
+const parseControlSwitchAckFrame = (msg) => {
+    const parts = String(msg || '').split(',');
+    if (parts.length < 11 || parts[0] !== 'X') return null;
+    const parseNum = (value) => {
+        const num = Number.parseInt(String(value), 10);
+        return Number.isFinite(num) ? num : null;
+    };
+
+    const seq = parseNum(parts[1]);
+    const src = parseNum(parts[2]);
+    const ackSeq = parseNum(parts[3]);
+    const ret = parseNum(parts[4]);
+    const mode = parseNum(parts[5]);
+    const task = parseNum(parts[6]);
+    const planner = parseNum(parts[7]);
+    const guidance = parseNum(parts[8]);
+    const heading_controller = parseNum(parts[9]);
+    const speed_controller = parseNum(parts[10]);
+
+    if ([seq, src, ackSeq, ret, mode, task, planner, guidance, heading_controller, speed_controller].some((value) => value == null)) {
+        return null;
+    }
+
+    return {
+        seq,
+        src,
+        ackSeq,
+        ret,
+        state: {
+            mode: String(mode),
+            task: String(task),
+            planner: String(planner),
+            guidance: String(guidance),
+            heading_controller: String(heading_controller),
+            speed_controller: String(speed_controller)
+        }
+    };
+};
+
 const getRouteErrorMessage = (translations, code) => {
     if (!translations) return 'Route operation failed';
     if (code === 'SAVE_FAILED') return translations.route_save_failed;
@@ -376,14 +582,26 @@ function BoatGroundStation() {
     const [recvOn, setRecvOn] = useState(true);
     const [controlMode, setControlMode] = useState('@');
     const [cruiseMode, setCruiseMode] = useState('0');
+    const [controlFrameConfig, setControlFrameConfig] = useState(() => ({ ...CONTROL_FRAME_DEFAULTS }));
     
     const [keyState, setKeyState] = useState({ w: false, a: false, s: false, d: false });
     const keyStateRef = useRef({ w: false, a: false, s: false, d: false });
+    const controlFrameSeqRef = useRef(100);
+    const pendingControlSwitchRef = useRef(new Map());
 
     const [isMobile, setIsMobile] = useState(() => {
         if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches;
         return (window.innerWidth || 0) <= 768;
     });
+
+    useEffect(() => {
+        return () => {
+            pendingControlSwitchRef.current.forEach((entry) => {
+                if (entry && entry.timeoutId) window.clearTimeout(entry.timeoutId);
+            });
+            pendingControlSwitchRef.current.clear();
+        };
+    }, []);
 
     useEffect(() => {
         if (window.matchMedia) {
@@ -628,12 +846,13 @@ function BoatGroundStation() {
 
     const handleConfirmRouteLoadPreview = useCallback(() => {
         if (!routeLoadPreview) return false;
+        handlePersistWaypointCache(routeLoadPreview.previewWaypoints);
         setRouteBaselineSignature(routeLoadPreview.previewSignature);
         setRouteLoadPreview(null);
         addLog('SYS', `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, 'info');
         showToast({ type: 'success', message: `${t('toast_route_loaded')}: ${routeLoadPreview.routeName}`, durationMs: 2500 });
         return true;
-    }, [addLog, routeLoadPreview, showToast, t]);
+    }, [addLog, handlePersistWaypointCache, routeLoadPreview, showToast, t]);
 
     const handleCancelRouteLoadPreview = useCallback(() => {
         if (!routeLoadPreview) return false;
@@ -745,6 +964,74 @@ function BoatGroundStation() {
         if (ok && !devMode) addLog('SYS', t('log_config_updated'), 'info');
         return ok;
     };
+
+    const setControlFrameField = useCallback((field, value) => {
+        setControlFrameConfig((prev) => ({
+            ...prev,
+            [field]: String(value ?? '')
+        }));
+    }, []);
+
+    const sendCCommand = useCallback((overrideState, options = {}) => {
+        const shouldShowToast = options && options.showToast !== false;
+        const timeoutMs = Number.isFinite(Number(options && options.timeoutMs))
+            ? Math.max(1000, Math.round(Number(options.timeoutMs)))
+            : CONTROL_SWITCH_ACK_TIMEOUT_MS;
+        const nextSeq = controlFrameSeqRef.current + 1;
+        const nextConfig = {
+            ...mergeControlFrameState(controlFrameConfig, overrideState),
+            src: '0'
+        };
+        const command = buildControlFrameCommand(nextSeq, nextConfig);
+        const ok = sendData(command);
+        if (!ok) {
+            if (shouldShowToast) {
+                showToast({ type: 'error', message: t('toast_control_switch_send_failed'), durationMs: 4500 });
+            }
+            return false;
+        }
+
+        controlFrameSeqRef.current = nextSeq;
+        const requestSummary = buildControlStateSummary(t, nextConfig);
+        const requestMessage = requestSummary
+            ? `${t('log_control_switch_sent')} #${nextSeq}: ${requestSummary}`
+            : `${t('log_control_switch_sent')} #${nextSeq}`;
+
+        const timeoutId = window.setTimeout(() => {
+            const pending = pendingControlSwitchRef.current.get(nextSeq);
+            if (!pending) return;
+            pendingControlSwitchRef.current.delete(nextSeq);
+            const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+            const timeoutMessage = buildControlSwitchTimeoutMessage(curLang, nextSeq);
+            addLog('ERR', timeoutMessage, 'error');
+            if (typeof pending.onAckTimeout === 'function') {
+                pending.onAckTimeout({
+                    ok: false,
+                    seq: nextSeq,
+                    config: pending.config,
+                    message: timeoutMessage
+                });
+            } else if (pending.shouldShowToast) {
+                showToast({ type: 'error', message: timeoutMessage, durationMs: 4500 });
+            }
+        }, timeoutMs);
+
+        pendingControlSwitchRef.current.set(nextSeq, {
+            seq: nextSeq,
+            config: nextConfig,
+            shouldShowToast,
+            source: options && options.source ? String(options.source) : '',
+            onAckResolved: options && typeof options.onAckResolved === 'function' ? options.onAckResolved : null,
+            onAckTimeout: options && typeof options.onAckTimeout === 'function' ? options.onAckTimeout : null,
+            timeoutId
+        });
+
+        addLog('SYS', requestMessage, 'info');
+        if (shouldShowToast) {
+            showToast({ type: 'info', message: `${t('toast_control_switch_sent')} #${nextSeq}`, durationMs: 2500 });
+        }
+        return true;
+    }, [addLog, controlFrameConfig, sendData, showToast, t]);
 
     // K command protocol:
     // - New: `K,x,y,` where x/y are normalized in [-1.00, 1.00]
@@ -1065,6 +1352,47 @@ function BoatGroundStation() {
                         }
                     }
                 }
+                else if (msg.startsWith('X,')) {
+                    addLog('RX', msg, 'debug');
+                    const ack = parseControlSwitchAckFrame(msg);
+                    if (!ack) {
+                        const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                        addLog('ERR', curLang === 'zh' ? '收到无效的控制应答帧' : 'Received invalid control ACK frame', 'error');
+                        return;
+                    }
+
+                    setControlFrameConfig((prev) => mergeControlFrameState(prev, ack.state));
+
+                    const curLang = langRef.current === 'zh' ? 'zh' : 'en';
+                    const translate = (key) => AppTranslations && AppTranslations[curLang]
+                        ? (AppTranslations[curLang][key] || key)
+                        : key;
+                    const ackSummary = buildControlStateSummary(translate, ack.state);
+                    const ackMessage = buildControlSwitchAckMessage(curLang, ack.ackSeq, ack.ret, ackSummary);
+                    const pending = pendingControlSwitchRef.current.get(ack.ackSeq);
+
+                    if (pending && pending.timeoutId) window.clearTimeout(pending.timeoutId);
+                    if (pending) pendingControlSwitchRef.current.delete(ack.ackSeq);
+
+                    addLog(ack.ret === 0 ? 'SYS' : 'ERR', ackMessage, ack.ret === 0 ? 'info' : 'error');
+
+                    if (pending && typeof pending.onAckResolved === 'function') {
+                        pending.onAckResolved({
+                            ok: ack.ret === 0,
+                            seq: ack.seq,
+                            ackSeq: ack.ackSeq,
+                            ret: ack.ret,
+                            state: ack.state,
+                            message: ackMessage
+                        });
+                    } else if (pending && pending.shouldShowToast) {
+                        showToast({
+                            type: ack.ret === 0 ? 'success' : 'error',
+                            message: ackMessage,
+                            durationMs: ack.ret === 0 ? 2500 : 4500
+                        });
+                    }
+                }
                 else if (msg.startsWith('R')) {
                     const parts = msg.split(',');
                     if (parts.length >= 6) {
@@ -1111,7 +1439,10 @@ function BoatGroundStation() {
             wsRef.current = ws;
         };
         connectToBridge();
-        return () => { if (wsRef.current) wsRef.current.close(); clearTimeout(connectTimeoutRef.current); };
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+            clearTimeout(connectTimeoutRef.current);
+        };
     }, []); 
 
     useEffect(() => {
@@ -1387,6 +1718,8 @@ function BoatGroundStation() {
                     controlMode={controlMode}
                     setControlMode={setControlMode}
                     sendSCommand={sendSCommand}
+                    controlFrameConfig={controlFrameConfig}
+                    sendCCommand={sendCCommand}
                     sendWaypointsCommand={sendWaypointsCommand}
                     sendKCommand={sendKCommand}
                     setShowChart={setShowChart}
@@ -1437,6 +1770,10 @@ function BoatGroundStation() {
                             setConfigState={()=>{}} 
                             keyState={keyState}
                             sendSCommand={sendSCommand}
+                            controlFrameChoices={CONTROL_FRAME_CHOICES}
+                            controlFrameConfig={controlFrameConfig}
+                            setControlFrameField={setControlFrameField}
+                            sendCCommand={sendCCommand}
                             sendKCommand={sendKCommand}
                             sendWaypointsCommand={sendWaypointsCommand}
                             waypointsCount={waypoints.length}
