@@ -144,7 +144,16 @@
     const [hasDeployedThisSession, setHasDeployedThisSession] = useState(false);
     const [deployStatus, setDeployStatus] = useState('idle'); // 'idle' | 'dispatched'
     const prevTcpStatusRef = useRef(tcpStatus);
+    const prevAutoExecLevelRef = useRef(autoExecLevel);
     const deployCloseTimerRef = useRef(null);
+
+    const getTaskSelectionSnapshot = (taskType) => {
+      if (taskType === 'waypoint') return { mode: 'W', keyboard: false };
+      if (taskType === 'auto') return { mode: '#', keyboard: false };
+      if (taskType === 'station_keep') return { mode: '#', keyboard: false };
+      if (taskType === 'joystick') return { mode: '@', keyboard: true };
+      return { mode: '@', keyboard: false };
+    };
 
     useEffect(() => {
       return () => {
@@ -198,6 +207,15 @@
       setKeyboardSelected(false);
       if (typeof setControlMode === 'function') setControlMode('@');
     }, [controlMode, isTaskExecMode, keyboardSelected, setControlMode, setKeyboardSelected]);
+
+    useEffect(() => {
+      const prevAutoExecLevel = prevAutoExecLevelRef.current;
+      prevAutoExecLevelRef.current = autoExecLevel;
+      if (prevAutoExecLevel !== 'debug' || autoExecLevel !== 'mission') return;
+      const nextSelection = getTaskSelectionSnapshot(deploymentTaskType);
+      setKeyboardSelected(!!nextSelection.keyboard);
+      if (typeof setControlMode === 'function') setControlMode(nextSelection.mode);
+    }, [autoExecLevel, deploymentTaskType, setControlMode, setKeyboardSelected]);
 
     useEffect(() => {
       setHasDeployedThisSession(false);
@@ -272,12 +290,13 @@
     useEffect(() => {
       try {
         if (window.localStorage) {
-          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentMode, String(controlMode || '@'));
-          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentTaskType, String(selectedDeploymentTaskType || 'manual'));
-          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected, keyboardSelected ? '1' : '0');
+          const persistedSelection = getTaskSelectionSnapshot(deploymentTaskType);
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentMode, String(persistedSelection.mode));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentTaskType, String(deploymentTaskType || 'manual'));
+          window.localStorage.setItem(MOBILE_STORAGE_KEYS.deploymentKeyboardSelected, persistedSelection.keyboard ? '1' : '0');
         }
       } catch (_) {}
-    }, [controlMode, keyboardSelected, selectedDeploymentTaskType]);
+    }, [deploymentTaskType]);
 
     useEffect(() => {
       try {
